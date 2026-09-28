@@ -42,7 +42,9 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       empty_graph, structurefit, combinegraphs, spr, scaledata, collapsedims, relgraphinit,
       split_node, simplify_graph, makelcfreq, swapobjclust) for empty-input orientation
       differences that change results without crashing; patch or record in PATCHES.md.
-      Add a test in `tests/test_patches.py` pinning the repro.
+      Add a test in `tests/test_patches.py` pinning the repro. Afterwards, regenerate the
+      baselines blocked by this bug: `run_baseline('feat')` (item 04, tree runs) and
+      `run_baseline('rel')` (item 05, `undirhierarchy × demo_hierarchy_rel_bin`).
 - [~] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
       `ps.show*=0`, seeds `rand('state', rind)`, and runs the default `masterrun` grid
       (structures chain, ring, tree × datasets 1–3) with `ps.speed` as default (54). Save
@@ -54,10 +56,16 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `run_baseline('feat')` (all 9 runs, ~30 s), add tree to `EXPECTED_LL`/`STRUCTS`. Iteration 6: marked `[~]` — still blocked on 03b, which loop.py's
       `ITEM_RE` cannot see (`03b` is not `\d+`); see PROGRESS.md iteration 6. Un-mark to `[ ]`
       once 03b is done.*
-- [ ] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
+- [~] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
       `ps.reloutsideinit='overd'`, structures `[1,9,10:13,3,14:24]` × datasets 4–6, saving to
       `tests/fixtures/baseline/rel/`. Create `KNOWN_ISSUES.md` listing every bug in PLAN §3.5
       with a decision (replicate / fix) and the test that will pin it.
+      *Status (iteration 7): `KNOWN_ISSUES.md` is done (KI-1 to KI-12, pinned statically by
+      `tests/test_known_issues.py`). The relational baseline has 53 of 54 runs committed and
+      pinned by `tests/test_baseline_rel.py`. The run `undirhierarchy × demo_hierarchy_rel_bin`
+      crashes in `spr>makers` l.87 (the same `find_descendants` orientation bug), so the item is
+      blocked on 03b. After 03b, rerun `run_baseline('rel')` (~2.5 min) and move that run from
+      `CRASHED` to `EXPECTED_LL`, then un-mark to `[ ]`/`[x]`.*
 
 ## Foundations (PLAN §2 conventions, §4.3)
 

@@ -10,15 +10,21 @@ function timings = run_baseline(kind, thisstruct, thisdata, outdir)
 %   - growth history files, which Octave saves without an extension, are
 %     renamed to *.mat afterwards (MATLAB would have added .mat itself);
 %   - resultsdemo.mat is written once per run without the retry/pause loop,
-%     and wall-clock time per run is stored in timings.mat.
+%     and wall-clock time per run is stored in timings.mat;
+%   - a run that crashes is caught: timings.mat gets ll = NaN and the error
+%     message with its stack, the run is left out of resultsdemo.mat, and
+%     the loop goes on (masterrun would stop at the first crash).
 %
 %   kind       'feat' (default): chain, ring, tree x demo feature sets 1-3.
+%              'rel': ps.reloutsideinit = 'overd' (as set in masterrun.m),
+%              structures [1,9,10:13,3,14:24] x demo relational sets 4-6.
 %   thisstruct structure indices into ps.structures (optional override)
 %   thisdata   dataset indices into ps.data (optional override)
 %   outdir     output directory (default tests/fixtures/baseline/<kind>/)
 %
 % Run (fd env's bin first on PATH, OCTAVE_HOME set):
 %   cd matlab; octave-cli --eval "run_baseline('feat')"
+%   cd matlab; octave-cli --eval "run_baseline('rel')"
 % Note: Octave warns "optimset: unrecognized option: 'LargeScale'" on every
 % graph_like_conn call (graph_like_conn.m:50); the option is ignored.
 
@@ -51,6 +57,11 @@ switch kind
   case 'feat'
     defstruct = [2, 4, 6];
     defdata   = 1:3;
+  case 'rel'
+    % masterrun.m option c) / PLAN section 3.4 on the relational demos
+    ps.reloutsideinit = 'overd';
+    defstruct = [1, 9, 10:13, 3, 14:24];
+    defdata   = 4:6;
   otherwise
     error('run_baseline: unknown kind %s', kind);
 end
@@ -71,7 +82,7 @@ sindpair = sindpair(:)';
 dindpair = dindpair(:)';
 
 timings = struct('structure', {}, 'data', {}, 'rind', {}, 'seconds', {}, ...
-                 'll', {});
+                 'll', {}, 'error', {});
 repeats = 1;
 for rind = 1:repeats
   for ind = 1:length(dindpair)
@@ -80,13 +91,33 @@ for rind = 1:repeats
     disp(['  ', ps.data{dind}, ' ', ps.structures{sind}]);
     rand('state', rind);
     t0 = tic;
-    [mtmp stmp ntmp ltmp gtmp] = runmodel(ps, sind, dind, rind);
+    try
+      [mtmp stmp ntmp ltmp gtmp] = runmodel(ps, sind, dind, rind);
+    catch err
+      % masterrun would abort here; record the crash and go on (the run is
+      % left out of resultsdemo.mat, so its modellike entry stays 0).
+      secs = toc(t0);
+      cd(outdir);      % runmodel cd's into its run directory
+      msg = err.message;
+      for k = 1:numel(err.stack)
+        msg = sprintf('%s\n    %s at line %d', msg, err.stack(k).name, ...
+                      err.stack(k).line);
+      end
+      printf('  -> %s %s: CRASHED after %.1f s: %s\n', ps.data{dind}, ...
+             ps.structures{sind}, secs, msg);
+      timings(end+1) = struct('structure', ps.structures{sind}, ...
+                              'data', ps.data{dind}, 'rind', rind, ...
+                              'seconds', secs, 'll', NaN, 'error', msg);
+      save(fullfile(outdir, 'timings.mat'), 'timings');
+      fix_extensions(fullfile(outdir, 'results'));
+      continue;
+    end
     secs = toc(t0);
     printf('  -> %s %s: ll = %.10g, %.1f s\n', ps.data{dind}, ...
            ps.structures{sind}, mtmp, secs);
     timings(end+1) = struct('structure', ps.structures{sind}, ...
                             'data', ps.data{dind}, 'rind', rind, ...
-                            'seconds', secs, 'll', mtmp);
+                            'seconds', secs, 'll', mtmp, 'error', '');
     if exist(masterfile, 'file')
       currps = ps; load(masterfile); ps = currps;
     end

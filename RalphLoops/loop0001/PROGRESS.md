@@ -224,3 +224,59 @@
 ### Next
 - The loop will give item 05 (relational baseline + KNOWN_ISSUES.md). Items 03b and 04 still need
   the loop fix described above.
+
+## Iteration 7 — 2026-09-28 21:49
+### Completed
+- Item 05: marked **`[~]` (blocked on 03b)**. Both parts were done; 1 of the 54 runs cannot be
+  produced until 03b is in.
+  - `matlab/run_baseline.m`: new kind `'rel'` (`ps.reloutsideinit = 'overd'`, structures
+    `[1,9,10:13,3,14:24]` × datasets 4–6, output in `tests/fixtures/baseline/rel/`). A run that crashes
+    is now caught: `timings.mat` gets `ll = NaN` and the error message with its stack in a new
+    `error` field, the run is left out of `resultsdemo.mat`, and the loop goes on.
+    masterrun would stop at the first crash. The live test `test_baseline.py` still reproduces the feature chain run
+    exactly with the changed script.
+  - Ran `run_baseline('rel')` twice in Octave 10.3.0 (about 2.5 min each). The ll values were identical both
+    times. 53/54 runs finish. **The crash** (verbatim, same bug as item 04):
+    ```
+    demo_hierarchy_rel_bin undirhierarchy: CRASHED after 8.0 s: horizontal dimensions mismatch (1x1 vs 2x1)
+        spr>makers at line 87
+        spr at line 24
+        gibbs_clean at line 92
+        structurefit at line 142
+        runmodel>brlencases at line 204
+        runmodel at line 149
+    ```
+    The other hierarchy runs (including all 4 on demo_ring_rel_bin and undirhierarchynoself on
+    demo_hierarchy_rel_bin) finish. Whether the crash happens depends on the data.
+  - Wall-clock time per run: 0.4–1.1 s on demo_ring_rel_bin and 0.5–1.1 s on demo_order_rel_freq.
+    On demo_hierarchy_rel_bin it is 3.5–12.8 s (dirhierarchy 12.8 s, order 9.3 s).
+    The full per-run table is in `timings.mat`. Best forms (Octave): demo_ring_rel_bin →
+    dirringnoself (−16.5714), demo_order_rel_freq → ordernoself (−3663.6163),
+    **demo_hierarchy_rel_bin → undirringnoself (−62.2863)**. No hierarchy form wins there:
+    dirhierarchynoself gets −63.3328, and undirhierarchy crashed. This can be re-checked after 03b.
+    It may be an Octave `fminunc` effect (KI-10) or it may be the real behaviour at `ps.speed=54`, so it is pinned and not asserted as the paper's result.
+  - Every relational run saves exactly one history, `growthhistorynoinit5.mat` (54 files, 544 KB
+    in total). The crashed run saved its history before crashing.
+  - `tests/test_baseline_rel.py`: pins all 53 ll values (rtol 1e-10) in `resultsdemo.mat` and
+    `timings.mat`, the crash record, `reloutsideinit`, the graph types, the growth-history files and the best form per data set. The
+    live `@pytest.mark.octave` test reruns dirringnoself × demo_ring_rel_bin.
+  - `KNOWN_ISSUES.md` (repo root): KI-1 to KI-6 are the six PLAN §3.5 bugs, each checked in the code,
+    with the reachable/unreachable path, a decision and a pin. Decisions: best_split speed 1/2 →
+    raise; combinegraphs illegal precedence → replicate the empty-list path and raise on non-empty;
+    `part` without `i` → dropped (write-only); stale `pind` → replicate and assert `pind == 1`;
+    zinit_rel → not ported; `pred2path` → single output only. Also KI-7/8 for dot_to_graph
+    (line carry-over, label substrings, from iteration 3), KI-9 for the Octave `union` orientation, KI-10 for
+    `LargeScale`, and KI-11 for the duplicate `ps.fixedall`. KI-12 (`mylogdet` on non-PD input) is deferred to item 07.
+    Future pin tests are named, with the item that has to add them.
+  - `tests/test_known_issues.py`: checks that each quirk is still at its cited file:line, that every KI entry
+    has a decision and a pin, that `zinit_rel` is unreferenced, and that every `dijkstra` call has one output.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 52 passed, 7 skipped. fd env:
+    baseline, baseline_rel and known_issues give 29 passed, including the live Octave tests.
+### Blockers
+- Item 03b is still invisible to `loop.py` (`ITEM_RE` does not match `03b.`; see iteration 6).
+  Items 04 and 05 are both waiting for it. I added to 03b's description that it must regenerate both baselines
+  afterwards.
+### Next
+- Item 06 (conventions + MATLAB-semantics helpers). A human still needs to fix `loop.py`'s `ITEM_RE`
+  or do 03b by hand. After that, rerun `run_baseline('feat')` and `run_baseline('rel')` and update
+  `EXPECTED_LL`/`CRASHED` in the two baseline tests.
