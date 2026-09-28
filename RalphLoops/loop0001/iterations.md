@@ -28,7 +28,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       Smoke-test in Octave: `setps; defaultps; structcounts(12, ps); makeemptygraph` for every
       structure name; `scaledata` on `demo_chain_feat`. Write each patch as a minimal diff and
       document all of them in `matlab/PATCHES.md`.
-- [ ] 03b. **Octave set-op orientation patch (found by item 04).** Octave's `union(row, [])`
+- [x] 03b. **Octave set-op orientation patch (found by item 04).** Octave's `union(row, [])`
       returns a *column* (MATLAB treats a 0×0 `[]` as orientation-neutral and returns a row;
       `union([],[])` is 0×1 in Octave vs 0×0 in MATLAB). In `find_descendants.m:29` leaf
       `descendants{c}` are `[]`, so `descendants{j}` becomes a column and
@@ -45,7 +45,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       Add a test in `tests/test_patches.py` pinning the repro. Afterwards, regenerate the
       baselines blocked by this bug: `run_baseline('feat')` (item 04, tree runs) and
       `run_baseline('rel')` (item 05, `undirhierarchy × demo_hierarchy_rel_bin`).
-- [~] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
+- [x] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
       `ps.show*=0`, seeds `rand('state', rind)`, and runs the default `masterrun` grid
       (structures chain, ring, tree × datasets 1–3) with `ps.speed` as default (54). Save
       `resultsdemo.mat` plus the per-run `growthhistory*.mat` files into
@@ -56,7 +56,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `run_baseline('feat')` (all 9 runs, ~30 s), add tree to `EXPECTED_LL`/`STRUCTS`. Iteration 6: marked `[~]` — still blocked on 03b, which loop.py's
       `ITEM_RE` cannot see (`03b` is not `\d+`); see PROGRESS.md iteration 6. Un-mark to `[ ]`
       once 03b is done.*
-- [~] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
+- [x] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
       `ps.reloutsideinit='overd'`, structures `[1,9,10:13,3,14:24]` × datasets 4–6, saving to
       `tests/fixtures/baseline/rel/`. Create `KNOWN_ISSUES.md` listing every bug in PLAN §3.5
       with a decision (replicate / fix) and the test that will pin it.

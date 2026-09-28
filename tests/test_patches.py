@@ -1,4 +1,4 @@
-"""Octave compatibility patches (iteration 03, see ``matlab/PATCHES.md``).
+"""Octave compatibility patches (items 03 and 03b, see ``matlab/PATCHES.md``).
 
 Static checks run everywhere (no Octave needed): the removed or undefined calls are
 gone from live code, every patched file is documented, and CRLF files kept CRLF.
@@ -28,6 +28,7 @@ PATCHED = {
     "collapsedims.m": 1,
     "draw_dot.m": 1,
     "dot_to_graph.m": 7,
+    "find_descendants.m": 1,
 }
 CRLF_FILES = ("dijkstra.m", "dot_to_graph.m", "draw_dot.m")
 
@@ -130,3 +131,36 @@ def test_dot_to_graph_fixture_regenerates(octave, tmp_path):
     for k in keys:
         np.testing.assert_array_equal(new[k], old[k], err_msg=k)
 
+
+
+def test_find_descendants_patch_present():
+    """Patch 16 (item 03b, KI-9): the union result is forced to a row on the cited line."""
+    lines = (MATLAB_DIR / "find_descendants.m").read_text().splitlines()
+    assert "ds = union(ds, descendants{c}); ds = ds(:)';" in lines[28]
+
+
+@pytest.mark.octave
+def test_find_descendants_returns_rows(octave):
+    """KI-9 repro: leaves contribute ``[]``; Octave's union(row, []) is a column without the patch.
+
+    ``spr.m:87`` does ``[j, descendants{j}]``, which crashed with
+    'horizontal dimensions mismatch (1x1 vs 2x1)' before patch 16.
+    """
+    octave.eval(
+        "d = find_descendants([0 1 1; 0 0 0; 0 0 0]);"
+        "s1 = size(d{1}); d1 = d{1}; jds = [1, d{1}];",
+        nout=0,
+    )
+    np.testing.assert_array_equal(octave.pull("s1"), [[1, 2]])
+    np.testing.assert_array_equal(octave.pull("d1"), [[2, 3]])
+    np.testing.assert_array_equal(octave.pull("jds"), [[1, 2, 3]])  # the spr.m:87 expression
+    # a deeper tree: 1 -> {2, 3}, 2 -> {4, 5}; every entry is a row
+    octave.eval(
+        "A = zeros(5); A(1, [2 3]) = 1; A(2, [4 5]) = 1; d = find_descendants(A);"
+        "e1 = d{1}; e2 = d{2}; n3 = numel(d{3}); rows = [size(d{1},1), size(d{2},1)];",
+        nout=0,
+    )
+    np.testing.assert_array_equal(octave.pull("e1"), [[2, 3, 4, 5]])
+    np.testing.assert_array_equal(octave.pull("e2"), [[4, 5]])
+    assert octave.pull("n3") == 0
+    np.testing.assert_array_equal(octave.pull("rows"), [[1, 1]])

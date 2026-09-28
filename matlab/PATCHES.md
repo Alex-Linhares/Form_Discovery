@@ -1,6 +1,6 @@
 # Octave compatibility patches to `matlab/formdiscovery1.0/`
 
-These are the only edits made to the original MATLAB sources (item 03 of loop0001).
+These are the only edits made to the original MATLAB sources (items 03 and 03b of loop0001).
 Every edited line has a `PATCH(octave)` comment, and the original line is kept as a
 comment where the change is more than a token swap. `tests/test_patches.py` checks that the
 removed/undefined calls are gone from live code, that every file with a marker is listed
@@ -29,6 +29,7 @@ MATLAB (no Octave-only syntax such as `"..."` escapes, `!`, `#`, or `endif`).
 | 13 | `dot_to_graph.m` (l.58, l.63) | `strmatch(s, labels, 'exact')` → `find(strcmp(s, labels))` | legacy | none (labels come from `sscanf('%s')` and contain no trailing blanks) |
 | 14 | `dot_to_graph.m` (l.97) | `sscanf(..., ' pos  = "%d,%d"')` → `"%f,%f"` | **Graphviz ≥ 2.30 writes float coordinates** (`pos="40.438,62.004"`). `%d` stops at the `.` and returns one number, so `node_pos(2)` fails with "out of bound" on every current neato layout | integer coordinates parse the same; float coordinates now work instead of crashing |
 | 15 | `dot_to_graph.m` (l.107–109) | `range(v)` → `(max(v)-min(v))` | `range` needs the MATLAB Statistics Toolbox (in Octave it is in core `statistics/`, but MATLAB without the toolbox has no `range`) | none |
+| 16 | `find_descendants.m` (l.29) | `ds = union(ds, descendants{c});` → same, followed by `ds = ds(:)';` | Octave's `union(row, [])` returns a **column** (MATLAB returns a row). Leaves have `descendants{l} = []`, so after the first leaf is merged in `ds` is a column and `spr.m:87` `jds = [j, descendants{j}]` fails with `horizontal dimensions mismatch (1x1 vs 2x1)`. Crashed every `tree` run and `undirhierarchy × demo_hierarchy_rel_bin` (item 03b, KI-9) | none in MATLAB (the result was already a row); in Octave the tree/hierarchy runs now finish |
 
 ## How the `dot_to_graph` patches were checked
 
@@ -47,6 +48,54 @@ still parse because `lst_node` carries over from the line with the `[` to the li
 `pos`. That is luck, not design, and it relies on the original assumption that no label is a
 substring of another (ring12 breaks it: `1` is a substring of `10`, `11`, `12`). This quirk is
 replicated, not fixed.
+
+## Set-operation orientation audit (item 03b)
+
+Octave and MATLAB disagree on the shape of `union`/`intersect`/`setdiff`/`unique` results
+when an input is empty. Measured in Octave 10.3.0 (MATLAB behaviour from its documentation
+and from the fact that the original code ran in MATLAB):
+
+| Call | Octave | MATLAB | Matters when |
+|---|---|---|---|
+| `union(row, [])`, `union([], row)` | column (n×1) | row | result is concatenated horizontally or iterated with `for` |
+| `union(row, 1×0)` | row | row | – |
+| `union([], [])` | 0×1 | 0×0 | – |
+| `intersect(row, [])`, `intersect(row, 1×0)` | 0×0 | 1×0 | only for `size`/`for` (both give zero iterations) |
+| `setdiff(1×0, row)`, `unique(1×0)` | 0×1 | 1×0 | `for` loops: a 0×1 body runs **once** in both (loops go over columns) |
+| `setdiff(row, x)` (row non-empty) | row (1×0 if all removed) | row | – |
+| `unique(row)`, `setdiff(1:n, x)` | row | row | – |
+
+`for x = zeros(0,1)` runs one iteration and `for x = zeros(0,3)` runs three in both Octave
+and MATLAB, so loop semantics do not differ; only the shapes above do.
+
+All 37 call sites (14 files) were checked against that table. Only `find_descendants.m:29`
+receives a 0×0 `[]` as a `union` operand (the leaves' `descendants{l} = []`), and it is the
+only site whose result is later concatenated horizontally (`spr.m:87`). Every other site
+either cannot receive an empty input (`unique(graph.z)` and friends: `z` is a non-empty row;
+`setdiff(1:n, ...)`: the first argument is a non-empty row, so the result is a row),
+or uses the result only in shape-agnostic ways (`length`, `isempty`, `ismember`, indexing,
+`hist` centres, `for` over a row that is 1×0 when empty). Per site:
+
+- `collapsedims.m:40,66,67,69,75`; `empty_graph.m:15`; `best_split.m:34,111`;
+  `makelcfreq.m:3`; `addnearmiss.m:12`; `split_node.m:77,113,128,158,159`;
+  `structurefit.m:31,222,267`; `relgraphinit.m:17,18,24`; `spr.m:78,98`;
+  `swapobjclust.m:73,81,99,133,140,262,264,281`: first argument a non-empty row, or the
+  result used shape-agnostically. No difference.
+- `simplify_graph.m:116` `intersect(singletons, ...)`: both operands non-empty rows whenever
+  the branch runs (the parent has exactly two singleton neighbours). No difference.
+- `swapobjclust.m:271` `intersect(csource, extcls)`: `extcls` is never empty (a hierarchy
+  component always has a node of degree ≤ 1); a disjoint result is 1×0 in both, and `for c =
+  csourcemove` then runs zero times. No difference.
+- `combinegraphs.m:67` `union(newillegal, find(illind(sind)))`: the second operand is a column
+  (`sind` is a column), so the result is a column in **both** MATLAB and Octave; `illegal` is
+  only used with `length`, `setdiff(1:n, illegal)` and indexing. No difference (and only
+  reached for product graphs, see KI-2).
+- `scaledata.m:51` `unique(datamask', 'rows')`: `'rows'` fixes the shapes. No difference.
+- `filloutrelgraph.m:12` (the other `find_descendants` caller) indexes with
+  `descendants{i}`, which is shape-agnostic; it was unaffected before and after the patch.
+
+Pinned by `tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and the
+tree / `undirhierarchy` entries in `tests/test_baseline.py` and `tests/test_baseline_rel.py`.
 
 ## Known Octave warnings (not patched, harmless)
 
@@ -136,6 +185,11 @@ first on `PATH` (or activate the env) before running any display code. Display i
 @@ -58 +58 @@ if nam_len < n  % plot singletons without coordinates all together in a lower le
 -    num_names(nam_len+1:n) = my_setdiff(1:n, num_names);
 +    num_names(nam_len+1:n) = mysetdiff(1:n, num_names);  % PATCH(octave): was my_setdiff (undefined)
+--- a/matlab/formdiscovery1.0/find_descendants.m
++++ b/matlab/formdiscovery1.0/find_descendants.m
+@@ -29 +29 @@ while ~isempty(queue)
+-      ds = union(ds, descendants{c});
++      ds = union(ds, descendants{c}); ds = ds(:)';  % PATCH(octave): force a row; Octave's union(row, []) is a column (MATLAB: row), and spr.m:87 does [j, descendants{j}]
 --- a/matlab/formdiscovery1.0/graph_like_rel.m
 +++ b/matlab/formdiscovery1.0/graph_like_rel.m
 @@ -160 +160 @@ if isinf(logI) || isnan(logI)

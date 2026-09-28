@@ -122,10 +122,15 @@ deal with them.
   in, `descendants{j}` becomes a column, and `spr.m:87` `[j, descendants{j}]` crashes.
 - **Reachable:** yes. It crashes every feature `tree` run (item 04) and the
   `undirhierarchy × demo_hierarchy_rel_bin` relational run (item 05).
-- **Decision:** fix in the Octave copy with a `PATCH(octave)` (item 03b). Python returns 1-D
-  arrays, so the port does not have the problem.
-- **Pin:** `tests/test_patches.py` *(item 03b)*, and the tree and hierarchy entries in
-  `tests/test_baseline.py` / `tests/test_baseline_rel.py` once those runs are regenerated.
+- **Decision:** fixed in the Octave copy with `PATCH(octave)` #16 (`ds = ds(:)';` after the
+  `union`, item 03b). In MATLAB the result was already a row, so the patch changes nothing
+  there. The other 36 set-operation call sites were audited (`matlab/PATCHES.md`, "Set-operation
+  orientation audit"): none receives a 0×0 operand whose result shape is later relied on.
+  Python returns 1-D arrays, so the port does not have the problem.
+- **Pin:** `tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and
+  `::test_find_descendants_patch_present`; the tree entries in `tests/test_baseline.py` and the
+  `undirhierarchy × demo_hierarchy_rel_bin` entry in `tests/test_baseline_rel.py`, regenerated
+  with the patch applied.
 
 ### KI-10 `graph_like_conn.m:50`: `optimset('LargeScale','on',...)`
 - **Code:** Octave warns `optimset: unrecognized option: 'LargeScale'` and ignores the

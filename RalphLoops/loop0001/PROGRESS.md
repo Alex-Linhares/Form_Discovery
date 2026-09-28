@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 4/36 SOLVED
+- **Current**: 7/36 SOLVED
 
 ---
 
@@ -331,3 +331,41 @@
   `run_baseline('feat')` / `run_baseline('rel')`, then set 04/05 back to `[ ]` and finish them.
   After that, item 07 (L0-a utilities, using `matlab_compat.chol_upper` for
   `logdet`/`mylogdet`, and deciding KI-12).
+
+## Iteration 9 — 2026-09-28 22:30 (done by hand in the parent session, not by loop.py)
+### Completed
+- Item 03b **solved** (`[x]`), and with it the remaining parts of items 04 and 05 (both `[x]`).
+  - `matlab/formdiscovery1.0/find_descendants.m:29`: PATCH(octave) #16, `ds = ds(:)';` after the
+    `union`. Repro `find_descendants([0 1 1; 0 0 0; 0 0 0])` now gives a 1×2 row and
+    `[1, d{1}]` works. `matlab/PATCHES.md` has the table row, the diff hunk and a new section
+    "Set-operation orientation audit".
+  - Audit of the other 36 `union/intersect/setdiff/unique` call sites (14 files) against
+    Octave 10.3.0 measurements: `union(row, [])` → column, `intersect(row, [])` → 0×0,
+    `setdiff(1×0, row)`/`unique(1×0)` → 0×1, everything else as MATLAB. `for` over a 0×1 runs
+    once and over 0×3 three times in **both** Octave and MATLAB, so loop semantics do not
+    differ. Only `find_descendants.m:29` receives a 0×0 operand whose result is later
+    concatenated horizontally (`spr.m:87`). `combinegraphs.m:67` gets a column in both
+    languages and only uses the result shape-agnostically. No other patch needed.
+  - Pins: `tests/test_patches.py::test_find_descendants_patch_present` (static) and
+    `::test_find_descendants_returns_rows` (live Octave: the repro, the `spr.m:87` expression,
+    and a 5-node tree). `PATCHED` now includes `find_descendants.m`. KI-9 in `KNOWN_ISSUES.md`
+    updated to "fixed, patch 16".
+  - Baselines regenerated from scratch with the patch (`rm -rf tests/fixtures/baseline/{feat,rel}`,
+    then `run_baseline('feat'); run_baseline('rel')`, 2 min 45 s in total):
+    - feat: all 9 runs finish. Tree: −8252.886501459561 / −8512.873764658598 /
+      −8707.813669003906 on demo_chain/ring/tree_feat (5.0 / 4.6 / 5.2 s). Chain and ring values
+      unchanged to all digits. Each demo set is won by its true form.
+      `tests/test_baseline.py`: `STRUCTS` includes tree, `modellike` is 6×3,
+      `test_true_form_wins` checks the winner per data set.
+    - rel: 54/54 finish, none crashed. `undirhierarchy × demo_hierarchy_rel_bin` = −71.81545785312964
+      (8.5 s). All 53 other values unchanged (rtol 1e-10). Best forms unchanged: dirringnoself,
+      **undirringnoself** (the hierarchy data is still not won by a hierarchy; the formerly crashing
+      undirhierarchy run scores −71.8, well below undirringnoself −62.3), ordernoself.
+      `tests/test_baseline_rel.py`: `CRASHED = set()`, new entry added, crash-branch assertions generalised.
+  - Gate: base python 97 passed, 9 skipped; fd env 106 passed including all live Octave tests.
+- Also this iteration: committed item 06 (iteration 8) by hand because loop.py had been stopped,
+  and fixed `loop.py` (`ITEM_RE` accepts `03b`-style items; log output flushed).
+### Blockers
+- None. The loop can be restarted; the next item is 07.
+### Next
+- Item 07 (L0-a utilities).

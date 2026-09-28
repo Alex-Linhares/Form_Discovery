@@ -2,10 +2,11 @@
 
 masterrun.m's relational grid with ``ps.reloutsideinit = 'overd'``: structures
 [1,9,10:13,3,14:24] x demo_ring_rel_bin, demo_hierarchy_rel_bin,
-demo_order_rel_freq. ``undirhierarchy x demo_hierarchy_rel_bin`` crashes in
-Octave in the same way as the feature tree runs (KNOWN_ISSUES.md KI-9, item 03b). run_baseline
-catches the crash and records it in timings.mat, and the run is missing from resultsdemo.mat.
-After 03b, rerun ``run_baseline('rel')`` and move that run into EXPECTED_LL.
+demo_order_rel_freq. All 54 runs were regenerated after Octave patch 16
+(``find_descendants.m``, item 03b, KI-9); before it, ``undirhierarchy x
+demo_hierarchy_rel_bin`` crashed in the same way as the feature tree runs. The other 53
+values are identical to the ones recorded before the patch. ``CRASHED`` is kept (empty) so
+that a future crash caught by run_baseline can be pinned the same way.
 """
 import numpy as np
 import pytest
@@ -23,7 +24,7 @@ STRUCTS = {
     19: "undirring", 20: "undirringnoself", 21: "dirhierarchy",
     22: "dirhierarchynoself", 23: "undirhierarchy", 24: "undirhierarchynoself",
 }
-CRASHED = {("undirhierarchy", "demo_hierarchy_rel_bin")}
+CRASHED = set()
 
 # Final log probabilities from Octave 10.3.0, ps.speed = 54, rand('state', 1).
 EXPECTED_LL = {
@@ -61,6 +62,7 @@ EXPECTED_LL = {
     ("undirringnoself", "demo_hierarchy_rel_bin"): -62.28627824858109,
     ("dirhierarchy", "demo_hierarchy_rel_bin"): -70.24666024467271,
     ("dirhierarchynoself", "demo_hierarchy_rel_bin"): -63.33275738083697,
+    ("undirhierarchy", "demo_hierarchy_rel_bin"): -71.81545785312964,
     ("undirhierarchynoself", "demo_hierarchy_rel_bin"): -67.09830541701561,
     ("partition", "demo_order_rel_freq"): -3685.6622070086487,
     ("partitionnoself", "demo_order_rel_freq"): -3683.7810012247446,
@@ -121,9 +123,7 @@ def test_timings_match_results(timings):
         key = (str(t["structure"]), str(t["data"]))
         if key in CRASHED:
             assert np.isnan(float(t["ll"]))
-            err = str(t["error"])
-            assert err.startswith("horizontal dimensions mismatch (1x1 vs 2x1)")
-            assert "spr>makers at line 87" in err
+            assert np.size(t["error"]) > 0
         else:
             assert float(t["ll"]) == pytest.approx(EXPECTED_LL[key], rel=1e-10)
             assert np.size(t["error"]) == 0
@@ -142,7 +142,8 @@ def test_best_form(results):
     assert best[4] == "dirringnoself"
     assert best[6] == "ordernoself"
     # Octave's winner on the hierarchy data is not a hierarchy (see PROGRESS.md
-    # iteration 7); pinned so that any change shows up.
+    # iterations 7 and 9): undirringnoself -62.29 beats dirhierarchynoself -63.33 and
+    # undirhierarchy -71.82 (the run that used to crash). Pinned so that any change shows up.
     assert best[5] == "undirringnoself"
 
 
@@ -164,7 +165,7 @@ def test_growth_histories():
             files = sorted(run.glob("growthhistory*.mat"))
             # relational runs only go through the 'noinit' stage, and in this
             # grid the speed-4 refinement never improves, so only the speed-5
-            # history is saved (the crashed run saved it before crashing)
+            # history is saved
             assert files == [run / "growthhistorynoinit5.mat"]
             for f in files:
                 g = load(f)

@@ -26,7 +26,7 @@ while ~isempty(queue)
   else
     ds = children;
     for c = children
-      ds = union(ds, descendants{c});
+      ds = union(ds, descendants{c}); ds = ds(:)';  % PATCH(octave): force a row; Octave's union(row, []) is a column (MATLAB: row), and spr.m:87 does [j, descendants{j}]
     end
     descendants{node} = ds;
     parents = find(adj(:, node))';

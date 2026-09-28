@@ -1,8 +1,9 @@
 """Octave feature-data baseline (item 04): fixtures written by matlab/run_baseline.m.
 
-Currently only chain and ring runs are committed; tree runs need the
-find_descendants orientation patch (item 03b) and will be added by rerunning
-``run_baseline('feat')``.
+masterrun.m's default grid: chain, ring, tree x demo_chain_feat, demo_ring_feat,
+demo_tree_feat. The tree runs need Octave patch 16 (``find_descendants.m``, item 03b,
+KI-9); all nine runs were regenerated together after that patch. The chain and ring
+values are identical to the ones recorded before the patch.
 """
 from pathlib import Path
 
@@ -15,16 +16,19 @@ from tests.conftest import FIXTURES_DIR, REPO_ROOT
 BASE = FIXTURES_DIR / "baseline" / "feat"
 DATA = ["demo_chain_feat", "demo_ring_feat", "demo_tree_feat"]
 # ps.structures indices (1-based, as in MATLAB) -> name
-STRUCTS = {2: "chain", 4: "ring"}
+STRUCTS = {2: "chain", 4: "ring", 6: "tree"}
 
 # Final log probabilities from Octave 10.3.0, ps.speed = 54, rand('state', 1).
 EXPECTED_LL = {
     ("chain", "demo_chain_feat"): -8247.204813441429,
     ("ring", "demo_chain_feat"): -8264.200370932087,
+    ("tree", "demo_chain_feat"): -8252.886501459561,
     ("chain", "demo_ring_feat"): -8566.636516565002,
     ("ring", "demo_ring_feat"): -8500.520169536907,
+    ("tree", "demo_ring_feat"): -8512.873764658598,
     ("chain", "demo_tree_feat"): -8764.165561567628,
     ("ring", "demo_tree_feat"): -8722.589003746496,
+    ("tree", "demo_tree_feat"): -8707.813669003906,
 }
 
 
@@ -46,7 +50,7 @@ def test_resultsdemo_contents(results):
     for key in ["modellike", "structure", "names", "pss", "llhistory"]:
         assert key in results
     ml = results["modellike"]
-    assert ml.shape == (4, 3)
+    assert ml.shape == (6, 3)  # rows = ps.structures indices up to tree (6)
     for (s, name) in STRUCTS.items():
         for d, dname in enumerate(DATA):
             assert ml[s - 1, d] == pytest.approx(EXPECTED_LL[(name, dname)], rel=1e-10)
@@ -60,10 +64,16 @@ def test_timings_match_results(timings, results):
         assert 0 < float(t["seconds"]) < 120
 
 
-def test_true_form_wins_between_chain_and_ring(results):
-    ml = results["modellike"]
-    assert ml[1, 0] > ml[3, 0]  # chain data: chain beats ring
-    assert ml[3, 1] > ml[1, 1]  # ring data: ring beats chain
+def test_true_form_wins(results):
+    """Each demo set is best explained by the form it was generated from."""
+    ml = results["modellike"].copy()
+    ml[ml == 0] = -np.inf
+    winner = {dname: STRUCTS[int(np.argmax(ml[:, d])) + 1] for d, dname in enumerate(DATA)}
+    assert winner == {
+        "demo_chain_feat": "chain",
+        "demo_ring_feat": "ring",
+        "demo_tree_feat": "tree",
+    }
 
 
 def test_structure_graphs(results):
