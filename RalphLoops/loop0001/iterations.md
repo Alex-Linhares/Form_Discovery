@@ -49,6 +49,9 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `resultsdemo.mat` plus the per-run `growthhistory*.mat` files into
       `tests/fixtures/baseline/feat/`. Record wall-clock per run in PROGRESS.md. If a run
       crashes, capture the Octave error verbatim and file the fix as a new item after 03.
+      *Status (iteration 5): chain + ring × datasets 1–3 fixtures committed and pinned by
+      `tests/test_baseline.py`; remaining: tree runs, blocked on 03b. After 03b, rerun
+      `run_baseline('feat')` (all 9 runs, ~30 s), add tree to `EXPECTED_LL`/`STRUCTS`.*
 - [ ] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
       `ps.reloutsideinit='overd'`, structures `[1,9,10:13,3,14:24]` × datasets 4–6, saving to
       `tests/fixtures/baseline/rel/`. Create `KNOWN_ISSUES.md` listing every bug in PLAN §3.5

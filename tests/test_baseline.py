@@ -1,0 +1,100 @@
+"""Octave feature-data baseline (item 04): fixtures written by matlab/run_baseline.m.
+
+Currently only chain and ring runs are committed; tree runs need the
+find_descendants orientation patch (item 03b) and will be added by rerunning
+``run_baseline('feat')``.
+"""
+from pathlib import Path
+
+import numpy as np
+import pytest
+import scipy.io
+
+from tests.conftest import FIXTURES_DIR, REPO_ROOT
+
+BASE = FIXTURES_DIR / "baseline" / "feat"
+DATA = ["demo_chain_feat", "demo_ring_feat", "demo_tree_feat"]
+# ps.structures indices (1-based, as in MATLAB) -> name
+STRUCTS = {2: "chain", 4: "ring"}
+
+# Final log probabilities from Octave 10.3.0, ps.speed = 54, rand('state', 1).
+EXPECTED_LL = {
+    ("chain", "demo_chain_feat"): -8247.204813441429,
+    ("ring", "demo_chain_feat"): -8264.200370932087,
+    ("chain", "demo_ring_feat"): -8566.636516565002,
+    ("ring", "demo_ring_feat"): -8500.520169536907,
+    ("chain", "demo_tree_feat"): -8764.165561567628,
+    ("ring", "demo_tree_feat"): -8722.589003746496,
+}
+
+
+def load(path):
+    return scipy.io.loadmat(path, mat_dtype=True)
+
+
+@pytest.fixture(scope="module")
+def results():
+    return load(BASE / "resultsdemo.mat")
+
+
+@pytest.fixture(scope="module")
+def timings():
+    return scipy.io.loadmat(BASE / "timings.mat", squeeze_me=True)["timings"]
+
+
+def test_resultsdemo_contents(results):
+    for key in ["modellike", "structure", "names", "pss", "llhistory"]:
+        assert key in results
+    ml = results["modellike"]
+    assert ml.shape == (4, 3)
+    for (s, name) in STRUCTS.items():
+        for d, dname in enumerate(DATA):
+            assert ml[s - 1, d] == pytest.approx(EXPECTED_LL[(name, dname)], rel=1e-10)
+
+
+def test_timings_match_results(timings, results):
+    assert len(timings) == len(EXPECTED_LL)
+    for t in timings:
+        key = (str(t["structure"]), str(t["data"]))
+        assert float(t["ll"]) == pytest.approx(EXPECTED_LL[key], rel=1e-10)
+        assert 0 < float(t["seconds"]) < 120
+
+
+def test_true_form_wins_between_chain_and_ring(results):
+    ml = results["modellike"]
+    assert ml[1, 0] > ml[3, 0]  # chain data: chain beats ring
+    assert ml[3, 1] > ml[1, 1]  # ring data: ring beats chain
+
+
+def test_structure_graphs(results):
+    for s in STRUCTS:
+        for d in range(3):
+            g = results["structure"][s - 1, d][0, 0]
+            assert str(g["type"][0]) == STRUCTS[s]
+            nobj = int(g["objcount"][0, 0])
+            assert nobj == 8  # demo sets have 8 objects (rows of the data)
+            adj = g["adj"]
+            assert adj.shape[0] == adj.shape[1] >= nobj
+            assert np.all(np.isfinite(g["W"]))
+
+
+def test_growth_histories(results):
+    for name in STRUCTS.values():
+        for dname in DATA:
+            run = BASE / "results" / f"{name}out" / f"{dname}1"
+            files = sorted(run.glob("growthhistory*.mat"))
+            # structurefit saves a history only for stages that improved;
+            # the all-tied stage always runs first and always saves.
+            assert run / "growthhistoryalltie5.mat" in files
+            for f in files:
+                g = load(f)
+                assert {"bestgraphlls", "bestgraph"} <= set(g)
+
+
+@pytest.mark.octave
+def test_live_chain_run_reproduces(octave, tmp_path):
+    octave.addpath(str(REPO_ROOT / "matlab"))
+    octave.eval(f"run_baseline('feat', 2, 1, '{tmp_path}');", nout=0)
+    t = scipy.io.loadmat(tmp_path / "timings.mat", squeeze_me=True)["timings"]
+    assert float(t["ll"]) == pytest.approx(EXPECTED_LL[("chain", "demo_chain_feat")], rel=1e-10)
+    assert (tmp_path / "results/chainout/demo_chain_feat1/growthhistoryalltie5.mat").exists()

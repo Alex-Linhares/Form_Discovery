@@ -165,3 +165,33 @@
 - Item 03b: patch `find_descendants.m`, audit the other set-op calls, pin with a test. Then
   re-run item 04: `run_baseline('feat')` and commit the fixtures, plus a pytest that loads
   `resultsdemo.mat`/`timings.mat`.
+
+## Iteration 5 — 2026-09-28 21:46
+### Completed
+- Item 04 (partial, still `[ ]`): committed the chain and ring part of the feature baseline.
+  - Ran `run_baseline('feat', [2 4])` (chain, ring × demo_chain/ring/tree_feat, Octave 10.3.0,
+    `ps.speed=54`, `rand('state',1)`, 12 s in total). Final ll values are the same as iteration 4's scratch probe, to 10
+    significant digits. Wall-clock per run: chain 1.7 / 2.0 / 1.9 s and ring 1.9 / 1.9 / 2.5 s
+    (on demo_chain / ring / tree_feat respectively).
+  - Fixtures in `tests/fixtures/baseline/feat/`: `resultsdemo.mat` (modellike 4×3, rows 1 and 3
+    are zero because those structures were not run), `timings.mat`, and 12 `growthhistory*.mat` files under
+    `results/<struct>out/<data>1/`. `.gitignore` ignored every `results/` directory, so I added the negation
+    `!tests/fixtures/baseline/**/results/`.
+  - `matlab/run_baseline.m`: new optional 4th argument `outdir`, used by the live test. The header now
+    documents Octave's harmless `optimset: unrecognized option: 'LargeScale'` warning, which comes
+    from `graph_like_conn.m:50` on every call. Octave's fminunc ignores `LargeScale`; relevant for item 19.
+  - `tests/test_baseline.py`: pins modellike and timings to the Octave values (rtol 1e-10), checks
+    that the true form wins between chain and ring, checks the graph structs (type, objcount=8, finite W) and
+    the growth-history keys (`bestgraphlls`, `bestgraph`; `alltie5` is always present). The live test
+    `@pytest.mark.octave` reruns chain × demo_chain_feat into a temp dir and matches exactly.
+    It passes in the fd env (6 passed).
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 30 passed, 6 skipped.
+### Blockers
+- The tree runs still need item 03b (`find_descendants.m` orientation patch).
+- **Loop-script bug:** `loop.py` uses `ITEM_RE = r"^- \[( |x|~)\] (\d+)\."`, which does not match
+  `03b.`. The loop never sees item 03b, so it gives item 04 again every iteration, and 04 cannot
+  finish without 03b. Fix: change the regex to `(\d+[a-z]?)\.` (and restart the loop), or have a
+  human do 03b. I did not edit `loop.py`, because the running process has already compiled the regex.
+### Next
+- Item 03b, then finish 04: `run_baseline('feat')` for all 9 runs, and extend `tests/test_baseline.py`
+  with the tree values (iteration 4's probe: −8252.8865 / −8512.8738 / −8707.8137).

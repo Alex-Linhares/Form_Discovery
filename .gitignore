@@ -8,6 +8,8 @@ dist/
 
 # Run outputs (MATLAB runmodel writes results/ next to the data; Python writes results/)
 results/
+# ...except the committed Octave baseline fixtures
+!tests/fixtures/baseline/**/results/
 
 # Graphviz temporaries written by draw_dot.m / the viz port
 _GtDout.dot

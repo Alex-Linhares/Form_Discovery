@@ -1,4 +1,4 @@
-function timings = run_baseline(kind, thisstruct, thisdata)
+function timings = run_baseline(kind, thisstruct, thisdata, outdir)
 % Headless Octave baseline for formdiscovery1.0 (PLAN.md section 3, item 04).
 %
 % Mirrors masterrun.m (same loop, same rand('state', rind) seeding, same
@@ -15,15 +15,20 @@ function timings = run_baseline(kind, thisstruct, thisdata)
 %   kind       'feat' (default): chain, ring, tree x demo feature sets 1-3.
 %   thisstruct structure indices into ps.structures (optional override)
 %   thisdata   dataset indices into ps.data (optional override)
+%   outdir     output directory (default tests/fixtures/baseline/<kind>/)
 %
-% Run from anywhere:  octave-cli --eval "run(...)" or
+% Run (fd env's bin first on PATH, OCTAVE_HOME set):
 %   cd matlab; octave-cli --eval "run_baseline('feat')"
+% Note: Octave warns "optimset: unrecognized option: 'LargeScale'" on every
+% graph_like_conn call (graph_like_conn.m:50); the option is ignored.
 
 if nargin < 1 || isempty(kind), kind = 'feat'; end
 
 here = fileparts(mfilename('fullpath'));
 srcdir = fullfile(here, 'formdiscovery1.0');
-outdir = fullfile(here, '..', 'tests', 'fixtures', 'baseline', kind);
+if nargin < 4 || isempty(outdir)
+  outdir = fullfile(here, '..', 'tests', 'fixtures', 'baseline', kind);
+end
 if ~exist(outdir, 'dir'), mkdir(outdir); end
 outdir = canonicalize_file_name(outdir);
 
