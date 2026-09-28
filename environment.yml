@@ -1,0 +1,19 @@
+# Conda environment for the formdiscovery translation.
+# Create with:  conda env create -f environment.yml   (env name: fd)
+# Exact versions are pinned in iteration 02 after the environment is built.
+name: fd
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - scipy
+  - networkx
+  - matplotlib
+  - pytest
+  - hypothesis
+  - octave
+  - oct2py
+  - pygraphviz
+  - graphviz
+  - pip

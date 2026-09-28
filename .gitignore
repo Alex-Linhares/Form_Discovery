@@ -1,8 +1,17 @@
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+build/
+dist/
+
+# Run outputs (MATLAB runmodel writes results/ next to the data; Python writes results/)
 results/
+
+# Graphviz temporaries written by draw_dot.m / the viz port
 _GtDout.dot
 _LAYout.dot
+
+# Octave crash dumps
 octave-core

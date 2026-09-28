@@ -5,7 +5,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## Phase 0 — environment and Octave baseline (PLAN §3)
 
-- [ ] 01. **Import sources and scaffold the repo.** Copy `formdiscovery1.0/` (all `.m` files,
+- [x] 01. **Import sources and scaffold the repo.** Copy `formdiscovery1.0/` (all `.m` files,
       `README.txt`, `data/`) from the Dropbox path in TASK.md to `matlab/formdiscovery1.0/`;
       delete `octave-core`; delete the empty `MATLAB DO DANIEL/` tree. Create `pyproject.toml`
       (package `formdiscovery`, src layout, pytest config with markers `slow` and `octave`),
