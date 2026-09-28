@@ -1,19 +1,21 @@
 # Conda environment for the formdiscovery translation.
 # Create with:  conda env create -f environment.yml   (env name: fd)
-# Exact versions are pinned in iteration 02 after the environment is built.
+# Versions pinned in iteration 02 (2026-09-28) from the built env.
+# Octave works without activating the env: tests/conftest.py sets OCTAVE_EXECUTABLE and
+# OCTAVE_HOME (conda-forge Octave needs OCTAVE_HOME=<env prefix>, normally set by activate).
 name: fd
 channels:
   - conda-forge
 dependencies:
-  - python=3.12
-  - numpy
-  - scipy
-  - networkx
-  - matplotlib
-  - pytest
-  - hypothesis
-  - octave
-  - oct2py
-  - pygraphviz
-  - graphviz
-  - pip
+  - python=3.12.14
+  - numpy=2.5.3
+  - scipy=1.18.1
+  - networkx=3.7
+  - matplotlib=3.11.2
+  - pytest=9.1.1
+  - hypothesis=6.168.3
+  - octave=10.3.0
+  - oct2py=6.1.1
+  - pygraphviz=2.0.2
+  - graphviz=14.1.2
+  - pip=26.2.1

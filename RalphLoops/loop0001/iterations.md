@@ -14,7 +14,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `_LAYout.dot`, `*.pyc`, `.pytest_cache`), `src/formdiscovery/__init__.py`,
       `tests/__init__.py`, `tests/octave/`, `tests/fixtures/.gitkeep`, `tools/`. Verify
       `python -m pytest -q` runs (exit code 5, no tests, is fine).
-- [ ] 02. **Install Octave toolchain.** Create conda env `fd` from `environment.yml`
+- [x] 02. **Install Octave toolchain.** Create conda env `fd` from `environment.yml`
       (conda-forge `octave`, `oct2py`, `pygraphviz`). Verify `octave --version`, `oct2py`
       round-trip of a matrix, `import pygraphviz`. Write `tests/conftest.py` with an
       `octave` session fixture (oct2py `Oct2Py` with `matlab/formdiscovery1.0` on the path) that
