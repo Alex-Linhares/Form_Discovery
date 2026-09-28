@@ -26,6 +26,7 @@ Environment overrides:
 from __future__ import annotations
 
 import datetime as _dt
+import functools
 import os
 import re
 import shlex
@@ -41,8 +42,9 @@ CLAUDE_ARGS = shlex.split(os.environ.get("RALPH_CLAUDE_ARGS", "--dangerously-ski
 TEST_CMD = os.environ.get("RALPH_TEST_CMD", 'python -m pytest -q -m "not slow"')
 TIMEOUT_S = int(float(os.environ.get("RALPH_TIMEOUT_MIN", "90")) * 60)
 PYTEST_NO_TESTS_COLLECTED = 5
+print = functools.partial(print, flush=True)  # keep log ordered when redirected
 
-ITEM_RE = re.compile(r"^- \[( |x|~)\] (\d+)\.", re.M)
+ITEM_RE = re.compile(r"^- \[( |x|~)\] (\d+[a-z]?)\.", re.M)  # allows inserted items like 03b
 
 
 def sh(cmd: list[str] | str, *, cwd: Path = REPO_ROOT, check=False, capture=True, timeout=None,

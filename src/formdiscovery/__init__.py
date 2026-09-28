@@ -7,3 +7,7 @@ repository root for the translation plan and testing strategy.
 """
 
 __version__ = "0.0.1"
+
+
+class FormDiscoveryError(RuntimeError):
+    """Raised where the MATLAB code calls ``keyboard`` or ``error`` (CONVENTIONS.md)."""

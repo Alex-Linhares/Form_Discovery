@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 3/36 SOLVED
+- **Current**: 4/36 SOLVED
 
 ---
 
@@ -280,3 +280,54 @@
 - Item 06 (conventions + MATLAB-semantics helpers). A human still needs to fix `loop.py`'s `ITEM_RE`
   or do 03b by hand. After that, rerun `run_baseline('feat')` and `run_baseline('rel')` and update
   `EXPECTED_LL`/`CRASHED` in the two baseline tests.
+
+## Iteration 8 — 2026-09-28 21:58
+### Completed
+- Item 06 **solved** (`[x]`).
+  - `src/formdiscovery/matlab_compat.py`: `find_F` (column-major; linear or `(i, j, v)`),
+    `hist_centres` (MATLAB `hist(x, centres)`: open end bins, edge values go to the upper bin,
+    length-1 centres = MATLAB's nbins branch), `unique_matlab`/`unique_rows` (`[b,i,j]`,
+    `occurrence='first'|'last'`), sorted `setdiff/intersect/union` (always 1-D),
+    order-preserving `mysetdiff` (keeps duplicates, works on 0-based ids), `chol_upper`
+    (MATLAB `[U,p]`, including the partial factor and the 1-based `p` on failure),
+    `sparse_accum` (duplicates summed), `median_matlab` (empty/NaN → NaN), `stable_argsort`
+    (stable in both directions, NaN last ascending / first descending), `max_first`.
+    Each docstring cites the MATLAB call sites.
+  - `src/formdiscovery/io.py`: `load_dataset(name, with_names=False)` (float ndarray, or a
+    `{'R','type','nobj','names'}` dict for the 7 relational sets), `load_mat`,
+    `load_fixture(name, simplify=True)`, `to0`/`to1` (they also handle lists of index vectors,
+    i.e. cell arrays). `FormDiscoveryError` is in `formdiscovery/__init__.py`.
+  - `src/formdiscovery/CONVENTIONS.md`: indices, dtypes, the MATLAB→helper table, tolerances,
+    fixture-script convention.
+  - `tests/octave/fx_matlab_compat.m` → `tests/fixtures/matlab_compat.mat` (Octave 10.3.0).
+    It includes the real call-site cases: `hist(z, 1:n)`, `hist(z, unique(z))`, and
+    `unique(~isinf(judges)', 'rows')`, which gives 38 chunks.
+  - `tools/gen_fixtures.py`: runs every `tests/octave/fx_<name>.m` as `fx_<name>(outfile)` in a
+    fresh `octave-cli` and writes `tests/fixtures/<name>.mat`. Supports `--list`, `--outdir`, and
+    names as arguments. Other `.m` files in `tests/octave` are helpers and are not run. Both
+    fixtures were regenerated this iteration. `dot_to_graph.mat`'s contents are unchanged
+    (only the file header differs).
+  - Tests: `tests/test_matlab_compat.py` (fixture parity for every helper, the MATLAB-only
+    cases, and a live `octave` test that regenerates the fixture and compares it exactly), and
+    `tests/test_io.py` (all 20 data sets: shapes, types, names, the index round trip).
+  - **Octave ≠ MATLAB findings**, filed in `KNOWN_ISSUES.md`, and `test_known_issues.py` now
+    expects KI-1..14:
+    - KI-13: Octave's `hist` puts values on a bin edge in the lower bin; MATLAB puts them in the
+      upper bin. For `hist(x, n)` on constant `x` with even `n`, Octave also centres the bins
+      differently. Neither can happen at the current call sites, which count integer labels.
+      The port follows MATLAB.
+    - KI-14: `unique`'s `i` is the first occurrence in Octave and MATLAB R2013a+, and the last
+      occurrence in MATLAB 7. The only caller (`scaledata.m:51`) does not use `i`.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 95 passed, 8 skipped. The fd env
+    gives 103 passed, including the live Octave tests.
+  - Note: `RalphLoops/loop0001/loop.py` has an uncommitted edit I did not make.
+    `ITEM_RE` now accepts `\d+[a-z]?`, so item 03b is visible to the loop again. It is the first
+    `[ ]` item.
+### Blockers
+- None for item 06. Items 04 and 05 are still `[~]` waiting for 03b. The loop can now reach
+  03b, provided it was restarted with the patched regex.
+### Next
+- Item 03b (first `[ ]` item): patch `find_descendants.m`, audit the set ops, rerun
+  `run_baseline('feat')` / `run_baseline('rel')`, then set 04/05 back to `[ ]` and finish them.
+  After that, item 07 (L0-a utilities, using `matlab_compat.chol_upper` for
+  `logdet`/`mylogdet`, and deciding KI-12).

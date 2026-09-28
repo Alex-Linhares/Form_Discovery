@@ -69,7 +69,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## Foundations (PLAN §2 conventions, §4.3)
 
-- [ ] 06. **Conventions and MATLAB-semantics helpers.** Write `src/formdiscovery/CONVENTIONS.md`
+- [x] 06. **Conventions and MATLAB-semantics helpers.** Write `src/formdiscovery/CONVENTIONS.md`
       (from PLAN §2). Implement `io.py` (`load_dataset(name)` returning numpy arrays or a
       relational dict with `R`, `type`, `nobj`, `names`; `load_fixture(name)`; index-shift
       helpers) and `matlab_compat.py`: `find_F` (column-major nonzero indices), `hist_centres`

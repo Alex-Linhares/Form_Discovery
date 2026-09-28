@@ -146,3 +146,31 @@ deal with them.
 ### KI-12 `mylogdet.m` / `logdet.m`: behaviour on non-positive-definite input
 - **Decision deferred to item 07** (TASK.md): MATLAB can return a complex value there. Item 07
   records the decision here.
+
+## Octave-vs-MATLAB built-in differences found while writing `matlab_compat.py` (item 06)
+
+### KI-13 `hist`: values on a bin edge, and `hist(x, n)` on constant `x`
+- **Code:** MATLAB's `hist(x, centres)` counts with `histc` on the midpoints between centres,
+  so a value exactly on a midpoint goes to the *upper* bin. Octave 10.3 puts it in the
+  *lower* bin: `hist([1 2 2.5 3], 1:3)` is `[1 1 2]` in MATLAB and `[1 2 1]` in Octave.
+  For the scalar `hist(x, n)` on constant `x`, MATLAB centres the bins on
+  `x - floor(n/2) - 0.5 .. x + ceil(n/2) - 0.5` and Octave on
+  `x + (-floor((n-1)/2):ceil((n-1)/2))`; they agree for odd `n` and differ for even `n`.
+- **Reachable:** no, in practice. The call sites (`graph_like_rel.m:105`,
+  `relgraphinit.m:18`, `simplify_graph.m:110,128`, `structurefit.m:49`) count integer
+  cluster labels against integer centres (`1:n` or `unique(z)`), so no label lies on a
+  midpoint. The scalar form happens only when `unique(z)` has one element `v`, i.e.
+  `relgraphinit` with a single cluster. `v = 1` gives the same answer in both.
+- **Decision:** replicate MATLAB. `matlab_compat.hist_centres` uses MATLAB's rules; the
+  Octave fixture leaves out the two disagreeing cases.
+- **Pin:** `tests/test_matlab_compat.py::test_hist_centres_edge_goes_up_as_in_matlab`,
+  `::test_hist_nbins_constant_even_follows_matlab`.
+
+### KI-14 `[b, i, j] = unique(...)`: first or last occurrence
+- **Code:** MATLAB 7 (the version the code was written for) returned the *last* occurrence in
+  `i`. MATLAB R2013a+ and Octave 10.3 return the *first*.
+- **Reachable:** no. The only three-output call, `scaledata.m:51`
+  (`[b i j]=unique(datamask', 'rows')`), uses `b` and `j` only. Those are the same either way.
+- **Decision:** `matlab_compat.unique_rows` / `unique_matlab` default to `'first'` and take
+  `occurrence='last'`. Both are tested against Octave's explicit `'first'`/`'last'`.
+- **Pin:** `tests/test_matlab_compat.py::test_unique_rows`, `::test_unique_matlab`.
