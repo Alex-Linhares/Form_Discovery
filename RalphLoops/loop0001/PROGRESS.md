@@ -2,8 +2,8 @@
 
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
-- **Target**: 35 items (see iterations.md)
-- **Current**: 3/35 SOLVED
+- **Target**: 36 items (see iterations.md)
+- **Current**: 3/36 SOLVED
 
 ---
 
@@ -115,3 +115,53 @@
 ### Next
 - Item 04: headless feature-data baseline (`matlab/run_baseline.m`, masterrun grid chain/ring/tree
   × datasets 1–3, fixtures in `tests/fixtures/baseline/feat/`).
+
+## Iteration 4 — 2026-09-28 21:43
+### Completed
+- Item 04 (partial, still `[ ]`): wrote `matlab/run_baseline.m` (`run_baseline(kind, thisstruct,
+  thisdata)`, kind `'feat'` = structures [2,4,6] × datasets 1:3, same loop, `rand('state', rind)`
+  seeding and `resultsdemo.mat` contents as `masterrun.m`). Deviations from masterrun, all
+  listed in its header: every `ps.show*` is 0; output goes to `tests/fixtures/baseline/<kind>/`
+  (runmodel's `results/<struct>out/<data><rind>/` is created under it); `save_default_options('-v7')`
+  (Octave otherwise writes its text format); growth history files, which Octave saves without
+  an extension, are renamed to `*.mat`; no retry/pause loop around the masterfile save;
+  `timings.mat` stores wall-clock and ll per run. Run with
+  `cd matlab; octave-cli --eval "run_baseline('feat')"` (fd env's `bin` first on PATH,
+  `OCTAVE_HOME` set).
+- **The tree runs crash in Octave** (verbatim):
+  ```
+  error: horizontal dimensions mismatch (1x1 vs 2x1)
+  error: called from
+      spr>makers at line 87 column 3
+      spr at line 24 column 6
+      gibbs_clean at line 92 column 5
+      structurefit at line 142 column 10
+      runmodel>brlencases at line 224 column 6
+      runmodel at line 153 column 6
+      run_baseline at line 78 column 6
+  ```
+  Cause: Octave's `union([1 2], [])` is 2×1 (MATLAB: 1×2), and `find_descendants.m:29`
+  unions a row with the leaves' `[]`. Filed as new item **03b** (inserted before 04, target
+  now 36), as item 04 requires. Per the one-item rule, the source was **not** patched this iteration.
+- Probe (scratch copy in `/tmp`, repo sources untouched): with `ds = ds(:)';` added after the
+  union, all 9 runs finish (Octave 10.3.0, `ps.speed=54`, total 27 s). Wall-clock / final ll:
+
+  | data \ structure | chain | ring | tree |
+  |---|---|---|---|
+  | demo_chain_feat | 1.7 s / −8247.2048 | 1.8 s / −8264.2004 | 5.0 s / −8252.8865 |
+  | demo_ring_feat  | 2.0 s / −8566.6365 | 1.9 s / −8500.5202 | 4.7 s / −8512.8738 |
+  | demo_tree_feat  | 1.9 s / −8764.1656 | 2.5 s / −8722.5890 | 5.3 s / −8707.8137 |
+
+  Each data set's true form wins. The runs are fast enough for a non-slow integration test.
+- Observation: `structurefit` saves `growthhistory<tag><speed>` only when a depth improves,
+  so a run leaves files only for the stages that improved (e.g. chain × demo_chain_feat only
+  wrote `growthhistoryalltie5`; exttie5/notie5/noinit4 found no improvement). MATLAB does the same.
+  Item 27 should expect this.
+- Partial fixtures from the crashed run were deleted; `tests/fixtures/baseline/` is not committed.
+- Gate: `python -m pytest -q -m "not slow"` passes (no Python changes this iteration).
+### Blockers
+- Item 04 needs item 03b (the `find_descendants` orientation patch) before the tree runs work.
+### Next
+- Item 03b: patch `find_descendants.m`, audit the other set-op calls, pin with a test. Then
+  re-run item 04: `run_baseline('feat')` and commit the fixtures, plus a pytest that loads
+  `resultsdemo.mat`/`timings.mat`.

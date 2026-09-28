@@ -28,6 +28,21 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       Smoke-test in Octave: `setps; defaultps; structcounts(12, ps); makeemptygraph` for every
       structure name; `scaledata` on `demo_chain_feat`. Write each patch as a minimal diff and
       document all of them in `matlab/PATCHES.md`.
+- [ ] 03b. **Octave set-op orientation patch (found by item 04).** Octave's `union(row, [])`
+      returns a *column* (MATLAB treats a 0×0 `[]` as orientation-neutral and returns a row;
+      `union([],[])` is 0×1 in Octave vs 0×0 in MATLAB). In `find_descendants.m:29` leaf
+      `descendants{c}` are `[]`, so `descendants{j}` becomes a column and
+      `spr.m:87` `jds = [j, descendants{j}]` crashes every `tree` run:
+      `error: horizontal dimensions mismatch (1x1 vs 2x1)` (from `spr>makers` line 87 ←
+      `spr` 24 ← `gibbs_clean` 92 ← `structurefit` 142 ← `runmodel>brlencases` 224 ←
+      `runmodel` 153). Smallest repro: `find_descendants([0 1 1; 0 0 0; 0 0 0])`, then
+      `[1, ans{1}]`. Fix as a PATCH(octave) in `find_descendants.m` (`ds = ds(:)';` after the
+      union — verified in a scratch copy: all 9 feature runs then finish). Also audit the other
+      36 `union/intersect/setdiff/unique` calls (14 files: best_split, addnearmiss,
+      empty_graph, structurefit, combinegraphs, spr, scaledata, collapsedims, relgraphinit,
+      split_node, simplify_graph, makelcfreq, swapobjclust) for empty-input orientation
+      differences that change results without crashing; patch or record in PATCHES.md.
+      Add a test in `tests/test_patches.py` pinning the repro.
 - [ ] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
       `ps.show*=0`, seeds `rand('state', rind)`, and runs the default `masterrun` grid
       (structures chain, ring, tree × datasets 1–3) with `ps.speed` as default (54). Save
