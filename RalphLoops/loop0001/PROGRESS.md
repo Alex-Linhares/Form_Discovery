@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 35 items (see iterations.md)
-- **Current**: 2/35 SOLVED
+- **Current**: 3/35 SOLVED
 
 ---
 
@@ -63,3 +63,55 @@
 - None.
 ### Next
 - Item 03: Octave compatibility patches in `matlab/formdiscovery1.0/` + `matlab/PATCHES.md`.
+
+## Iteration 3 — 2026-09-28 21:38
+### Completed
+- Item 03: Octave compatibility patches in `matlab/formdiscovery1.0/`, documented one by one
+  (table + full diff) in `matlab/PATCHES.md`. Each edited line has a `PATCH(octave)` marker.
+  CRLF line endings were kept in `dijkstra.m`, `dot_to_graph.m` and `draw_dot.m`.
+  - `dijkstra.m:33` `error(nargchk(1,3,nargin))` → `narginchk(1,3)`.
+  - `keyboard` → `error('formdiscovery:...', ...)` in `graph_like_rel.m:160`,
+    `dataprobwsig.m:239`, `choose_node_split.m:22` and `best_split.m:88` (inside `if 0`), and
+    `if debug keyboard; end` → `if debug error(...); end` in `swapobjclust.m:46`, `spr.m:34`
+    and `collapsedims.m:47`. Commented-out `keyboard`s are left as they are.
+  - `draw_dot.m:58` `my_setdiff` → `mysetdiff`.
+  - `dot_to_graph.m`: `textread`+`strvcat` → `fileread` + C-comment regexp + `strsplit`/`strtrim`
+    + drop empty lines + `char`; `findstr` → `strfind`; the unused `strread` is commented out;
+    `strmatch(...,'exact')` → `find(strcmp(...))`; `range` → `max-min`.
+  - **Extra fix needed:** the unpatched `dot_to_graph` crashes on *every* Graphviz 14 layout
+    (`node_pos(2): out of bound`), because it reads `pos` with `%d,%d` and current neato writes
+    float coordinates. Changed to `%f,%f`, which parses integer coordinates the same way. It was
+    checked in two steps (details in PATCHES.md): with only the `%f` fix, results on old-format
+    files matched the unpatched file; after the string-function patches, all 6 test layouts gave
+    `isequal` results.
+  - Smoke test `tests/octave/smoke_patches.m`: `setps; defaultps; structcounts(12, ps)`;
+    `makeemptygraph` for all 24 names in `ps.structures` (grid and cylinder are among them and
+    give `ncomp=2`); `setrunps` + `scaledata` on `demo_chain_feat` (8×1000, all finite);
+    `dijkstra` on a 3-node path. All pass in Octave 10.3.0.
+  - Fixture `tests/fixtures/dot_to_graph.mat` (from `tests/octave/fx_dot_to_graph.m`) with input
+    layouts in `tests/fixtures/dot_to_graph/`: 4 neato-14 layouts (chain6, ring12, directed
+    tree7, chain6 + singleton) and 2 hand-written old-format layouts. Items 31–32 can reuse
+    these.
+  - `tests/test_patches.py`: static checks (no live `keyboard`/`nargchk`/`my_setdiff`/`textread`/
+    `strread`/`findstr`/`strmatch`/`strvcat`/`range` calls; marker counts; every marked file is
+    in PATCHES.md; CRLF kept), a fixture sanity test, and octave-marked tests (smoke script;
+    regenerating `dot_to_graph.mat` gives an exact match).
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 25 passed, 5 skipped;
+    fd python `python -m pytest -q` gives 30 passed.
+- Notes for later items:
+  - `/usr/bin/neato` (system Graphviz 14.1.2) has **no neato layout plugin**; only `dot` works.
+    The fd env's `neato` works, but Octave appends the env's `bin` at the end of `PATH`, so
+    `draw_dot` would pick up the broken binary. Put `/home/al/anaconda3/envs/fd/bin` first on
+    PATH for any display work (items 31–32). Affects the "Graphviz 14.1 (`dot`, `neato`)"
+    toolchain claim in TASK.md.
+  - `dot_to_graph` only finds node positions in multi-line Graphviz output because `lst_node`
+    carries over between lines, and it assumes no label is a substring of another (ring12 breaks
+    this: `1` vs `10..12`). Replicated as is; item 31 should pin it (and add it to
+    KNOWN_ISSUES.md in item 05).
+  - Harmless Octave warnings (vec shadows a builtin, `dijk` vs `dijkstra.m` name, Matlab-style
+    `&`/`|` short-circuit) are listed in PATCHES.md and not patched.
+### Blockers
+- None.
+### Next
+- Item 04: headless feature-data baseline (`matlab/run_baseline.m`, masterrun grid chain/ring/tree
+  × datasets 1–3, fixtures in `tests/fixtures/baseline/feat/`).

@@ -236,7 +236,7 @@ if nargout > 1
   end
   if sum(isnan(dWvec))
     disp('NaNs in dataprobwsig.m');
-    keyboard
+    error('formdiscovery:nangrad', 'dataprobwsig: NaNs in gradient');  % PATCH(octave): was keyboard
   end
 end
 

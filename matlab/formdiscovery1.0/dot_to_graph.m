@@ -30,10 +30,15 @@ function [Adj, labels, x, y] = dot_to_graph(filename)
 %   error('* * * File does not exist or could not be found. * * *');     return;
 %end;     
 
-lines = textread(filename,'%s','delimiter','\n','commentstyle','c');  % Read file into cell array of lines
-dot_lines = strvcat(lines);                                           % ignoring C-style comments
+% PATCH(octave): textread/strvcat replaced by fileread/strsplit/char (see matlab/PATCHES.md)
+%lines = textread(filename,'%s','delimiter','\n','commentstyle','c');  % Read file into cell array of lines
+%dot_lines = strvcat(lines);                                           % ignoring C-style comments
+txt = regexprep(fileread(filename), '/\*.*?\*/', '');                % drop C-style comments
+lines = strtrim(strsplit(txt, sprintf('\n')));                       % cell array of lines (strtrim drops \r)
+lines = lines(~cellfun('isempty', lines));                           % strvcat drops empty lines
+dot_lines = char(lines);
 
-if isempty(findstr(dot_lines(1,:), 'graph '))                  % Is this a DOT file ?
+if isempty(strfind(dot_lines(1,:), 'graph '))                  % Is this a DOT file ? PATCH(octave): findstr -> strfind
    error('* * * File does not appear to be in valid DOT format. * * *');    return;
 end;
 
@@ -45,17 +50,17 @@ for line_ndx = 1:Nlns          % This section sets the adjacency matrix entry A(
     line = dot_lines(line_ndx,:);
     Ddash_pos = strfind(line, ' -- ') + 1;  % double dash positions
     arrow_pos = strfind(line, ' -> ') + 1;  % arrow  dash positions
-    tokens = strread(line,'%s','delimiter',' "');
+    %tokens = strread(line,'%s','delimiter',' "');  % PATCH(octave): unused, strread removed
     left_bound = 1;
     for dash_pos = [Ddash_pos arrow_pos];  % if empty - not a POS line
         Lnode = sscanf(line(left_bound:dash_pos -2), '%s');
         Rnode = sscanf(line(dash_pos +3 : length(line)-1),'%s',1);
-        Lndx = strmatch(Lnode, labels, 'exact');
+        Lndx = find(strcmp(Lnode, labels));  % PATCH(octave): was strmatch(Lnode, labels, 'exact')
         if isempty(Lndx)         % extend our list of labels 
             labels{end+1} = Lnode;
             Lndx = length(labels);
         end
-        Rndx = strmatch(Rnode, labels, 'exact');
+        Rndx = find(strcmp(Rnode, labels));  % PATCH(octave): was strmatch(Rnode, labels, 'exact')
         if isempty(Rndx)
             labels{end+1} = Rnode;
             Rndx = length(labels);
@@ -89,7 +94,7 @@ for line_ndx = unread        % Look for node's coordiantes among the 'unread' li
         end
     end
     if (~isempty(pos_pos) & lst_node)   % this line contains SOME position  
-        [node_pos] = sscanf(line(pos_pos:length(line)), ' pos  = "%d,%d"')';
+        [node_pos] = sscanf(line(pos_pos:length(line)), ' pos  = "%f,%f"')';  % PATCH(octave): was %d,%d; Graphviz >= 2.30 writes float coords
         x(lst_node) = node_pos(1);
         y(lst_node) = node_pos(2);
         lst_node = 0;   %  not to assign position several times 
@@ -99,8 +104,9 @@ end
 if (isempty(find(x)) & (nargout > 2))   % If coordinates were requested, but not found in 'filename'.
     warning('File does not contain node coordinates.');
 else
-    x = .9*(x-min(x))/(range(x)+1)+.05;  % normalise and push off margins 
-    if range(y) == 0, y = .5*ones(size(y)); else, y = .9*(y-min(y))/range(y)+.05; end
+    % PATCH(octave): range(v) -> (max(v)-min(v)); range needs the statistics toolbox/package
+    x = .9*(x-min(x))/((max(x)-min(x))+1)+.05;  % normalise and push off margins 
+    if (max(y)-min(y)) == 0, y = .5*ones(size(y)); else, y = .9*(y-min(y))/(max(y)-min(y))+.05; end
 end;
 if ~(size(Adj,1)==size(Adj,2))           % Make sure Adj is a square matrix. ? 
     Adj = eye(max(size(Adj)),size(Adj,1))*Adj*eye(size(Adj,2),max(size(Adj)));

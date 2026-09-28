@@ -19,5 +19,5 @@ else
 end
 
 if isnan(ll)
-  keyboard
+  error('formdiscovery:nanscore', 'choose_node_split: NaN log-likelihood');  % PATCH(octave): was keyboard
 end

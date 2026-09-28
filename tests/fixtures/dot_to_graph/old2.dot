@@ -1,0 +1,10 @@
+digraph G {
+	graph [center=1, size="10,10", bb="0,0,171,262"];
+	node [label="\N"];
+	/* a C comment */
+	1 [pos="10,20", width="0.75", height="0.5"];
+	2 [pos="30,20", width="0.75", height="0.5"];
+	3 [pos="50,20", width="0.75", height="0.5"];
+	1 -> 2 [pos="e,1,1 2,2"];
+	1 -> 3 [pos="e,1,1 2,2"];
+}

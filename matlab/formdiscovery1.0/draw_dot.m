@@ -55,7 +55,7 @@ status = eval(cmnd);                 %  get NEATO to layout
 num_names = str2num(char(names))';
 nam_len = length(names);
 if nam_len < n  % plot singletons without coordinates all together in a lower left 
-    num_names(nam_len+1:n) = my_setdiff(1:n, num_names);
+    num_names(nam_len+1:n) = mysetdiff(1:n, num_names);  % PATCH(octave): was my_setdiff (undefined)
     x(nam_len+1:n) = 0.05*ones(1,n-nam_len);
     y(nam_len+1:n) = 0.05*ones(1,n-nam_len);
     for k = nam_len+1:n

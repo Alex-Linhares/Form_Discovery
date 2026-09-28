@@ -1,0 +1,11 @@
+graph G {
+	graph [center=1, size="10,10", bb="0,0,171,262"];
+	node [label="\N"];
+	1 [pos="27,18", width="0.75", height="0.5"];
+	2 [pos="40,62", width="0.75", height="0.5"];
+	3 [pos="44,108", width="0.75", height="0.5"];
+	1 -- 2 [dir=none, pos="32,35 33,38 34,41 34,43"];
+	2 -- 3 [dir=none, pos="41,80 42,83 42,86 42,89"];
+	3 -- 3 [dir=none, pos="41,80 42,83 42,86 42,89"];
+	4 [pos="144,83", width="0.75", height="0.5"];
+}

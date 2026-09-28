@@ -30,7 +30,7 @@ function [D,P] = dijk(A,s,t)
 % Matlog Version 5 22-Aug-2001
 
 % Input Error Checking ******************************************************
-error(nargchk(1,3,nargin));
+narginchk(1,3);  % PATCH(octave): was error(nargchk(1,3,nargin)); nargchk is removed from MATLAB
 
 [n,cA] = size(A);
 

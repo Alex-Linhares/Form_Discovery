@@ -20,7 +20,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `octave` session fixture (oct2py `Oct2Py` with `matlab/formdiscovery1.0` on the path) that
       skips `octave`-marked tests when Octave is unavailable. Record exact versions in
       PROGRESS.md and in `environment.yml` pins.
-- [ ] 03. **Octave compatibility patches.** In `matlab/formdiscovery1.0/`: `dijkstra.m:33`
+- [x] 03. **Octave compatibility patches.** In `matlab/formdiscovery1.0/`: `dijkstra.m:33`
       `nargchk` → `narginchk`; replace `keyboard` with `error(...)` in `graph_like_rel.m`,
       `dataprobwsig.m`, `choose_node_split.m`, `best_split.m`, `swapobjclust.m`, `spr.m`,
       `collapsedims.m`; `draw_dot.m` `my_setdiff` → `mysetdiff`; make `dot_to_graph.m` work

@@ -85,7 +85,7 @@ if 0
     ns{i}='';
   end
   draw_dot(g.adj, ns);
-  keyboard
+  error('formdiscovery:keyboard', 'best_split: debug stop (was keyboard)');  % PATCH(octave): was keyboard
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

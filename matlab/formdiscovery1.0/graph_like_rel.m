@@ -157,7 +157,7 @@ switch data.type
 end
 
 if isinf(logI) || isnan(logI)
- keyboard
+ error('formdiscovery:nanscore', 'graph_like_rel: logI is inf or NaN');  % PATCH(octave): was keyboard
 end
 graph = origgraph;
 

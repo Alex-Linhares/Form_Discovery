@@ -43,7 +43,7 @@ while (change && loopcount < loopmax)
     %if sw1(j,1) == 1 && sw1(j,2) == 21 && isnan(sw2(j,1)) keyboard; end
     %XXX
     if testscore -  currscore  > epsilon
-      if debug keyboard; end
+      if debug error('formdiscovery:keyboard', '%s: debug stop (was keyboard)', mfilename); end  % PATCH(octave): was keyboard
       change = 1; overallchange = 1;
       graph = testgraph; currscore = testscore;
       [sw1 sw2]= chooseswaps(graph, whole, objflag, comp, fastflag, graphngb);

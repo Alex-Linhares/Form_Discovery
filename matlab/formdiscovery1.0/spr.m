@@ -31,7 +31,7 @@ for objflag = oflags	    % snip off an object or a cluster node?
         [testscore, newgraph]=graph_like(data, testgraph, ps);
         testscore = testscore + graph_prior(testgraph, ps);
         if testscore -  currscore  > epsilon
-          if debug keyboard; end
+          if debug error('formdiscovery:keyboard', '%s: debug stop (was keyboard)', mfilename); end  % PATCH(octave): was keyboard
           overallchange = 1;
           graph = testgraph;
           currscore = testscore;
