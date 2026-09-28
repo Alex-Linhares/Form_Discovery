@@ -195,3 +195,32 @@
 ### Next
 - Item 03b, then finish 04: `run_baseline('feat')` for all 9 runs, and extend `tests/test_baseline.py`
   with the tree values (iteration 4's probe: −8252.8865 / −8512.8738 / −8707.8137).
+
+## Iteration 6 — 2026-09-28 21:48
+### Completed
+- Item 04: marked **`[~]` (blocked)**. Nothing about the blocker changed since iteration 5.
+  - Checked again: `find_descendants.m:29` is still unpatched. The smallest repro still fails in
+    Octave 10.3.0:
+    `d = find_descendants([0 1 1; 0 0 0; 0 0 0]); size(d{1})` → `2 1`, then `[1, d{1}]` →
+    `error: horizontal dimensions mismatch (1x1 vs 2x1)`. Every `tree` run crashes the same way
+    (full stack trace in iteration 4).
+  - What is already done and stays green: chain + ring × datasets 1–3 fixtures in
+    `tests/fixtures/baseline/feat/`, pinned by `tests/test_baseline.py`.
+  - Why `[~]` and not `[ ]` again: `loop.py`'s `ITEM_RE = r"^- \[( |x|~)\] (\d+)\."` never matches
+    `03b.`, so the loop gave item 04 in iterations 4, 5 and 6, and 04 cannot finish without 03b.
+    I did not patch `find_descendants.m` here: that is item 03b's work, and the one-item rule
+    applies. With 04 marked `[~]` the loop can continue to 05.
+  - Gate: `python -m pytest -q -m "not slow"` gives 30 passed, 6 skipped (exit 0). No code changes.
+### Blockers
+- **Human action needed.** Item 03b is invisible to the loop. Also, `loop.py`'s completion check
+  ignores 03b, so the loop could reach "all done" with 03b still pending.
+  Fix: in `loop.py` change `ITEM_RE` to `r"^- \[( |x|~)\] (\d+[a-z]?)\."` and restart the loop,
+  or do 03b by hand. Afterwards set 04 back to `[ ]`. Finishing it is small: run
+  `run_baseline('feat')` for all 9 runs (~30 s), commit the tree growth histories, and add tree to
+  `EXPECTED_LL`/`STRUCTS` in `tests/test_baseline.py` (expected ll from iteration 4:
+  −8252.8865 / −8512.8738 / −8707.8137).
+- Risk for item 05: the relational grid includes structure 3 and other tree/hierarchy forms. If any
+  of them reach `spr`/`find_descendants`, they will hit the same crash until 03b is in.
+### Next
+- The loop will give item 05 (relational baseline + KNOWN_ISSUES.md). Items 03b and 04 still need
+  the loop fix described above.

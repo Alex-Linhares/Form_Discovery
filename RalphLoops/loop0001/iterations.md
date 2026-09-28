@@ -43,7 +43,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       split_node, simplify_graph, makelcfreq, swapobjclust) for empty-input orientation
       differences that change results without crashing; patch or record in PATCHES.md.
       Add a test in `tests/test_patches.py` pinning the repro.
-- [ ] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
+- [~] 04. **Headless feature-data baseline.** Write `matlab/run_baseline.m` that sets all
       `ps.show*=0`, seeds `rand('state', rind)`, and runs the default `masterrun` grid
       (structures chain, ring, tree × datasets 1–3) with `ps.speed` as default (54). Save
       `resultsdemo.mat` plus the per-run `growthhistory*.mat` files into
@@ -51,7 +51,9 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       crashes, capture the Octave error verbatim and file the fix as a new item after 03.
       *Status (iteration 5): chain + ring × datasets 1–3 fixtures committed and pinned by
       `tests/test_baseline.py`; remaining: tree runs, blocked on 03b. After 03b, rerun
-      `run_baseline('feat')` (all 9 runs, ~30 s), add tree to `EXPECTED_LL`/`STRUCTS`.*
+      `run_baseline('feat')` (all 9 runs, ~30 s), add tree to `EXPECTED_LL`/`STRUCTS`. Iteration 6: marked `[~]` — still blocked on 03b, which loop.py's
+      `ITEM_RE` cannot see (`03b` is not `\d+`); see PROGRESS.md iteration 6. Un-mark to `[ ]`
+      once 03b is done.*
 - [ ] 05. **Relational baseline and known-issue decisions.** Extend `run_baseline.m` with
       `ps.reloutsideinit='overd'`, structures `[1,9,10:13,3,14:24]` × datasets 4–6, saving to
       `tests/fixtures/baseline/rel/`. Create `KNOWN_ISSUES.md` listing every bug in PLAN §3.5
