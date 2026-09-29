@@ -89,10 +89,10 @@ def _octave_scaledata(monkeypatch):
     monkeypatch.setattr(run, "scaledata", scaledata)
 
 
-def replay(r, msg, monkeypatch, tmp_path, outdir=None, oracle=True, **psfields):
+def replay(r, msg, monkeypatch, tmp_path, outdir=None, oracle=True, show=None, **psfields):
     """Run one record with its draws replayed (and used up), the split oracle and, with
-    ``oracle``, Octave's slow scores; ``psfields`` change the start ``ps``. Returns the
-    outputs and the tie count."""
+    ``oracle``, Octave's slow scores; ``psfields`` change the start ``ps``, ``show`` is
+    runmodel's display callback. Returns the outputs and the tie count."""
     ps = _ps(r, tmp_path).replace(**psfields)
     _octave_scaledata(monkeypatch)
     split = SplitOracle(r, msg, strict=oracle)
@@ -101,7 +101,8 @@ def replay(r, msg, monkeypatch, tmp_path, outdir=None, oracle=True, **psfields):
     if oracle:
         monkeypatch.setattr(likelihood, "graph_like", slow)
     rng = ReplayPermutations(parse_queue(_text(r["logtext"])))
-    out = runmodel(ps, int(r["sind"]) - 1, int(r["dind"]) - 1, 1, outdir=outdir, rng=rng)
+    out = runmodel(ps, int(r["sind"]) - 1, int(r["dind"]) - 1, 1, outdir=outdir, rng=rng,
+                   show=show)
     rng.assert_exhausted()
     if oracle:
         assert split.used == len(split.cns), msg
@@ -305,7 +306,8 @@ def test_ps_not_mutated(monkeypatch, tmp_path):
 def test_brlencases_keeps_untied_flags(monkeypatch):
     """The returned ps keeps the flags of the last stage; stages are named as in MATLAB."""
     names = []
-    monkeypatch.setattr(search, "structurefit", lambda d, ps, g, savefile=None, rng=None:
+    monkeypatch.setattr(search, "structurefit",
+                        lambda d, ps, g, savefile=None, rng=None, show=None:
                         (names.append((savefile, ps.fixedinternal, ps.fixedexternal))
                          or (-1.0, g, np.array([-1.0]), ["g"])))
     ps = Params.default().replace(speed=5, init="intext")

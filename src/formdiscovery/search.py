@@ -19,6 +19,12 @@ Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
 (``tests/test_gibbs.py``) and ``tests/octave/fx_structurefit.m`` →
 ``tests/fixtures/structurefit.mat`` (``tests/test_structurefit.py``), which replay
 Octave's recorded draws.
+
+Display (item 32): where MATLAB draws a graph when a ``ps.show*`` flag is set
+(``structurefit.m:85-95, 198-208``, ``best_split.m:151-162``), the ports call an optional
+``show(event, adj, names, title)`` callback (:func:`show_graph`) with the names padded and
+the title formatted as MATLAB does; :class:`formdiscovery.viz.draw.ProgressFigures` draws
+them.
 """
 
 import numpy as np
@@ -30,6 +36,41 @@ from .matlab_compat import intersect, max_first, setdiff, stable_argsort, unique
 from .util import dijkstra
 from .params import graph_prior
 from .rng import as_provider
+
+
+def sprintf_g(x):
+    """MATLAB/Octave ``sprintf('%g', x)`` of a scalar (``Inf``, ``-Inf``, ``NaN``)."""
+    x = float(x)
+    if np.isnan(x):
+        return "NaN"
+    if np.isinf(x):
+        return "Inf" if x > 0 else "-Inf"
+    return "%g" % x
+
+
+def num2str(x):
+    """Octave ``num2str`` of a real scalar: ``%d`` for an integer value (``Inf``,
+    ``-Inf``, ``NaN`` spelled so), else ``%.<k>g`` with ``k = max(floor(log10|x|) + 5,
+    5)``, at most 16 (``num2str.m``)."""
+    x = float(x)
+    if not np.isfinite(x):
+        return sprintf_g(x)
+    if x == int(x):
+        return str(int(x))
+    k = min(max(int(np.floor(np.log10(abs(x)))) + 5, 5), 16)
+    return f"{x:.{k}g}"
+
+
+def show_graph(show, flag, event, adj, names, fill, title):
+    """Call ``show(event, adj, names, title)`` when ``show`` is given and the ``ps.show*``
+    ``flag`` is set; ``names`` are padded with ``fill`` to the number of nodes, as the
+    MATLAB display blocks do before ``draw_dot``."""
+    if show is None or not flag:
+        return
+    adj = np.asarray(adj, dtype=float)
+    ns = ["" if v is None else str(v) for v in (names or [])]
+    ns += [fill] * (adj.shape[0] - len(ns))
+    show(event, adj, ns, title)
 
 __all__ = ["addnearmiss", "choose_seedpairs", "best_split", "choose_node_split",
            "swapobjclust", "chooseswaps", "doswap", "sourceobjs", "sourcecls", "cltypes",
@@ -147,7 +188,8 @@ def _mask(data, membout, ps):
     return d
 
 
-def best_split(graph, compind, c, pind, data, seedpairs, ps, rng=None, info=None):
+def best_split(graph, compind, c, pind, data, seedpairs, ps, rng=None, info=None,
+               show=None):
     """``best_split.m:1-165``: the best split of cluster node ``c`` found by growing the
     two children greedily from each seed pair.
 
@@ -176,7 +218,9 @@ def best_split(graph, compind, c, pind, data, seedpairs, ps, rng=None, info=None
     ``part1``/``part2`` are the members of ``c1``/``c2`` in the new graph's component,
     but for a high-level split they come from the *input* ``graph.z`` (l.142-145), so
     they are all of ``c``'s members and ``[]`` (``KNOWN_ISSUES.md`` KI-24). The
-    ``disp(i)`` progress output and the ``ps.showbestsplit`` figure are dropped.
+    ``disp(i)`` progress output is dropped. With ``ps.showbestsplit`` the chosen graph
+    goes to ``show('bestsplit', adj, names, num2str(ll))`` (l.151-162, figure 3; names
+    padded with ``''``, see :func:`show_graph`).
 
     If ``info`` is a dict it receives the candidates: ``gs`` (graphs), ``ls0`` (scores
     before the ``simplify_graph`` pass), ``ls`` (after it), ``mind`` (the chosen one) and
@@ -266,10 +310,13 @@ def best_split(graph, compind, c, pind, data, seedpairs, ps, rng=None, info=None
         z = np.asarray(newgraph.components[compind].z).ravel()
     part1 = np.flatnonzero(z == c1)
     part2 = np.flatnonzero(z == c2)
+    show_graph(show, ps.showbestsplit, "bestsplit", newgraph.adj, ps.runps.names, "",
+               num2str(ll))
     return ll, part1, part2, newgraph
 
 
-def choose_node_split(graph, compind, splitind, pind, data, ps, rng=None, info=None):
+def choose_node_split(graph, compind, splitind, pind, data, ps, rng=None, info=None,
+                      show=None):
     """``choose_node_split.m:1-23``: split node ``splitind`` of component ``compind``
     with production ``pind`` (see :func:`best_split` for ``compind < 0``).
 
@@ -277,8 +324,8 @@ def choose_node_split(graph, compind, splitind, pind, data, ps, rng=None, info=N
     ``(-inf, [splitind], [], None)`` (MATLAB returns the node index as ``part1``, l.13).
     Otherwise :func:`choose_seedpairs` then :func:`best_split`, sharing one permutation
     provider. A NaN score raises :class:`FormDiscoveryError` (MATLAB's ``keyboard``,
-    patched to ``error``). The ``disp`` lines are dropped. ``info`` is passed to
-    :func:`best_split`.
+    patched to ``error``). The ``disp`` lines are dropped. ``info`` and ``show`` are
+    passed to :func:`best_split`.
     """
     rng = as_provider(rng)
     if compind < 0:
@@ -293,7 +340,8 @@ def choose_node_split(graph, compind, splitind, pind, data, ps, rng=None, info=N
     else:
         seedpairs = choose_seedpairs(graph, compind, splitind, pind, ps, rng=rng)
         ll, part1, part2, newgraph = best_split(graph, compind, splitind, pind, data,
-                                                seedpairs, ps, rng=rng, info=info)
+                                                seedpairs, ps, rng=rng, info=info,
+                                                show=show)
     if np.isnan(ll):
         raise FormDiscoveryError("choose_node_split: NaN log-likelihood")
     return ll, part1, part2, newgraph
@@ -1126,7 +1174,8 @@ def _save_history(savefile, bestgraphlls, bestgraph):
                             "bestgraph": cells})
 
 
-def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
+def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
+                 show=None):
     """``structurefit.m:1-213``: grow a graph of structure ``ps.runps.structname`` by
     splitting cluster nodes while the score improves. Returns ``(ll, graph, bestgraphlls,
     bestgraph)``: the final score and graph, and the growth history (a 1-D array and a
@@ -1155,8 +1204,12 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
     Deviations: ``save(savefile, ...)`` (l.196) becomes optional: with ``savefile`` the
     history is written to ``savefile`` (``.mat`` appended), and ``callback(bestgraphlls,
     bestgraph)`` is called after each accepted depth; with neither nothing is written.
-    The ``disp`` lines and the display blocks (``ps.showpreclean``/``showpostclean``,
-    l.85-95, 198-208) are dropped. ``part`` is not kept (KI-3); ``bestsplit`` keeps KI-4.
+    The ``disp`` lines are dropped. The display blocks call ``show`` (see
+    :func:`show_graph`): ``ps.showpreclean`` (l.85-95, figure 1) with the best split
+    before cleaning and title ``'pre-clean: <type>  <score>'``, ``ps.showpostclean``
+    (l.198-208, figure 2) with each accepted graph and ``'post-clean: <type>  <score>'``
+    (names padded with ``' '``); ``show`` is also passed to :func:`best_split`
+    (``ps.showbestsplit``). ``part`` is not kept (KI-3); ``bestsplit`` keeps KI-4.
     MATLAB keeps ``lls``/``newgraph`` for all depths but reads only the current one; the
     port keeps one depth's dicts.
     """
@@ -1183,7 +1236,7 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
             i, c, pind = key
             # split node c in component i using production pind
             lls[key], _, _, newgraph[key] = choose_node_split(graph, i, c, pind, data, ps,
-                                                              rng=rng)
+                                                              rng=rng, show=show)
 
         # for combinations: try moving objects to vacant neighbors
         if graph.ncomp > 1:
@@ -1202,7 +1255,8 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
                         if nodecounts[nb] == 0:
                             c += 1
                             lls[(i, c - 1, 1)], _, _, newgraph[(i, c - 1, 1)] = \
-                                choose_node_split(graph, -1, nd, int(nb), data, ps, rng=rng)
+                                choose_node_split(graph, -1, nd, int(nb), data, ps, rng=rng,
+                                                  show=show)
 
         m, best = bestsplit(graph, lls)
 
@@ -1215,6 +1269,10 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
             lls[best], newgraph[best] = optimizebranches(newgraph[best], data, ps)
 
         newscore, newg = lls[best], newgraph[best]
+
+        if newg is not None:
+            show_graph(show, ps.showpreclean, "preclean", newg.adj, ps.runps.names, " ",
+                       f"pre-clean: {graph.type}  {sprintf_g(newscore)}")
 
         if ps.runps.type == "rel":
             # try swapping objects before removing clusters (l.98-111)
@@ -1276,5 +1334,7 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
                 _save_history(savefile, bestgraphlls, bestgraph)
             if callback is not None:
                 callback(np.asarray(bestgraphlls, dtype=float), list(bestgraph))
+            show_graph(show, ps.showpostclean, "postclean", graph.adj, ps.runps.names, " ",
+                       f"post-clean: {graph.type}  {sprintf_g(currprob)}")
 
     return currprob, graph, np.asarray(bestgraphlls, dtype=float), bestgraph

@@ -104,7 +104,8 @@ class SplitOracle:
         self.tol = {} if strict else dict(rtol=1e9, atol=1e9)  # structure only
         self.real = search.choose_node_split
 
-    def __call__(self, graph, compind, splitind, pind, data, ps, rng=None, info=None):
+    def __call__(self, graph, compind, splitind, pind, data, ps, rng=None, info=None,
+                 show=None):
         k = self.used
         self.used += 1
         msg = f"{self.msg}: split {k}"
@@ -119,7 +120,7 @@ class SplitOracle:
             raise AssertionError(f"{msg}: {(compind, splitind, pind)} is not Octave's")
         info = {}
         ll, p1, p2, ng = self.real(graph, compind, splitind, pind, data, ps, rng=rng,
-                                   info=info)
+                                   info=info, show=show)
         oll = float(c["ll"])
         if self.strict:
             assert ll == oll or np.isclose(ll, oll, rtol=1e-10, atol=0), (msg, ll, oll)

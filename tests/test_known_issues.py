@@ -49,6 +49,12 @@ QUIRKS = {
     "KI-32": ("draw_dot.m", 47, "neato = strcat([neato '-Gminlen=5 -Goverlap=false ']);"),
     "KI-33": ("dot_to_graph.m", 57, "Rnode = sscanf(line(dash_pos +3 : length(line)-1),'%s',1);"),
     "KI-34": ("dot_to_graph.m", 108, "x = .9*(x-min(x))/((max(x)-min(x))+1)+.05;"),
+    "KI-35": ("draw_dot.m", 49, "neato = strcat([neato '-x']);"),
+    "KI-36": ("graph_draw.m", 115, "'VerticalAlign','middle'"),
+    "KI-36b": ("graph_draw.m", 557, "out = strcmp(get(curax,'WarpToFill'),'on');"),
+    "KI-37": ("graph_draw.m", 88, "if 0 % ckemp"),
+    "KI-38": ("runmodel.m", 185, "names{i} = '';"),
+    "KI-39": ("graph_draw.m", 60, "[h1 wd1] = textoval(x(idx1), y(idx1), labels(idx1), fontsize, color, nodemult);"),
 }
 
 
@@ -65,7 +71,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 35)}
+    assert ids == {f"KI-{n}" for n in range(1, 40)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

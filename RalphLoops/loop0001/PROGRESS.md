@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 32/36 SOLVED
+- **Current**: 33/36 SOLVED
 
 ---
 
@@ -2282,3 +2282,129 @@
     default (layout parity with Octave's neato call), with an option for the intended
     flags.
   - `-x` applies for n > 100 (the largest graph in the fixture has 89 nodes).
+
+## Iteration 35 — 2026-09-29 21:02
+### Completed
+- Item 32 **solved** (`[x]`).
+  - New modules. Each function cites its source lines:
+    - `viz/pygraphviz_backend.py`: `neato_attrs`/`neato_args` (draw_dot.m:44-50),
+      `neato_layout`/`layout_text` (l.33-50), `find_neato` and `render` (Graphviz-only
+      PNG/SVG/PDF, the PLAN's `.draw(path)`).
+      - Engines: `'pygraphviz'`, `'cli'` (the neato executable, as draw_dot runs it) and
+        `'auto'`.
+      - `flags='matlab'` (default) passes draw_dot's glued attributes (KI-32, new KI-35).
+        `flags='intended'` passes `regular`, `minlen=5` and `-x`.
+    - `viz/graph_draw.py`: `graph_draw.m` with matplotlib. The pure geometry functions
+      are `node_colors`, `oval_halfwidths`/`box_halfwidths`/`node_halfwidths`,
+      `edge_segments` and `arrow_head`. `text_extents` measures the labels, and
+      `graph_draw` draws 61-point ellipse patches, grey self-loop nodes and `my_arrow`
+      heads (5 pt, 12°). `undirected='arrows'|'lines'`, and `wd=` overrides the
+      half-widths.
+    - `viz/draw.py`:
+      - `draw_dot(adj, labels=None, backend='pygraphviz', *, pos, nodemult, fontsz, ax,
+        flags, engine, undirected, wd)` returns MATLAB's `(xret, yret, labels)`;
+      - `dot_positions` (l.52-72: singletons at 0.05, sorted by node number, `pos`);
+      - `default_fontsize`, `pad_names`;
+      - `ProgressFigures`, a show callback for figures 1/2/3, live and/or as numbered
+        files, with `enable(ps)`;
+      - `draw_results` (a results file, one panel per run).
+  - Progress callbacks in the model code: `search.show_graph`, `sprintf_g` and `num2str`
+    (Octave's rule). An optional `show(event, adj, names, title)` is called where MATLAB
+    draws, gated by the `ps.show*` flags, with MATLAB's padding and titles:
+    - `truegraph` and `inferredgraph` in `runmodel` (figures 1 and 3);
+    - `preclean` and `postclean` in `structurefit` (figures 1 and 2);
+    - `bestsplit` in `best_split` (figure 3).
+
+    `show=` goes through `masterrun`, `runmodel`, `brlencases`, `structurefit`,
+    `choose_node_split` and `best_split`. Existing calls are unchanged. The test fakes
+    (`SplitOracle`, the `test_masterrun`/`test_runmodel` fakes and `replay`) accept
+    `show`.
+  - CLI:
+    - `formdiscovery draw RESULTS --out fig.png [--runs 0,2] [--flags] [--undirected]
+      [--graphviz]`;
+    - `formdiscovery run ... --figures DIR` turns on masterrun's two figures
+      (`showpostclean`, `showinferredgraph`, masterrun.m:17-21) and saves them.
+  - Fixtures (Octave 10.3.0, generated this iteration):
+    - `tests/octave/fx_viz_draw.m` → `tests/fixtures/viz_draw.mat` (12 s). **graph_draw.m
+      cannot run in Octave** (new KI-36, A11): it uses `'VerticalAlign'` and reads
+      `WarpToFill`/`Xform`. The fixture writes a temporary copy with three edits whose
+      counts are asserted: the property name; the two `my_arrow` calls replaced by
+      `tests/octave/graphdraw_shim/gd_arrow_rec.m`; and a recorder of
+      x/y/labels/fontsize/nodemult/color/wd plus the `.dot` texts. The source is
+      untouched.
+      - The real `draw_dot` runs on 83 graphs: the 74 of `viz_dot.mat`, labelled as
+        runmodel labels them, plus no labels, singletons, self-loops, `pos`, `nodemult`,
+        `fontsz`, undirected, `' '` padding and a 105-node chain.
+      - There are also 5 direct `graph_draw` calls: default labels, boxes, weights ≠ 1,
+        vertical edges and coincident nodes.
+    - `tests/octave/fx_viz_progress.m` → `tests/fixtures/viz_progress.mat` (2 s). It runs
+      2 whole runmodel runs (chain × demo_chain_feat and dirring × demo_ring_rel_bin,
+      speed 54) with every `ps.show*` flag on. `tests/octave/progress_shim/` shadows
+      `figure`/`clf`/`title`/`drawnow`/`draw_dot` to log the display calls (34 and 9
+      drawings). The draws and spies are recorded for replay, as in `fx_runmodel.m`.
+  - `tests/test_viz_draw.py` has 230 tests, all passing in the fd env. In the base env
+    224 pass and 6 skip: the 4 pygraphviz tests and the 2 live Octave tests.
+    - **Exact parity on all 83 draw_dot cases.** The `graph_to_dot` text, xret/yret, the
+      X/Y given to graph_draw, labels, font size, nodemult and the node colours match
+      exactly. Every arrow end point matches to 1e-14 (0 in practice), given Octave's
+      `wd`. The 5 direct graph_draw calls match too.
+    - **Layout parity with live Graphviz 14.1.2.** pygraphviz reproduces Octave's neato
+      layout text byte for byte on 83 + 74 graphs, and the neato executable does on 83.
+      In the base env the tests use the fd env's neato, found next to Octave.
+    - The intended flags give identical positions for n ≤ 100: `regular` and `minlen`
+      are not neato layout attributes.
+    - `draw_dot` end to end on 13 graphs: outputs as Octave's, and the drawn lines equal
+      Octave's arrows when `wd` is Octave's.
+    - **Progress replay.** Both runs replayed with every flag on give Octave's exact
+      sequence of figures, titles (`%g`/`num2str`), padded names and graphs. The one
+      exception is a bestsplit graph at a tied split, where Python shows the mirror
+      candidate before `SplitOracle` swaps it. The count of these is bounded by the tie
+      count (1 of 1).
+    - Other checks: rendering smoke tests, `ProgressFigures` files and cleared figures,
+      `enable`, `draw_results`, the CLI (`draw`, `--graphviz`, `run --figures`,
+      `--help`), Graphviz `render`, `find_neato` skipping a neato without the plugin, and
+      engine errors.
+    - Image regression: `tests/viz_images.py` has 5 cases rendered at Octave's positions.
+      The baselines in `tests/baseline_images/` are the port's own renders
+      (`tools/gen_viz_baselines.py`, matplotlib 3.10.9). There are two tolerance tiers:
+      the text-free render is compared at RMS 2 on any matplotlib (fd's 3.11.2 gives
+      ≤ 1.3); the full render at RMS 2 on 3.10.9 and 15 otherwise, because text
+      anti-aliasing changed.
+    - Live (fd env): both fixtures regenerate identically.
+  - A mutation check confirmed that the tests catch 16 of 17 deliberate breaks. The one
+    miss (`<=` → `<` in the edge sign) is an equivalent mutant: equal `x` takes the
+    vertical branch first. Two misses in the first run (the true-graph name padding and
+    the binarised `adj` in `layout_text`) led to two new tests.
+  - **Findings (new KI-35..39, ANOMALIES A11-A14; A9 updated with the decision):**
+    - **KI-35 / A12**: for n > 100, `strcat` drops the trailing blank, so draw_dot passes
+      `-Goverlap=false-x`. `-x` is never applied, and neato warns about an unknown overlap
+      value. Replicated.
+    - **KI-36 / A11**: graph_draw cannot run in Octave. Not ported (matplotlib port); the
+      fixture uses an edited copy.
+    - **KI-37 / A13**: `if 0 % ckemp` disables the plain-line branch, so every undirected
+      edge is two opposite arrows. Replicated by default, with `undirected='lines'` as an
+      option.
+    - **KI-38 / A14**: the show blocks pad runmodel's *returned* `names`, and masterrun
+      turns `showinferredgraph` on when `which neato` succeeds. So MATLAB's saved names
+      depend on whether Graphviz is installed. Replicated (the padding follows the flags).
+    - **KI-39**: textoval/textbox index the colour list locally, so mixed node shapes
+      shift the colours. Unreachable from draw_dot. Replicated.
+  - Docs:
+    - `KNOWN_ISSUES.md`: KI-35..39 and the KI-32 decision. `test_known_issues.py`
+      expects KI-1..39 and pins the new lines;
+    - `ANOMALIES.md`: A11-A14 and the A9 update;
+    - `CONVENTIONS.md`: the Display section for item 32 (layout, drawing, progress
+      events, image regression).
+  - Gate: base `python -m pytest -q -m "not slow"`: 2570 passed, 66 skipped, 76
+    deselected (189 s).
+### Blockers
+- None.
+### Next
+- Item 33 (Viz B1: networkx backend).
+  - Add `'networkx'` to `viz.draw.BACKENDS` behind the same `draw_dot` facade.
+  - `ProgressFigures(**draw_kw)` and `draw_results(**draw_kw)` already forward
+    `backend=`.
+  - `tests/viz_images.py` can take a per-backend baseline set.
+  - For layout parity, `nx.nx_agraph.graphviz_layout(prog='neato')` needs pygraphviz,
+    which exists only in the fd env. Pass it the same neato attributes as
+    `pygraphviz_backend.neato_attrs(n, 'matlab')`.

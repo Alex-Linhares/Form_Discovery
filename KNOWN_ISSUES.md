@@ -478,9 +478,11 @@ deal with them.
   `regular` nor `minlen=5` is applied; only `maxiter=25000` and `overlap=false` are. PLAN §6
   lists all four as the attributes to use.
 - **Reachable:** yes, whenever a graph is drawn (`ps.show*`), display only.
-- **Decision:** replicate for layout parity. The item 32 pygraphviz backend should pass the
-  same attributes (`maxiter`, `overlap`, and the glued name), with an option for the
-  intended `regular`/`minlen`.
+- **Decision:** replicate for layout parity. The item 32 backend
+  (`viz.pygraphviz_backend`, `flags='matlab'`, the default) passes the same attributes and
+  reproduces Octave's layout text byte for byte; `flags='intended'` passes `regular` and
+  `minlen=5`. Neither is a neato layout attribute, so the positions do not change
+  (`tests/test_viz_draw.py::test_intended_flags_same_positions`).
 - **Pin:** `tests/test_viz_dot.py::test_baseline_neato_attributes_ki32` (on the 74
   layouts that Octave's `draw_dot` produced).
 
@@ -503,3 +505,67 @@ deal with them.
 - **Reachable:** yes, whenever a graph is drawn, display only.
 - **Decision:** replicate.
 - **Pin:** `tests/test_viz_dot.py::test_ki34_x_divided_by_range_plus_one`.
+
+### KI-35 `draw_dot.m:47-49`: `-x` is glued onto the overlap value for n > 100
+- **Code:** l.47 builds `neato = strcat([neato '-Gminlen=5 -Goverlap=false '])`. `strcat`
+  drops trailing blanks from a char argument (MATLAB and Octave), so the string ends in
+  `-Goverlap=false` with no blank. For `n > 100`, l.49 appends `-x` the same way, giving
+  `-Goverlap=false-x`. neato warns `Unrecognized overlap value "false-x" - using false`
+  and sets the attribute `overlap="false-x"`; the `-x` (reduce) flag is never applied.
+- **Reachable:** yes, when a graph with more than 100 nodes is drawn (display only). No
+  demo graph is that large; the fixture adds a 105-node chain.
+- **Decision:** replicate. `viz.pygraphviz_backend.neato_attrs(n, 'matlab')` passes
+  `overlap=false-x` for `n > 100`; `flags='intended'` passes `-x` (command-line engine
+  only).
+- **Pin:** `tests/test_viz_draw.py::test_neato_args`,
+  `test_octave_layouts_carry_the_glued_flags` (Octave's layout of the 105-node chain) and
+  `test_pygraphviz_layout_is_octaves`/`test_cli_layout_is_octaves`.
+
+### KI-36 `graph_draw.m:115, 125, 158, 166, 557`: graph_draw cannot run in Octave
+- **Code:** the four `text(...)` calls abbreviate `'VerticalAlignment'` to
+  `'VerticalAlign'`, which Octave rejects as ambiguous (`verticalalignment` /
+  `verticalalignmentmode`); MATLAB accepts it. `my_arrow` then reads the undocumented
+  MATLAB axes properties `'WarpToFill'` (l.557) and `'Xform'` (l.274), which Octave does
+  not have. So no graph can be drawn in Octave with the released code.
+- **Reachable:** only with a `ps.show*` flag set (display only; all baselines run with
+  them off).
+- **Decision:** not ported: the drawing is `viz.graph_draw` (matplotlib). The source is
+  not patched. `tests/octave/fx_viz_draw.m` runs a temporary copy with three recorded
+  edits (`'VerticalAlignment'`, the two `my_arrow` calls replaced by a recorder, and a
+  recorder of `wd`/`color` before `if nargout > 2`), so the node geometry and arrow end
+  points are still compared with the original code.
+- **Pin:** `tests/test_viz_draw.py::test_fixture_contents` (the edit counts) and
+  `test_graph_draw_geometry_matches_octave`.
+
+### KI-37 `graph_draw.m:82-92`: an undirected edge is drawn as two opposite arrows
+- **Code:** both branches of `if (adj(node2,node) == 0)` call `my_arrow`; the plain
+  `line(...)` and `adj(node2,node) = -1` of the symmetric branch are disabled by
+  `if 0 % ckemp`. So each direction of a symmetric pair gets its own arrow, and an
+  undirected edge shows a head at both ends. PLAN §6 says "arrows for directed".
+- **Reachable:** yes, whenever a symmetric graph is drawn (8 of the 11 true graphs).
+- **Decision:** replicate by default (`undirected='arrows'`); `undirected='lines'` draws
+  the disabled branch (one plain line per symmetric pair).
+- **Pin:** `tests/test_viz_draw.py::test_undirected_edges_get_two_arrows` and
+  `test_graph_draw_octave_wd_and_lines_mode`.
+
+### KI-38 `runmodel.m:42-44, 184-186`: the returned `names` are padded when a figure is on
+- **Code:** the `showtruegraph` and `showinferredgraph` blocks pad `names` itself with
+  `''` up to the node count of the drawn graph before `draw_dot`. `names` is runmodel's
+  output, so with either flag set runmodel returns the padded list, and `masterrun.m`
+  stores it in `names{dind}`. `masterrun.m:17-21` sets `showinferredgraph = 1` whenever
+  `which neato` succeeds, so in MATLAB the saved names depend on whether Graphviz is
+  installed. (`ps.runps.names` is set before and is not affected.)
+- **Reachable:** yes, with the flags on (masterrun with neato installed).
+- **Decision:** replicate: `run.runmodel` pads the returned names when the flag is set,
+  whether or not a `show` callback is given. `masterrun_ps` drops the neato probe (item
+  29), so by default the flags are off and the names are not padded.
+- **Pin:** `tests/test_viz_draw.py::test_progress_events_match_octave` (Octave's
+  `out_names`) and `test_names_padded_without_callback`.
+
+### KI-39 `graph_draw.m:60, 65`: mixed node shapes shift the fill colours
+- **Code:** `textoval(x(idx1), ..., color, ...)` and `textbox(x(idx2), ..., color)` pass
+  the whole colour list, and both index it with their local loop counter (`c(i,:)`). With
+  mixed `node_shapes`, the k-th oval (or box) gets the colour of node k, not its own.
+- **Reachable:** no. `draw_dot` always passes `node_shapes = zeros`.
+- **Decision:** replicate in `viz.graph_draw.graph_draw`.
+- **Pin:** `tests/test_viz_draw.py::test_graph_draw_mixed_shapes_colour_quirk`.

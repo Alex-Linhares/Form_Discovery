@@ -209,7 +209,7 @@ def test_seeds_per_run(monkeypatch):
     provider is shared by all runs; a callable gets rind."""
     seen = []
 
-    def fake(ps, sind, dind, rind, outdir=None, rng=None):
+    def fake(ps, sind, dind, rind, outdir=None, rng=None, show=None):
         seen.append((rind, rng))
         g = run.graph_from_mat({"type": "partition", "objcount": 2.0, "z": np.array([1., 2.]),
                                 "adj": np.zeros((4, 4)), "W": np.zeros((4, 4))})

@@ -23,7 +23,7 @@ from scipy.io import loadmat
 
 from . import FormDiscoveryError, likelihood, search
 from .graph import combinegraphs, relgraphinit, simplify_graph
-from .io import graph_from_mat, load_dataset
+from .io import graph_from_mat, load_dataset, load_mat
 from .params import Params, graph_prior, setrunps, structcounts
 from .preprocess import scaledata
 from .rng import NumpyPermutations, as_provider
@@ -95,7 +95,7 @@ def empty_cell():
     return np.empty((0, 0), dtype=object)
 
 
-def brlencases(data, ps, graph, bestglls, bestgraph, savefile, rng=None):
+def brlencases(data, ps, graph, bestglls, bestgraph, savefile, rng=None, show=None):
     """``runmodel.m:198-234``: fit at the current ``ps.speed`` with the branch-length
     schedule ``ps.init``. Returns ``(ll, graph, bestglls, bestgraph, ps)``.
 
@@ -111,7 +111,7 @@ def brlencases(data, ps, graph, bestglls, bestgraph, savefile, rng=None):
     not ``bestgraph{1, ps.speed}``. The returned ``ps`` keeps the untied flags. ``savefile``
     is the growth-history file prefix (``None``: nothing saved); the stage name and speed
     are appended, as in MATLAB. Any other ``ps.init`` raises (MATLAB leaves ``ll``
-    undefined).
+    undefined). ``show`` is passed to ``structurefit`` (display callback).
     """
     rng = as_provider(rng)
     ps = ps.copy()
@@ -120,7 +120,7 @@ def brlencases(data, ps, graph, bestglls, bestgraph, savefile, rng=None):
 
     def fit(name):
         sf = None if savefile is None else f"{savefile}{name}{speedstr}"
-        return search.structurefit(data, ps, graph, savefile=sf, rng=rng)
+        return search.structurefit(data, ps, graph, savefile=sf, rng=rng, show=show)
 
     init = ps.init
     if init == "none":
@@ -168,6 +168,12 @@ def brlencases(data, ps, graph, bestglls, bestgraph, savefile, rng=None):
     return ll, graph, bestglls, bestgraph, ps
 
 
+def _pad(names, n):
+    """``for i = length(names)+1:n, names{i} = ''; end`` (runmodel.m:42-44, 184-186)."""
+    names = list(names)
+    return names + [""] * (n - len(names))
+
+
 def _load_bestz(path):
     """``load([ps.relinitdir, dataname, '_bestz'])`` (runmodel.m:62): an ASCII file of
     1-based cluster labels -> 0-based labels. Untested (no such files in the release)."""
@@ -200,7 +206,7 @@ def _add_second_dimension(graph, ps, comptypes):
     return combinegraphs(graph, ps)
 
 
-def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
+def runmodel(ps, sind, dind, rind, outdir=None, rng=None, show=None):
     """``runmodel.m:1-193``: find the best instance of form ``ps.structures[sind]`` for data
     set ``ps.data[dind]`` (both 0-based; ``rind`` is the repeat number, used only in the
     run directory name). Returns ``(ll, graph, names, bestglls, bestgraph)``.
@@ -228,8 +234,16 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
 
     Deviations: ``outdir`` replaces ``mkdir``/``cd`` (module docstring); with ``outdir``
     the growth histories go to :func:`run_dir` as ``growthhistory<stage><speed>.mat``. The
-    ``display``/``disp`` lines and the figures (``ps.showtruegraph``,
-    ``ps.showinferredgraph``, l.40-48, 182-191) are dropped.
+    ``display``/``disp`` lines are dropped. The figures go to the optional ``show``
+    callback (:func:`formdiscovery.search.show_graph`, names padded with ``''``):
+    ``ps.showtruegraph`` (l.40-48, figure 1) with the data file's ``adj`` and title
+    ``'real structure'`` (a file without ``adj`` raises, as MATLAB's undefined
+    variable does), ``ps.showinferredgraph`` (l.182-191, figure 3) with the final graph
+    and ``'<type>: estimated structure:  <ll>'``. Replicated quirk (KI-38): both blocks
+    pad ``names`` itself, so with either flag set the returned ``names`` has ``''``
+    entries up to the node count of that graph (masterrun stores them). ``show`` is passed on to
+    ``structurefit``/``best_split`` (``ps.showpreclean``/``showpostclean``/
+    ``showbestsplit``) and to the nested dimension-search run.
     """
     rng = as_provider(rng)
     ps = ps.copy()
@@ -251,6 +265,13 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
     if not names:
         names = [str(i + 1) for i in range(nobjects)]
     ps.runps.names = names
+    if ps.showtruegraph:
+        adj = load_mat(ps.dlocs[dind]).get("adj")
+        if adj is None:
+            raise FormDiscoveryError("runmodel: showtruegraph but the data file has no adj")
+        adj = np.asarray(adj.toarray() if hasattr(adj, "toarray") else adj, dtype=float)
+        names = _pad(names, adj.shape[0])  # KI-38: the returned names are padded too
+        search.show_graph(show, 1, "truegraph", adj, names, "", "real structure")
 
     graph = None
     if ps.outsideinit:
@@ -278,7 +299,8 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
         else:
             ps.fixedinternal = 1
             ps.fixedexternal = 1
-        _, graph, _, _, _ = runmodel(ps, first, dind, rind, outdir=rdir, rng=rng)
+        _, graph, _, _, _ = runmodel(ps, first, dind, rind, outdir=rdir, rng=rng,
+                                     show=show)
         graph = _add_second_dimension(graph, ps, (t1, t2))
         ps = oldps.copy()
         ps.runps.structname = final
@@ -288,15 +310,18 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
     speed = int(ps.speed)
     if speed in (1, 2, 3, 4, 5):
         ll, graph, bestglls, bestgraph, ps = brlencases(data, ps, graph, bestglls,
-                                                        bestgraph, savefile, rng=rng)
+                                                        bestgraph, savefile, rng=rng,
+                                                        show=show)
     elif speed == 54:
         ps.speed = 5  # starting at speed 5
         ll, graph, bestglls, bestgraph, ps = brlencases(data, ps, graph, bestglls,
-                                                        bestgraph, savefile, rng=rng)
+                                                        bestgraph, savefile, rng=rng,
+                                                        show=show)
         ps.speed = 4  # refining at speed 4
         ps.init = "none"  # branches have already been untied
         ll, graph, bestglls, bestgraph, ps = brlencases(data, ps, graph, bestglls,
-                                                        bestgraph, savefile, rng=rng)
+                                                        bestgraph, savefile, rng=rng,
+                                                        show=show)
     else:
         raise FormDiscoveryError("Unknown speed value")
 
@@ -306,7 +331,8 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
         # remove tree root
         graph = simplify_graph(graph, ps)
         ll, graph, bestglls, bestgraph, ps = brlencases(data, ps, graph, bestglls,
-                                                        bestgraph, savefile, rng=rng)
+                                                        bestgraph, savefile, rng=rng,
+                                                        show=show)
 
     if ps.speed == 5:
         # finding true score for speed 5
@@ -314,6 +340,11 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None):
         ll, graph = likelihood.graph_like(data, graph, ps)
         ll = ll + graph_prior(graph, ps)
 
+    # display estimated structure
+    if ps.showinferredgraph:
+        names = _pad(names, np.shape(graph.adj)[0])  # KI-38
+        search.show_graph(show, 1, "inferredgraph", graph.adj, names, "",
+                          f"{graph.type}: estimated structure:  {search.sprintf_g(ll)}")
     return ll, graph, names, bestglls, bestgraph
 
 
@@ -420,7 +451,7 @@ def _ps_summary(ps):
 
 def masterrun(ps=None, thisstruct=MASTERRUN_STRUCT, thisdata=MASTERRUN_DATA, repeats=1,
               extraspairs=(), extradpairs=(), outdir=None, masterfile="resultsdemo",
-              rng=None, seed=1, log=None):
+              rng=None, seed=1, log=None, show=None):
     """``masterrun.m:1-81``: fit every structure ``ps.structures[s]`` (``s`` in
     ``thisstruct``) to every data set ``ps.data[d]`` (``d`` in ``thisdata``), both
     0-based, ``repeats`` times, with :func:`runmodel`. Returns a :class:`MasterResults`.
@@ -462,7 +493,7 @@ def masterrun(ps=None, thisstruct=MASTERRUN_STRUCT, thisdata=MASTERRUN_DATA, rep
                 runrng = rng = as_provider(rng)
             t0 = time.perf_counter()
             ll, graph, names, bestglls, _ = runmodel(ps, sind, dind, rind, outdir=outdir,
-                                                     rng=runrng)
+                                                     rng=runrng, show=show)
             secs = time.perf_counter() - t0
             run = {"structure": ps.structures[sind], "data": ps.data[dind], "sind": sind,
                    "dind": dind, "rind": rind, "seed": runseed, "ll": float(ll),

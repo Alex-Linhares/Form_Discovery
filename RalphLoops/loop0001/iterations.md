@@ -190,7 +190,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       and `dot_to_graph(text) -> (adj, labels, x, y)`. Fixtures: Octave's `_GtDout.dot` for
       every baseline graph (byte parity after whitespace normalisation) and Octave's parse of
       the corresponding neato layout files (exact).
-- [ ] 32. **Viz A2: pygraphviz backend.** `viz/pygraphviz_backend.py` (neato with
+- [x] 32. **Viz A2: pygraphviz backend.** `viz/pygraphviz_backend.py` (neato with
       `maxiter=25000, regular, minlen=5, overlap=false`, `-x` for n>100; same 0.05/0.9
       normalisation; matplotlib ellipses, grey self-loop nodes, arrows when directed),
       `viz/draw.py` facade `draw_dot(adj, labels, backend=...)`, CLI `formdiscovery draw`.

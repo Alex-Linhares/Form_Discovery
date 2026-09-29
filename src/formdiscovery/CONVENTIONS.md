@@ -259,6 +259,35 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   (`tests/octave/drawdot_shim/`, added to the path only by that fixture) that records the
   temporary `_GtDout.dot`/`_LAYout.dot` texts. neato comes from the Octave prefix's `bin/`
   (the fd env), put first on `PATH`.
+- Item 32: `viz/draw.py` `draw_dot(adj, labels=None, backend='pygraphviz', *, pos,
+  nodemult, fontsz, ax, flags, engine, undirected, wd)` returns MATLAB's `(xret, yret,
+  labels)` and draws on matplotlib axes (`ax=None`: pyplot's current axes; tests always
+  pass a `Figure` axes). No temporary `.dot` files are written.
+  - Layout (`viz/pygraphviz_backend.py`): `graph_to_dot` of `adj > 0`, then neato through
+    pygraphviz (`engine='pygraphviz'`) or the executable (`'cli'`, found by `find_neato`:
+    `$FORMDISCOVERY_NEATO`, `PATH`, next to Python, each probed). `flags='matlab'` (default)
+    passes draw_dot's glued attributes (KI-32, KI-35), so the layout text equals Octave's
+    with the same Graphviz (14.1.2); `flags='intended'` the documented ones.
+  - Positions: `dot_positions(lay, n, pos)` is `draw_dot.m:52-72` (singletons at 0.05,
+    sorted by node number).
+  - Drawing (`viz/graph_draw.py`): the geometry is in pure functions (`node_colors`,
+    `node_halfwidths`, `edge_segments`); the half-widths come from matplotlib text
+    extents, so parity tests pass Octave's `wd`. KI-37 (two arrows per undirected edge) is
+    the default, `undirected='lines'` the alternative.
+  - `graph_draw.m` cannot run in Octave (KI-36): `fx_viz_draw.m` runs an edited temporary
+    copy and records its geometry; `tests/octave/graphdraw_shim/` holds the arrow recorder.
+- Progress figures: the model code calls an optional `show(event, adj, names, title)`
+  (`search.show_graph`) where MATLAB draws, gated by the `ps.show*` flags, with MATLAB's
+  padding (`''`, or `' '` for pre/post-clean) and titles (`sprintf_g`, `num2str`). Events
+  and MATLAB figures: `truegraph` 1, `preclean` 1, `postclean` 2, `bestsplit` 3,
+  `inferredgraph` 3. `runmodel`, `brlencases`, `structurefit`, `choose_node_split`,
+  `best_split` and `masterrun` take `show=`. `viz.draw.ProgressFigures` is the drawing
+  callback. `fx_viz_progress.m` records Octave's `figure`/`clf`/`title`/`drawnow`/
+  `draw_dot` calls with the shims in `tests/octave/progress_shim/`.
+- Image regression: `tests/viz_images.py` renders fixture graphs at Octave's positions
+  (DejaVu Sans, 560 x 420 px); baselines in `tests/baseline_images/` (the port's own
+  renders, `python tools/gen_viz_baselines.py`). The text-free variant is compared at
+  RMS 2 on any matplotlib; the full one at 2 on the baselines' version, else 15.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

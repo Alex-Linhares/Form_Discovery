@@ -1,21 +1,31 @@
-"""Command line interface: ``formdiscovery run`` (``masterrun.m``, item 29).
+"""Command line interface: ``formdiscovery run`` (``masterrun.m``, item 29) and
+``formdiscovery draw`` (``draw_dot.m``, item 32).
 
 Usage::
 
     formdiscovery run --structures chain,ring,tree --datasets 1,2,3 --seed 1 --out results/
+    formdiscovery draw results/resultsdemo.npz --out fig.png
     python -m formdiscovery run ...
 
 ``--structures`` and ``--datasets`` take names or MATLAB's 1-based indices into
 ``ps.structures``/``ps.data`` (``setps.m``), as masterrun's ``thisstruct``/``thisdata``.
 The defaults are masterrun's. Output in ``--out``: ``resultsdemo.npz`` and
 ``resultsdemo.json`` (:func:`formdiscovery.run.save_results`) and runmodel's growth
-histories under ``results/<struct>out/<data><rind>/``.
+histories under ``results/<struct>out/<data><rind>/``. ``run --figures DIR`` sets
+``ps.showpostclean`` and ``ps.showinferredgraph`` (what masterrun.m:17-21 does when
+``which neato`` succeeds) and saves the figures there
+(:class:`formdiscovery.viz.draw.ProgressFigures`).
+
+``draw`` reads a ``run`` results file and draws the final graphs
+(:func:`formdiscovery.viz.draw.draw_results`: neato layout, matplotlib), all runs in one
+figure or the ``--runs`` chosen (0-based, in the file's order). ``--graphviz`` renders
+one run with Graphviz itself (:func:`formdiscovery.viz.pygraphviz_backend.render`).
 """
 
 import argparse
 import sys
 
-from .run import MASTERRUN_DATA, MASTERRUN_STRUCT, masterrun, masterrun_ps
+from .run import MASTERRUN_DATA, MASTERRUN_STRUCT, load_results, masterrun, masterrun_ps
 
 __all__ = ["main", "parse_list"]
 
@@ -46,14 +56,45 @@ def _cmd_run(args, ps):
     if args.speed is not None:
         ps.speed = args.speed
     log = None if args.quiet else (lambda s: print(s, flush=True))
+    show = None
+    if args.figures:
+        from .viz.draw import ProgressFigures
+        show = ProgressFigures(outdir=args.figures)
+        # masterrun.m:17-21 turns these two on when neato is available
+        ps = show.enable(ps, ("postclean", "inferredgraph"))
     res = masterrun(ps, thisstruct, thisdata, repeats=args.repeats, outdir=args.out,
-                    masterfile=args.masterfile, seed=args.seed, log=log)
+                    masterfile=args.masterfile, seed=args.seed, log=log, show=show)
     if not args.quiet:
         print(f"{'structure':<18s} {'data':<24s} {'rind':>4s} {'ll':>16s} {'clusters':>8s}")
         for r in res.runs:
             print(f"{r['structure']:<18s} {r['data']:<24s} {r['rind']:>4d} "
                   f"{r['ll']:>16.6f} {r['nclusters']:>8d}")
         print(f"saved {args.out}/{args.masterfile}.npz and .json")
+    return 0
+
+
+def _cmd_draw(args):
+    from .viz.draw import draw_results, pad_names
+
+    res = load_results(args.results)
+    runs = None if args.runs is None else \
+        [int(x) for x in args.runs.split(",") if x.strip()]
+    for k in runs or []:
+        if not 0 <= k < len(res.runs):
+            raise ValueError(f"run {k} out of range 0..{len(res.runs) - 1}")
+    if args.graphviz:
+        from .viz.pygraphviz_backend import render
+
+        sel = runs if runs is not None else list(range(len(res.runs)))
+        if len(sel) != 1:
+            raise ValueError("--graphviz draws one run: choose it with --runs")
+        r = res.runs[sel[0]]
+        g = res.structure[int(r["sind"]), int(r["dind"]), int(r["rind"]) - 1]
+        render(g["adj"], pad_names(res.names[0, int(r["dind"])], len(g["adj"])), args.out)
+    else:
+        draw_results(res, runs, args.out, flags=args.flags, undirected=args.undirected)
+    if not args.quiet:
+        print(f"saved {args.out}")
     return 0
 
 
@@ -75,9 +116,26 @@ def main(argv=None):
     r.add_argument("--out", default="results", help="output directory (default: results)")
     r.add_argument("--masterfile", default="resultsdemo",
                    help="results file name without extension (default: resultsdemo)")
+    r.add_argument("--figures", default=None, metavar="DIR",
+                   help="save the post-clean and final graph figures in DIR "
+                        "(masterrun.m's display)")
     r.add_argument("-q", "--quiet", action="store_true")
+    d = sub.add_parser("draw", help="draw the final graphs of a results file (draw_dot.m)")
+    d.add_argument("results", help="results file from 'run' (.npz or .json)")
+    d.add_argument("--out", required=True, help="image file (format from the suffix)")
+    d.add_argument("--runs", default=None,
+                   help="comma-separated 0-based run numbers (default: all)")
+    d.add_argument("--flags", choices=("matlab", "intended"), default="matlab",
+                   help="neato flags: draw_dot's (default) or the intended ones")
+    d.add_argument("--undirected", choices=("arrows", "lines"), default="arrows",
+                   help="symmetric edges as two arrows (original) or one line")
+    d.add_argument("--graphviz", action="store_true",
+                   help="render one run with Graphviz instead of matplotlib")
+    d.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args(argv)
     try:
+        if args.command == "draw":
+            return _cmd_draw(args)
         return _cmd_run(args, ps)
     except ValueError as e:
         ap.error(str(e))
