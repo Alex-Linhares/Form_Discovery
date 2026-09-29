@@ -3,6 +3,7 @@
 ``swapobjclust`` and its subfunctions ``chooseswaps``, ``doswap``, ``sourceobjs``,
 ``sourcecls`` and ``cltypes``. Part b2 (item 25, L4-b2): ``spr`` (with ``makerp`` and
 ``makers``) and ``collapsedims`` (with ``getocc``, ``get_occnodescomp`` and ``zassign``).
+Part c1 (item 26, L4-c1): ``gibbs_clean`` (with ``nearmissopts``; ``graphsig`` is a stub).
 
 Randomness enters through ``randperm`` at ``choose_seedpairs.m:24``,
 ``best_split.m:35``, ``swapobjclust.m:33``, ``spr.m:57/59`` and ``collapsedims.m:35``. The ports take ``rng=None`` and draw with
@@ -12,7 +13,8 @@ code (``rng.py``, item 22).
 Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
 (``tests/test_search.py``) and ``tests/octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
 (``tests/test_swap.py``) and ``tests/octave/fx_spr.m`` → ``tests/fixtures/spr.mat``
-(``tests/test_spr.py``), which replay Octave's recorded draws.
+(``tests/test_spr.py``) and ``tests/octave/fx_gibbs.m`` → ``tests/fixtures/gibbs.mat``
+(``tests/test_gibbs.py``), which replay Octave's recorded draws.
 """
 
 import numpy as np
@@ -27,7 +29,8 @@ from .rng import as_provider
 
 __all__ = ["addnearmiss", "choose_seedpairs", "best_split", "choose_node_split",
            "swapobjclust", "chooseswaps", "doswap", "sourceobjs", "sourcecls", "cltypes",
-           "spr", "makerp", "makers", "collapsedims", "getocc", "get_occnodescomp", "zassign"]
+           "spr", "makerp", "makers", "collapsedims", "getocc", "get_occnodescomp", "zassign",
+           "gibbs_clean", "nearmissopts", "graphsig"]
 
 _EMPTY = np.empty(0, dtype=np.int64)
 
@@ -833,3 +836,181 @@ def collapsedims(graph, data, ps, epsilon, currscore, overallchange, loopmax, ne
                                 nearmscores, nearmgraphs, testgraph, testscore, graph,
                                 currscore, epsilon)
     return graph, currscore, overallchange, nearmscores, nearmgraphs
+
+
+# --- gibbs_clean (item 26, L4-c1) -------------------------------------------------------
+
+_SPR_TYPES = ('tree', 'hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself',
+              'undirhierarchy', 'undirhierarchynoself', 'domtreenoself')
+
+
+def graphsig(adjsym, objcount):
+    """``graphsig.m``: a canonical signature from nauty. Only reached with ``ps.nauty = 1``
+    (``gibbs_clean.m:196``, in ``nearmissopts``); not ported."""
+    raise NotImplementedError("graphsig needs nauty (ps.nauty = 1); not ported")
+
+
+def _score(data, graph, ps):
+    ll, g = likelihood.graph_like(data, graph, ps)
+    return ll + graph_prior(g, ps), g
+
+
+def gibbs_clean(graph, data, ps, loopmax=1, debug=0, nearmisses=0, loopeps=1e-4, optlens=1,
+                swaptypes=(1, 1, 1, 1, 1), fast=0, rng=None):
+    """``gibbs_clean.m:1-174``: improve ``graph`` with local moves. Returns ``(ll, graph)``.
+
+    The keywords are MATLAB's name/value options (``'fast'`` is ``fast``). ``optlens`` is
+    accepted and ignored: l.36 overwrites it with ``ps.speed < 5``. The ``swaptypes``
+    flags are 1 object moves, 2 cluster moves/swaps per component, 3 ``spr``, 4 cluster
+    moves/swaps over the whole graph, 5 ``collapsedims``. The near-miss list holds
+    ``4 * nearmisses`` entries (``None`` for MATLAB's empty cells). ``ps`` and the inputs
+    are not modified.
+
+    After ``simplify_graph`` each pass of the ``while`` loop (at most ``loopmax``, while
+    the previous pass changed something) does, in this order and with one shared ``rng``:
+
+    - with ``optlens`` (speed < 5): the slow score (``ps.fast = 0``; the optimised graph
+      replaces ``graph``). ``ps.gibbsclean == 0`` stops here. A score that is not better
+      than the best so far restores the best graph and stops ("graph is getting worse").
+    - with ``ps.speed > 1``, ``ps.fast = 1`` for the rest; ``currscore`` is the score of
+      ``graph`` (its ``graph_like`` graph is discarded).
+    - for each component (the count from the start of the pass): ``swapobjclust`` on the
+      component and ``spr`` for the tree/hierarchy types, if it has more than one node;
+      ``spr`` is skipped when ``fast`` is set.
+    - for a product graph with more than one dimension of size > 1: ``collapsedims``, then
+      ``swapobjclust`` over the whole graph.
+    - ``swapobjclust`` object moves.
+
+    Without ``optlens`` and ``fast``, the first change returns at once with ``ll =
+    currscore`` (after the component moves, after spr, or after the product-graph moves).
+    Without ``optlens`` the result is ``currscore``. With it, a loop that ran ``loopmax``
+    passes is scored slowly once more, and with ``nearmisses`` the graphs from
+    :func:`nearmissopts` are scored slowly in turn; the first that beats ``ll`` by more
+    than ``loopeps`` is returned. The ``disp`` calls and the dead ``if 0`` display block
+    (l.144-161) are dropped. MATLAB leaves ``ll`` undefined for ``loopmax < 1``; the port
+    raises :class:`FormDiscoveryError`.
+    """
+    if loopmax < 1:
+        raise FormDiscoveryError("gibbs_clean: loopmax < 1 leaves ll undefined")
+    rng = as_provider(rng)
+    swaptypes = [int(x) for x in np.ravel(swaptypes)]
+    epsilon = 1e-4
+    fastflag = fast
+    nearmissesk = 4  # store four times as many as needed
+    nearmisses = nearmisses * nearmissesk
+    optlens = ps.speed < 5
+    ps = ps.copy()
+
+    # gold standards: don't accept changes that make these worse!
+    llgold = -np.inf
+    graphgold = graph
+    graph = simplify_graph(graph, ps)
+    overallchange = 1
+    loopoverall = 0
+    nearmscores = -np.inf * np.ones(nearmisses)
+    nearmgraphs = [None] * nearmisses
+    ll = None
+
+    while overallchange == 1 and loopoverall < loopmax:
+        overallchange = 0
+        loopoverall += 1
+
+        # run branch length optimization
+        if optlens:
+            ps = ps.replace(fast=0)
+            ll, graph = _score(data, graph, ps)
+            if ps.gibbsclean == 0:
+                break
+            if ll > llgold:
+                llgold, graphgold = ll, graph
+            else:  # graph is getting worse
+                graph, ll = graphgold, llgold
+                break
+        if ps.speed > 1:
+            ps = ps.replace(fast=1)
+
+        # use approximate scores throughout
+        testl, _ = likelihood.graph_like(data, graph, ps)
+        currscore = testl + graph_prior(graph, ps)
+
+        for i in range(int(graph.ncomp)):
+            # cluster swaps
+            if swaptypes[1] and graph.components[i].nodecount > 1:
+                graph, currscore, overallchange, nearmscores, nearmgraphs = swapobjclust(
+                    graph, data, ps, i, epsilon, currscore, overallchange, loopmax,
+                    nearmscores, nearmgraphs, fastflag=fastflag, rng=rng)
+                if not optlens and overallchange and not fastflag:
+                    return currscore, graph
+            # subtree pruning and regrafting
+            if swaptypes[2] and graph.components[i].nodecount > 1 and not fastflag:
+                if graph.components[i].type in _SPR_TYPES:
+                    graph, currscore, overallchange, nearmscores, nearmgraphs = spr(
+                        graph, data, ps, i, epsilon, currscore, overallchange, debug,
+                        nearmscores, nearmgraphs, rng=rng)
+                if not optlens and overallchange and not fastflag:
+                    return currscore, graph
+
+        if graph.ncomp > 1 and np.sum(np.asarray(graph.compsizes).ravel() > 1) > 1:
+            if swaptypes[4]:  # try removing some dimensions
+                graph, currscore, overallchange, nearmscores, nearmgraphs = collapsedims(
+                    graph, data, ps, epsilon, currscore, overallchange, loopmax,
+                    nearmscores, nearmgraphs, rng=rng)
+            if swaptypes[3]:  # cluster swaps at level of entire graph
+                graph, currscore, overallchange, nearmscores, nearmgraphs = swapobjclust(
+                    graph, data, ps, None, epsilon, currscore, overallchange, loopmax,
+                    nearmscores, nearmgraphs, fastflag=fastflag, rng=rng)
+
+        if not optlens and overallchange and not fastflag:
+            return currscore, graph
+
+        if swaptypes[0]:  # object swaps -- will be slow for large graphs
+            graph, currscore, overallchange, nearmscores, nearmgraphs = swapobjclust(
+                graph, data, ps, None, epsilon, currscore, overallchange, loopmax,
+                nearmscores, nearmgraphs, objflag=1, fastflag=fastflag, rng=rng)
+
+    if not optlens:
+        return currscore, graph
+
+    if loopoverall == loopmax:  # we fell out of loop without optimizing branch lengths
+        ps = ps.replace(fast=0)
+        ll, graph = _score(data, graph, ps)
+    if nearmisses > 0:
+        optg, _ = nearmissopts(nearmgraphs, nearmscores, graph, nearmisses, nearmissesk,
+                               ps, epsilon)
+        ps = ps.replace(fast=0)
+        for g in optg:
+            llnm, graphnm = _score(data, g, ps)
+            if llnm - ll > loopeps:  # found a good near-miss
+                return llnm, graphnm
+    return ll, graph
+
+
+def nearmissopts(nearmgraphs, nearmscores, graph, nearmisses, nearmissesk, ps, epsilon):
+    """``gibbs_clean.m:178-214`` (``nearmissopts``): the near misses to score slowly.
+    Returns ``(optg, optscores)``, a list of graphs and a float array.
+
+    ``cat(2, graph, nearmgraphs{:})`` (l.186) puts the current graph first and **drops
+    the empty cells** (``None``), while ``nearmscores`` gets a leading 0 and keeps its
+    ``-inf`` entries; the empties are the unfilled tail of the list, so the two stay
+    aligned up to the last filled entry, and the loop stops at the end of the graphs
+    (l.189-191). Without nauty the first ``nearmisses / nearmissesk`` graphs are
+    returned, **the current graph included** (KI-28). With ``ps.nauty`` MATLAB compares
+    ``graphsig`` signatures; the port's :func:`graphsig` raises ``NotImplementedError``.
+    """
+    nearmisses = nearmisses / nearmissesk
+    graphs = [graph] + [g for g in nearmgraphs if g is not None]
+    scores = np.concatenate([[0.0], np.asarray(nearmscores, dtype=float).ravel()])
+    i = 0
+    j = 0
+    optg, optscores = [], []
+    while i < nearmisses and j <= nearmisses * nearmissesk:
+        j += 1
+        if j > len(graphs):
+            break
+        sg = graphs[j - 1]
+        if ps.nauty:
+            graphsig(sg.adjsym, sg.objcount)
+        i += 1
+        optg.append(sg)
+        optscores.append(scores[j - 1])
+    return optg, np.asarray(optscores, dtype=float)

@@ -172,12 +172,26 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   after an accept, `spr` draws a **new** permutation and keeps the loops' old lengths,
   and `collapsedims` keeps the pass's `dijkstra` distances. `collapsedims` makes one draw
   per slice that fits into the vacant clusters, and none for the others.
+- `search.gibbs_clean` (item 26) takes MATLAB's options as keywords (`loopmax`,
+  `nearmisses`, `loopeps`, `swaptypes`, `fast`, `debug`; `optlens` is ignored, as l.36
+  overwrites it) and one `rng`, which all its callees share in MATLAB's call order. It
+  returns `(ll, graph)`. The near-miss list is a list with `None` for MATLAB's empty cells,
+  and `nearmissopts` drops them (`cat(2, graph, nearmgraphs{:})`). `graphsig` (nauty)
+  raises `NotImplementedError`. Speed 5 is compared exactly. At speed 4 the slow score
+  (`fminunc`) cannot match bit for bit, so `tests/test_gibbs.py` has two tests.
+  **Oracle replay:** `likelihood.graph_like` is monkeypatched so that every slow call
+  (`ps.fast == 0`) returns Octave's recorded result, after checking that its input graph
+  is Octave's; the replay must then match exactly. **Python optimizer:** `ll` must lie
+  within `LOGI_RTOL`, and most graphs must match; an accept decision can flip, and then
+  the draws differ.
 - Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`,
-  `fx_spr.m`) copy the
+  `fx_spr.m`, `fx_gibbs.m`) copy the
   original to `<name>_orig.m` in a temporary directory placed first on the path. A
   forwarding `<name>.m` records the calls. `fx_swap.m` also copies the subfunctions into
   `swsub.m` behind a dispatcher so they can be called directly; `fx_spr.m` does the same
   for `spr` and `collapsedims` (`sprsub.m`, `cdsub.m`, one spy `l4b2_spy.m`).
+  `fx_gibbs.m` spies on `gibbs_clean` (`gibbs_spy.m`). While a spied call runs,
+  it also wraps `graph_like` (`glc_spy.m`) to record the slow calls.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

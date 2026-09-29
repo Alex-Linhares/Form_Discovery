@@ -402,3 +402,19 @@ deal with them.
 - **Decision:** fix (deviation). `search.makers` raises `FormDiscoveryError` (message
   mentions KI-27) for any type outside the two lists, instead of failing later.
 - **Pin:** `tests/test_spr.py::test_ki27_makers_unknown_type`.
+
+### KI-28 `gibbs_clean.m:185-212`: `nearmissopts` rescores the current graph
+- **Code:** the comment at l.185 says "so that we don't optimize the current best graph
+  again", and l.186 puts the current graph first in the list
+  (`cat(2, graph, nearmgraphs{:})`, score 0). Only the nauty branch skips it
+  (`j > 1`, l.204). Without nauty (l.209-212, the default `ps.nauty = 0`), the first
+  `nearmisses` entries are returned, so entry 1 is the current graph. `gibbs_clean`
+  (l.162-170) then scores it slowly once more and could accept it as a "good near-miss"
+  if the new optimum beats `ll` by more than `loopeps`. Only `nearmisses - 1` real near
+  misses are tried.
+- **Reachable:** yes. It happens in every `'nearmisses', 10` call (`structurefit.m:178`,
+  speeds 1-4).
+- **Decision:** replicate. `search.nearmissopts` returns the current graph first.
+- **Pin:** `tests/test_gibbs.py::test_nearmissopts_drops_empties_and_puts_graph_first` and
+  `test_speed4_slow_call_counts`; the speed-4 oracle replay checks the order of the slow
+  calls.

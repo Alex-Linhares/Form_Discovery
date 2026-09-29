@@ -43,6 +43,7 @@ QUIRKS = {
     "KI-25": ("choose_seedpairs.m", 19, "seedpairs = nchoosek(partmembers,2);"),
     "KI-26": ("swapobjclust.m", 126, "pairs = nchoosek(csource, 2);"),
     "KI-27": ("spr.m", 75, "case{'hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself',..."),
+    "KI-28": ("gibbs_clean.m", 186, "nearmgraphs = cat(2, graph, nearmgraphs{:}); nearmscores = [0, nearmscores];"),
 }
 
 
@@ -59,7 +60,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 28)}
+    assert ids == {f"KI-{n}" for n in range(1, 29)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

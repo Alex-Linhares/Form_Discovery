@@ -161,7 +161,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       Replayed permutations; all five swap types; single and product graphs.
 - [x] 25. **L4-b2.** `spr (+makerp, makers), collapsedims (+getocc, get_occnodescomp, zassign)`.
       Tree/hierarchy graphs for `spr`; grid/cylinder graphs for `collapsedims`.
-- [ ] 26. **L4-c1.** `gibbs_clean (+nearmissopts)` incl. near-miss list as a Python list
+- [x] 26. **L4-c1.** `gibbs_clean (+nearmissopts)` incl. near-miss list as a Python list
       (MATLAB `cat(2, graph, nearmgraphs{:})` drops empties). `graphsig` stubbed to raise
       `NotImplementedError` (only reached when `ps.nauty=1`). Parity at speed 5 fast, then
       speed 4.

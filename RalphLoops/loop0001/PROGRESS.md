@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 26/36 SOLVED
+- **Current**: 27/36 SOLVED
 
 ---
 
@@ -1712,3 +1712,115 @@
     `gibbs_clean`, consider the crafted zigzag/block graphs of `fx_spr.m` as inputs.
   - Near-miss ties: reuse `check_nearmisses`. For `nearmissopts`, note that
     `cat(2, graph, nearmgraphs{:})` drops empty cells.
+
+## Iteration 29 — 2026-09-29 17:51
+### Completed
+- Item 26 **solved** (`[x]`).
+  - `src/formdiscovery/search.py` gains these functions, each citing its source lines:
+    - `gibbs_clean` (`gibbs_clean.m:1-174`). MATLAB's options are keywords (`loopmax`,
+      `nearmisses`, `loopeps`, `swaptypes`, `fast`, `debug`). `optlens` is accepted and
+      ignored, because l.36 overwrites it. One `rng=None` is shared by all callees in
+      MATLAB's call order. It returns `(ll, graph)`, and `ps` and the inputs are not
+      modified. Replicated behaviour:
+      - the gold-standard restore ("graph is getting worse");
+      - the `ps.gibbsclean == 0` stop;
+      - the three early returns at speed 5 without `fast`;
+      - the extra slow score when the loop ran `loopmax` passes;
+      - the near-miss rescoring loop.
+
+      It uses the component count from the start of each pass. The near-miss list holds
+      `4 * nearmisses` entries, with `None` for empty cells. `loopmax < 1` raises,
+      because MATLAB leaves `ll` undefined. The `disp` calls and the dead `if 0` block
+      are dropped.
+    - `nearmissopts` (l.178-214). The current graph goes first and the empty cells are
+      dropped (`cat(2, graph, nearmgraphs{:})`); scores get a leading 0.
+    - A `graphsig` stub raises `NotImplementedError` (only reached with `ps.nauty = 1`).
+  - New **KI-28** (replicate): without nauty, `nearmissopts` returns the current graph as
+    entry 1, despite the l.185 comment, so every near-miss call scores it slowly again.
+    `test_known_issues.py` expects KI-1..28 and pins `gibbs_clean.m:186`.
+  - Fixture `tests/octave/fx_gibbs.m` → `tests/fixtures/gibbs.mat` (Octave 10.3.0,
+    generated this iteration, 253 s, 2.0 MB). New helpers: `tests/octave/gibbs_spy.m` and
+    `tests/octave/glc_spy.m`.
+    - `gibbs_clean` is renamed to `gibbs_clean_orig` behind a forwarding spy.
+    - `graph_like` is wrapped: while a spied call runs, every slow (`ps.fast == 0`) call
+      is recorded (input graph, logI, output graph).
+    - There are 7 speed-54 runs with run_baseline.m's settings: chain × demo_chain_feat,
+      tree × demo_tree_feat, ring × demo_ring_feat, cylinder × demo_ring_feat,
+      grid × synthgrid, dirring × demo_ring_rel_bin and
+      undirhierarchy × demo_hierarchy_rel_bin. The 5 runs that have a baseline reproduce
+      it exactly.
+    - 127 records:
+      - `bl` (61): real calls, the first 2 per mode and run plus up to 2 more that
+        changed the graph;
+      - `pt` (61): the same call on a graph with 1-3 random object moves, with seeded
+        draws;
+      - `g0` (5): speed 4 with `ps.gibbsclean = 0`.
+
+      Modes: speed 5 with fast 1 and 0, the relational `swaptypes` `[1 0 0 0 0]` and
+      `[0 1 0 0 0]`; speed 4 with fast 1, fast 0, and `'nearmisses', 10`. 77 records
+      change the graph.
+  - `tests/test_gibbs.py` has 126 gate tests, 16 `slow` tests (the synthgrid calls that
+    take 2-29 s each in Python) and 2 live `octave` tests:
+    - **Speed 5** (82 records): the draws are replayed and used up exactly, `ll` matches
+      to rtol 1e-10 and the graph matches exactly.
+    - **Speed 4, oracle** (45 records): `likelihood.graph_like` is monkeypatched so that
+      each slow call returns Octave's recorded result, after checking that its input
+      graph equals Octave's. Every record then matches exactly: the same slow calls in
+      the same order, all of them used, the draws used up, `ll` and the graph.
+    - **Speed 4, Python optimizer** (scipy): 33 of the 34 gate records replay. On call 12
+      (chain) a slightly different optimum flips an accept decision, and the draws then
+      differ. `ll` is within `LOGI_RTOL` (the largest difference is 9e-5 rel, and Python
+      is usually higher). 29 of the 33 give Octave's graph; the other 4 are tree
+      near-miss calls. On synthgrid (slow test), 1 of 7 fails to replay and 1 graph
+      differs.
+    - Other checks:
+      - `nearmissopts`: empty cells dropped, current graph first, stops at the end of the
+        list, cut to `nearmisses`;
+      - `ps.nauty = 1` raises `NotImplementedError`;
+      - slow-call counts, including the KI-28 re-score;
+      - an unsimplified input (a dangling empty node) replays to Octave's result;
+      - "graph is getting worse": pass 2's slow score is made worse on purpose, and the
+        best graph is restored and scored once more;
+      - speed-5 `ll` equals the fast score of the returned graph;
+      - `optlens` is ignored;
+      - `loopmax = 0` raises;
+      - inputs not mutated;
+      - default rng.
+    - Live (fd env, 2 passed, 9.8 min): the fixture regenerates identically, and fresh
+      seeds (`seedoffset = 7918`) replay on every record that is not heavy (speed 4
+      through the oracle).
+  - A mutation check confirmed that the tests catch 10 of 10 deliberate breaks:
+    - no early return after the component swaps;
+    - `spr` run in fast mode;
+    - current graph left out of `nearmissopts`;
+    - `collapsedims` skipped;
+    - no final slow score after `loopmax` passes;
+    - no gold restore;
+    - `gibbsclean` ignored;
+    - any near miss accepted;
+    - no initial `simplify_graph`;
+    - `loopmax` not passed to the callees.
+
+    The first run missed two of them: the gold restore and the missing
+    `simplify_graph`. The fixture never takes the restore branch, and the recorded
+    inputs are already simplified. The last two targeted tests above were added for
+    these.
+  - Docs:
+    - `CONVENTIONS.md` (Randomness): the gibbs_clean conventions, the speed-4 oracle
+      pattern and the spy list;
+    - `KNOWN_ISSUES.md`: KI-28.
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 2042 passed, 54 skipped (129 s);
+    - base `-m slow tests/test_gibbs.py`: 16 passed (4 min).
+### Blockers
+- None.
+### Next
+- Item 27 (L4-c2: `structurefit (+bestsplit, graphscorenoopt, optimizebranches,
+  optimizedepth)`).
+  - All of `gibbs_clean`'s callees and `gibbs_clean` itself are now ported.
+    `structurefit` itself calls slow `graph_like` (`optimizebranches`, `graphscorenoopt`,
+    and `optimizedepth` at speeds 4/5), so the `glc_spy.m` oracle pattern (record the
+    slow calls, inject them in Python) should carry over to exact growth-history parity.
+    The Python optimizer can then be checked separately with tolerances.
+  - Tied split candidates (item 23 note, bl 0) can still make the choices diverge:
+    compare with the oracle and a tie-aware check.
