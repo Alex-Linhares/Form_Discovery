@@ -117,7 +117,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 - [x] 13. **L2-a3.** `simplify_graph (+redundantinds), subtreeattach`. Fixtures: graphs from
       the growth histories before/after cleaning; `ps.cleanstrong` 0 and 1; tree and hierarchy
       regrafts onto edges and nodes.
-- [ ] 14. **L2-b1.** `filloutrelgraph, makelcfreq, relgraphinit (+subfunctions), reordermissing`.
+- [x] 14. **L2-b1.** `filloutrelgraph, makelcfreq, relgraphinit (+subfunctions), reordermissing`.
       Fixtures: `relgraphinit(data.R, 1:n, ps)` for every relational structure name on the
       relational demos; `reordermissing` on `judges` chunks.
 - [ ] 15. **L2-b2.** `mat2vec, combineWs, extract_weights` (column-major ordering!). Fixtures:

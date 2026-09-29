@@ -10,6 +10,9 @@ struct, and ``combinegraphs``/``makeemptygraph`` build graphs (pinned by
 ``simplify_graph`` and ``subtreeattach`` clean and regraft them (item 13, pinned by
 ``tests/octave/fx_simplify.m`` → ``tests/fixtures/simplify.mat``,
 ``tests/test_simplify.py``).
+``filloutrelgraph``, ``makelcfreq``, ``relgraphinit`` and ``reordermissing`` handle
+relational graphs and missing-data chunks (item 14, pinned by ``tests/octave/fx_relinit.m``
+→ ``tests/fixtures/relinit.mat``, ``tests/test_relinit.py``).
 Indices are 0-based (``CONVENTIONS.md``); edge maps keep MATLAB's edge numbers.
 """
 
@@ -19,13 +22,14 @@ from dataclasses import dataclass, field, fields
 import numpy as np
 
 from . import FormDiscoveryError
-from .matlab_compat import (find_F, hist_centres, intersect, median_matlab, mysetdiff, setdiff,
-                            stable_argsort, union)
+from .matlab_compat import (find_F, hist_centres, intersect, max_first, median_matlab, mysetdiff,
+                            setdiff, stable_argsort, union)
 from .util import subv2ind
 
 __all__ = ["Component", "Graph", "expand_graph", "get_edgemap", "find_descendants",
            "combinegraphs", "makeemptygraph", "add_element", "empty_graph", "split_node",
-           "split_production", "simplify_graph", "redundantinds", "subtreeattach"]
+           "split_production", "simplify_graph", "redundantinds", "subtreeattach",
+           "filloutrelgraph", "makelcfreq", "relgraphinit", "reordermissing"]
 
 
 @dataclass
@@ -962,3 +966,288 @@ def subtreeattach(graph, j, edgep, edgec, comp, ps, objflag=0):
                               [0, 0, 0]]).astype(np.int64)
     imap = np.concatenate([np.arange(n), empties[:size - n]]).astype(np.int64)
     return combinegraphs(graph, ps, origgraph=origgraph, compind=comp, imap=imap)
+
+
+# --- relational graphs (item 14) -------------------------------------------------------
+
+_FILL_SYM = ('connected', 'connectednoself')
+
+
+def filloutrelgraph(graph):
+    """``filloutrelgraph.m:1-14``: rebuild the full relation from its stored backbone.
+
+    ``connected``/``connectednoself``: ``adjcluster | adjcluster'``. Any other type: the
+    transitive closure, ``adjcluster[i, d] = 1`` for every descendant ``d`` of ``i``
+    (:func:`find_descendants`). Only ``adjcluster`` changes. Caller:
+    ``graph_like_rel.m:8-13``, for the order, domtree and connected types.
+
+    MATLAB's symmetric branch leaves a logical ``adjcluster``; here it stays float 0/1, like
+    the transitive branch (the values are the same). A cycle in a non-connected graph makes
+    MATLAB loop forever in ``find_descendants`` and raises here (KI-15); the order/domtree
+    backbones are acyclic.
+    """
+    graph = graph.copy()
+    A = np.atleast_2d(np.asarray(graph.adjcluster, dtype=float)).copy()
+    if graph.type in _FILL_SYM:
+        A = ((A != 0) | (A.T != 0)).astype(float)
+    else:  # make graph transitive
+        descendants = find_descendants(A)
+        for i in range(A.shape[0]):
+            A[i, descendants[i]] = 1
+    graph.adjcluster = A
+    return graph
+
+
+def makelcfreq(R, zs):
+    """``makelcfreq.m:1-9``: ``lc[a, b]`` = the sum of ``R[r, c]`` over the pairs with
+    ``zs[r] == a`` and ``zs[c] == b`` (``zs`` 0-based cluster labels).
+
+    ``lc`` is ``nclass x nclass`` with ``nclass = len(unique(zs))``. Entries are added in
+    MATLAB's column-major ``find(R)`` order. A nonzero ``R`` entry whose row or column label
+    is ``>= nclass`` (non-contiguous labels) raises :class:`FormDiscoveryError`, as the
+    out-of-bound read of ``lc`` does in MATLAB.
+    """
+    R = np.atleast_2d(np.asarray(R, dtype=float))
+    zs = np.asarray(zs, dtype=np.int64).ravel()
+    nclass = len(np.unique(zs))
+    lc = np.zeros((nclass, nclass))
+    r, c, v = find_F(R, return_rc=True)
+    zr, zc = zs[r], zs[c]
+    if np.any(zr >= nclass) or np.any(zc >= nclass):
+        raise FormDiscoveryError(f"makelcfreq: label out of bound {nclass} "
+                                 f"(labels must be 0..nclass-1 where R is nonzero)")
+    np.add.at(lc, (zr, zc), v)  # sequential, in find order
+    return lc
+
+
+def _rowsum_seq(A):
+    """MATLAB ``sum(A, 2)`` added left to right (numpy's pairwise sum can differ in the last
+    bit, which would change ``max`` ties on the ``lcprop`` fractions)."""
+    s = np.zeros(A.shape[0])
+    for j in range(A.shape[1]):
+        s = s + A[:, j]
+    return s
+
+
+_REL_UNDIR = ('undirchain', 'undirring', 'undirhierarchy', 'undirchainnoself',
+              'undirringnoself', 'undirhierarchynoself')
+_REL_NOHEAD = ('order', 'ordernoself', 'domtree', 'dirdomtreenoself', 'undirdomtree',
+               'undirdomtreenoself')
+_REL_PARTITION = ('partition', 'partitionnoself')
+_REL_CHAINLIKE = ('dirchain', 'dirchainnoself', 'dirring', 'dirringnoself', 'dirhierarchy',
+                  'dirhierarchynoself', 'undirchain', 'undirchainnoself', 'undirring',
+                  'undirringnoself', 'undirhierarchy', 'undirhierarchynoself')
+_REL_HIER = ('dirhierarchy', 'dirhierarchynoself', 'undirhierarchy', 'undirhierarchynoself')
+_REL_ORDER = ('order', 'ordernoself')
+_REL_DOMTREE = ('domtree', 'dirdomtreenoself', 'undirdomtree', 'undirdomtreenoself')
+_REL_RING = ('dirring', 'dirringnoself', 'undirring', 'undirringnoself')
+
+
+def relgraphinit(data, z, ps):
+    """``relgraphinit.m:1-49``: a greedy initial graph for relational data ``data``
+    (``nobj x nobj``) with objects in clusters ``z`` (0-based labels ``0..k-1``) and
+    structure ``ps.runps.structname``.
+
+    For the ``undir*`` chain/ring/hierarchy names the counts are symmetrised first
+    (``data + data'``). ``lc`` = :func:`makelcfreq`, diagonal zeroed, and ``lcprop = lc ./
+    (counts_i * counts_j)``. :func:`_chooseinithead` picks the first node, then
+    :func:`_growgraph` adds one cluster per step (``nclust - 1`` steps) and
+    :func:`_finishgraph` closes rings. The graph starts from ``makeemptygraph(ps)``;
+    component 1 gets the grown ``adjcluster`` as ``adj``/``W``, ``adjsym = adj | adj'``,
+    ``Wsym`` = the all-zero ``adjclustersym``, ``z``, ``nodecount``, ``nodemap`` and
+    ``edgemap``, and the result is :func:`combinegraphs` (``edgemapsym`` etc. are then
+    recomputed there). Callers: ``runmodel.m:63,74`` (``z = 1:n`` for ``'overd'``).
+
+    Where MATLAB errors this raises :class:`FormDiscoveryError`: ``growgraph`` on the
+    domtree names ('init not implemented for domtree') and on any name outside its lists
+    ('unexpected structure type'; e.g. ``connected``, the feature structures) whenever
+    there are two or more clusters; non-contiguous labels (:func:`makelcfreq` or
+    :func:`expand_graph`).
+    """
+    name = ps.runps.structname
+    data = np.atleast_2d(np.asarray(data, dtype=float))
+    if name in _REL_UNDIR:
+        # so that our greedy algorithm considers counts in both directions along each edge
+        data = data + data.T
+    z = np.asarray(z, dtype=np.int64).ravel()
+
+    lc = makelcfreq(data, z)
+    uz = np.unique(z)
+    nclust = len(uz)
+    counts = hist_centres(z + 1, uz + 1)  # MATLAB labels (hist(z, 1) = one bin)
+    totobs = np.tile(counts, (nclust, 1)) * np.tile(counts[:, None], (1, nclust))
+    # counts on diagonal shouldn't influence the structure we choose
+    lc[np.arange(nclust), np.arange(nclust)] = 0
+    lcprop = lc / totobs
+
+    zs = [np.empty(0, dtype=np.int64) for _ in range(int(uz.max()) + 1)]  # cell grows
+    for i in uz:
+        zs[i] = np.flatnonzero(z == i)
+
+    graph = makeemptygraph(ps)
+    graph.z = z.copy()
+    graph.adjcluster = np.zeros((nclust, nclust))
+    graph.adjclustersym = np.zeros((nclust, nclust))
+    graph.adj = expand_graph(np.zeros((nclust, nclust)), zs, ps.runps.type)[0]
+    graph.Wcluster = np.zeros((nclust, nclust))
+    graph.W = graph.adj
+
+    head, tail, used = _chooseinithead(lc, lcprop, graph)
+    for _ in range(1, nclust):
+        head, tail, used = _growgraph(graph, head, tail, used, lc, lcprop)
+    _finishgraph(graph, head, tail)
+
+    comp = graph.components[0]
+    comp.adj = graph.adjcluster.copy()
+    comp.adjsym = ((graph.adjcluster != 0) | (graph.adjcluster.T != 0)).astype(float)
+    comp.W = graph.adjcluster.copy()
+    comp.Wsym = graph.adjclustersym.copy()
+    comp.z = z.copy()
+    comp.nodecount = nclust
+    comp.nodemap = np.arange(nclust, dtype=np.int64)
+    comp.edgemap = get_edgemap(comp.adj)
+    return combinegraphs(graph, ps)
+
+
+def _chooseinithead(lc, lcprop, graph):
+    """``relgraphinit.m:52-75``: the starting node. Order/domtree names: no head, the tail
+    is the row of ``lcprop`` with the largest sum (first on ties). Others: head = tail =
+    the row of the first maximum of ``lcprop`` in column-major order. The dead
+    ``if 0`` block (l.54-60) is dropped. Returns ``(head, tail, used)``; ``head``/``tail``
+    are lists of 0-based nodes."""
+    used = np.zeros(lc.shape[0])
+    if graph.type in _REL_NOHEAD:
+        head = []
+        _, mind = max_first(_rowsum_seq(lcprop))
+        tail = [mind]
+        used[mind] = 1
+    else:
+        k = find_F(lcprop == np.max(lcprop))[0]
+        h = int(k % lcprop.shape[0])
+        head = [h]
+        tail = [h]
+        used[h] = 1
+    return head, tail, used
+
+
+def _growgraph(graph, head, tail, used, lc, lcprop):
+    """``relgraphinit.m:78-131``: add one unused cluster to ``graph.adjcluster`` (in place).
+
+    Chain/ring/hierarchy names: the strongest ``lcprop`` link from an unused node into the
+    head (new edge unused -> head) or from a tail node to an unused node (tail -> unused);
+    the head side wins only if strictly larger, ties inside a side go to the first entry in
+    column-major order. Hierarchies keep one head and a growing tail list (the new head
+    also joins the tail); chains/rings move the head or the tail. Order names: link the
+    tail to the unused node with the largest ``lcprop`` row sum over the unused nodes.
+    Partition names: nothing (``used`` is not updated either). Domtree names and anything
+    else raise :class:`FormDiscoveryError` with MATLAB's messages.
+    """
+    unused = np.flatnonzero(used == 0)
+    t_ = graph.type
+    if t_ in _REL_PARTITION:
+        pass
+    elif t_ in _REL_CHAINLIKE:
+        headlinks = lcprop[np.ix_(unused, head)]
+        hlmax = np.max(headlinks)
+        taillinks = lcprop[np.ix_(tail, unused)]
+        tlmax = np.max(taillinks)
+        if hlmax > tlmax:
+            h1, t1, _ = find_F(headlinks == hlmax, return_rc=True)
+            h = int(unused[h1[0]])
+            t = int(head[t1[0]])
+            graph.adjcluster[h, t] = 1
+            newhead, newtail = [h], []
+        else:
+            h1, t1, _ = find_F(taillinks == tlmax, return_rc=True)
+            h = int(tail[h1[0]])
+            t = int(unused[t1[0]])
+            graph.adjcluster[h, t] = 1
+            newhead, newtail = [], [t]
+        used = used.copy()
+        used[newhead + newtail] = 1
+        if t_ in _REL_HIER:
+            if newhead:  # only one head allowed to avoid mult connected
+                head = newhead
+                tail = tail + head
+            else:
+                tail = tail + newtail
+        else:
+            if not newhead:
+                tail = newtail
+            else:
+                head = newhead
+    elif t_ in _REL_ORDER:
+        _, mind = max_first(_rowsum_seq(lcprop[np.ix_(unused, unused)]))
+        t = int(unused[mind])
+        graph.adjcluster[tail, t] = 1
+        used = used.copy()
+        used[t] = 1
+        tail = [t]
+    elif t_ in _REL_DOMTREE:
+        # greedy search should work OK for domtree
+        raise FormDiscoveryError('init not implemented for domtree')
+    else:
+        raise FormDiscoveryError('unexpected structure type')
+    return head, tail, used
+
+
+def _finishgraph(graph, head, tail):
+    """``relgraphinit.m:134-141``: close a ring with the edge tail -> head (in place),
+    unless head and tail are the same node (one cluster)."""
+    if graph.type in _REL_RING:
+        if tail[0] != head[0]:
+            graph.adjcluster[tail[0], head[0]] = 1
+
+
+def reordermissing(graph, Wvec, obsind, missind, ps):
+    """``reordermissing.m:1-36``: move the objects of ``missind`` behind those of
+    ``obsind`` (both 0-based object indices, disjoint, together the observed objects)
+    so that a data chunk can ignore them. Caller: ``dataprobwsig.m:39``.
+
+    Returns ``(graph, Wvec)``, changed copies. ``z``, every component ``z`` and
+    ``leaflengths`` become ``[x[newind], x[leftout]]`` with ``newind = [obsind, missind]``
+    and ``leftout`` the remaining (unassigned, ``z == -1``) objects in order. With
+    ``tind`` the rank of each ``newind`` entry, the object rows/columns of the
+    object-cluster blocks of ``W``, ``Wsym``, ``adj`` and ``adjsym`` are permuted
+    (``X[0:nobj, L] = X[tind, L]``, ``X[L, 0:nobj] = X[L, tind]``, ``L`` the cluster
+    nodes), and unless ``ps.fixedexternal`` the leaf weights ``Wvec[1:nobj+1]`` (entry 0
+    is sigma) likewise. The object-object block is left alone, as in MATLAB. Raises
+    :class:`FormDiscoveryError` when ``len(obsind) + len(missind) != graph.objcount``
+    (a nonconformant assignment in MATLAB).
+    """
+    graph = graph.copy()
+    Wvec = np.asarray(Wvec, dtype=float).ravel().copy()
+    nobj = int(graph.objcount)
+    nlat = np.atleast_2d(graph.adjcluster).shape[0]
+    newind = np.concatenate([np.asarray(obsind, dtype=np.int64).ravel(),
+                             np.asarray(missind, dtype=np.int64).ravel()])
+    if len(newind) != nobj:
+        raise FormDiscoveryError(f"reordermissing: {len(newind)} objects for objcount {nobj}")
+    sind = stable_argsort(newind)
+    tind = stable_argsort(sind)
+    inset = np.zeros(len(graph.z), dtype=bool)
+    inset[newind] = True
+    leftoutind = np.flatnonzero(~inset)
+
+    def order(x):
+        x = np.asarray(x).ravel()
+        return np.concatenate([x[newind], x[leftoutind]])
+
+    graph.z = order(graph.z)
+    for c in graph.components:
+        c.z = order(c.z)
+    graph.leaflengths = order(graph.leaflengths)
+
+    # first position is for sigma
+    if not ps.fixedexternal:
+        Wvec[1:nobj + 1] = Wvec[tind + 1]
+
+    # adjust leaflengths, W, Wsym, adjsym etc
+    objs = np.arange(nobj)
+    lat = nobj + np.arange(nlat)
+    for f in ("W", "Wsym", "adj", "adjsym"):
+        X = getattr(graph, f).copy()
+        X[np.ix_(objs, lat)] = X[np.ix_(tind, lat)]
+        X[np.ix_(lat, objs)] = X[np.ix_(lat, tind)]
+        setattr(graph, f, X)
+    return graph, Wvec

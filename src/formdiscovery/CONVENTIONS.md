@@ -55,6 +55,11 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   component node when `objflag` is 0 and a 0-based object when it is 1, as in MATLAB.
   MATLAB subfunctions that tests need to observe are module-level functions
   (`graph.redundantinds`, called through the module so a test can wrap it).
+- Cluster *labels* passed in as `z` (`relgraphinit`, `makelcfreq`; item 14) are 0-based
+  and must be contiguous (`0..k-1`), as MATLAB needs `1..k`; other labels raise
+  `FormDiscoveryError` where MATLAB errors. `reordermissing` takes 0-based `obsind`/
+  `missind` and a 1-D `Wvec` (entry 0 = sigma, then the leaf weights). `filloutrelgraph`
+  returns a float `adjcluster` also where MATLAB's `A | A'` makes it logical.
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because
   callers only test `p == 0`.
 - Exception: **edge maps** (`graph.get_edgemap`, the `edgemap`/`edgemapsym` fields) keep

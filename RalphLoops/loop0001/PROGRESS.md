@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 14/36 SOLVED
+- **Current**: 15/36 SOLVED
 
 ---
 
@@ -742,3 +742,83 @@
   `reordermissing`). The spy pattern in `fx_simplify.m` also works for these. Note that
   `subtreeattach`'s `imap` padding matters only for product graphs, and it never receives
   one, so that padding cannot be tested.
+
+## Iteration 17 — 2026-09-29 13:10
+### Completed
+- Item 14 **solved** (`[x]`).
+  - `src/formdiscovery/graph.py` gains these functions, each with its source lines in the
+    docstring:
+    - `filloutrelgraph` (`filloutrelgraph.m`).
+    - `makelcfreq` (`makelcfreq.m`).
+    - `relgraphinit` (`relgraphinit.m:1-49`), with the subfunctions `_chooseinithead`,
+      `_growgraph` and `_finishgraph` (l.52-141).
+    - `reordermissing` (`reordermissing.m`).
+
+    `z` labels are 0-based and contiguous, and `obsind`/`missind` are 0-based. A
+    CONVENTIONS.md bullet covers this, plus the 1-D `Wvec` and the fact that
+    `filloutrelgraph` returns a float `adjcluster` (MATLAB's `A | A'` gives a logical one).
+  - Replicated behaviour:
+    - lcprop ties go to the first entry in column-major order, and the head side wins only
+      when it is strictly larger. With an all-zero relation, a chain therefore grows
+      tail-first as 1→2→…→n.
+    - A hierarchy keeps one head, and each new head is also added to the tail list.
+    - For `undir*` names the relation is symmetrised; the diagonal of `lc` is zeroed.
+    - Row sums go through `_rowsum_seq`, which adds left to right. Numpy's pairwise sum
+      could break `max` ties on lcprop fractions differently from Octave.
+    - The component's `Wsym` is the all-zero `adjclustersym`.
+    - `hist(z, unique(z))` gets MATLAB labels, so the one-cluster case is `hist(z, 1)`.
+  - MATLAB error paths now raise `FormDiscoveryError`, and the fixture records Octave's
+    message for each:
+    - `growgraph` with two or more clusters raises 'unexpected structure type' for
+      connected/connectednoself, the feature structures and grid/cylinder, and 'init not
+      implemented for domtree' for the four domtree names. `runmodel` never calls
+      `relgraphinit` for these names.
+    - `makelcfreq` with non-contiguous labels. Unlike assignment, the RHS read
+      `lc(zs(r), zs(c))` does not grow `lc`, so a nonzero R entry that touches a label
+      above `length(unique(z))` fails with 'out of bound'. The item text assumed growth.
+    - `reordermissing` when `obsind` and `missind` together do not have `objcount`
+      entries.
+
+    No new KI.
+  - Fixture `tests/octave/fx_relinit.m` → `tests/fixtures/relinit.mat` (Octave 10.3.0,
+    generated this iteration, ~8 s). It has four parts:
+    - **ri**: `relgraphinit` for the 24 `ps.structures` names plus the 4 domtree names.
+      Inputs are the 7 relational data sets and 13 seeded random relations (binary, counts,
+      and an all-zero matrix). Each input is run with 4 z's: `1:n` (the 'overd' init),
+      one cluster, and two seeded partitions (the 'external' init). That gives 2240
+      records, 720 of them errors.
+    - **lc**: `makelcfreq` on the data sets (R and R + R', with z = 1:n and a partition),
+      plus 6 non-contiguous cases, 3 of which error.
+    - **fo**: `filloutrelgraph` on 242 graphs:
+      - the `ri` outputs of the order and one-cluster connected/domtree names;
+      - seeded `split_node` sequences for the 8 order/domtree/connected names;
+      - spied calls from order, ordernoself, connected and connectednoself ×
+        demo_ring_rel_bin and demo_order_rel_freq. Each run's final score equals the
+        committed baseline, which is tested.
+    - **rm**: `reordermissing` on 17 graphs over judges' 13 objects × the 38 judges chunks
+      × fixedexternal 0/1 (1292 records). The graphs are seeded split sequences for chain,
+      ring, tree, hierarchy, partition, connected, grid and cylinder. 9 of them have
+      unassigned objects (empty_graph + 2 add_element, as in `best_split.m:26-32`).
+      `obsind`/`missind` are built as in `dataprobwsig.m:31-34`.
+  - `tests/test_relinit.py` has 38 fixture tests and 2 live `octave` tests:
+    - Every output matches: graph structure exactly, weights and Wvec to rtol 1e-10, and
+      every error case raises.
+    - Coverage and structure checks: chains and orders have n-1 edges, rings have n,
+      hierarchies n-1; the all-zero tie case; errors are counted per name.
+    - The recorded obsind/missind equal what the Python judges chunks (`scaledata`) give.
+    - Inputs are not mutated.
+    - Live: the fixture regenerates identically, and a fresh-seed run (`seedoffset = 7919`)
+      matches.
+
+    A mutation check confirmed that the tests catch each of these deliberate breaks: `>`
+    → `>=` in growgraph, a lost hierarchy tail append, no undir symmetrisation, a skipped
+    W column permutation in reordermissing, and a diagonal that is not zeroed.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 395 passed, 27 skipped. The
+    fd env gives 422 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 15 (L2-b2: `mat2vec`, `combineWs`, `extract_weights`, column-major order). The
+  `rm_graphs` in `relinit.mat` (judges graphs with random weights, grid/cylinder included)
+  and the split fixtures can be used as round-trip inputs. Remember that edge maps keep
+  MATLAB's edge numbers (subtract 1 when indexing `Wvec`).
