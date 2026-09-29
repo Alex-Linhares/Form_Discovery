@@ -102,6 +102,10 @@ Rules:
     ### Blockers
     ### Next
   and update the `**Current**: N/M SOLVED` line in its status header.
+- Run long commands (fixture generation, the test gate) in the FOREGROUND and wait for them.
+  Do not background a command and then end your turn: the session ends when you stop, and the
+  work is then committed without your checkbox update or PROGRESS.md entry (this happened on
+  items 15 and 19 and cost an extra iteration each time). Give long commands a generous timeout.
 - Do NOT git commit; the loop script commits after running the regression gate:
     {TEST_CMD}
   Make sure that command passes before you finish (exit code 5 = no tests yet is acceptable
