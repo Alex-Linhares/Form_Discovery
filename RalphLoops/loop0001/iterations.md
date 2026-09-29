@@ -120,7 +120,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 - [x] 14. **L2-b1.** `filloutrelgraph, makelcfreq, relgraphinit (+subfunctions), reordermissing`.
       Fixtures: `relgraphinit(data.R, 1:n, ps)` for every relational structure name on the
       relational demos; `reordermissing` on `judges` chunks.
-- [ ] 15. **L2-b2.** `mat2vec, combineWs, extract_weights` (column-major ordering!). Fixtures:
+- [x] 15. **L2-b2.** `mat2vec, combineWs, extract_weights` (column-major ordering!). Fixtures:
       round-trip under all tying modes (`fixedall`, `fixedinternal`, `fixedexternal`,
       `prodtied`, none) on single and product graphs.
 

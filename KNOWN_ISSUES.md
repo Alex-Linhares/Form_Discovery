@@ -258,3 +258,23 @@ deal with them.
 - **Decision:** replicate. `graph.split_node` uses the same markers and
   `matlab_compat.stable_argsort`.
 - **Pin:** `tests/test_split.py::test_marker_weight_quirk` and every `split_node` parity test.
+
+## Issues found while porting L2-b2 (item 15)
+
+### KI-18 `mat2vec.m:21-28`: with `ps.prodtied`, the internal weights are not log weights
+- **Code:** `graph_like_conn.m:7` takes the log of `graph.Wsym` only, then calls
+  `mat2vec(graph.Wsym, graph, ps)`. With `ps.prodtied` the internal part of the vector
+  comes from `graph.components{i}.Wsym` (l.23), which still holds raw weights. The start
+  vector therefore mixes log leaf weights (or `log(extlen)`) with raw internal weights.
+  `dataprobwsig` takes `exp` of all of them, so every tied internal weight `w` is read as
+  `exp(w)`. The round trip `exp(mat2vec(log-Wsym of combineWs(g, Wvec)))` returns `Wvec`
+  in every other mode, but with `prodtied` its internal entries are `log(w)` instead of `w`
+  whenever the graph has internal edges. The fixture shows this for 94 of 110 graphs in
+  both `prodtied` modes; the other 16 have no internal edges. Also, l.25 skips a component
+  whose `Wsym` sums to 0, but `combineWs.m:41-42` still takes its `edgecountsym` entries.
+- **Reachable:** no. `ps.prodtied` is 0 in `defaultps.m:57` and no source file sets it.
+  With `prodtied = 1`, fast mode would score the wrong weights, and slow mode would start
+  `fminunc` from a different point.
+- **Decision:** replicate. `weights.mat2vec` reads `comp.Wsym` as MATLAB does.
+- **Pin:** `tests/test_weights.py::test_round_trip` (the `prodtied` cases) and every
+  `mat2vec` parity test.

@@ -60,6 +60,13 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `FormDiscoveryError` where MATLAB errors. `reordermissing` takes 0-based `obsind`/
   `missind` and a 1-D `Wvec` (entry 0 = sigma, then the leaf weights). `filloutrelgraph`
   returns a float `adjcluster` also where MATLAB's `A | A'` makes it logical.
+- Weight vectors (`weights.mat2vec`, `combineWs`, `extract_weights`; item 15) are 1-D and
+  keep MATLAB's entry order, which is column-major: leaf weights in object order, then
+  cluster edges on the strict lower triangle of `adjclustersym` (or of each component's
+  `adjsym` with `prodtied`). They hold no indices, so nothing is shifted. `combineWs`
+  returns only the graph (MATLAB's second output `ps` is unchanged). Where MATLAB `v(1:n)`
+  or `A(idx) = v` would error, the port raises `FormDiscoveryError` instead of truncating;
+  a scalar right-hand side is broadcast as in MATLAB.
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because
   callers only test `p == 0`.
 - Exception: **edge maps** (`graph.get_edgemap`, the `edgemap`/`edgemapsym` fields) keep
