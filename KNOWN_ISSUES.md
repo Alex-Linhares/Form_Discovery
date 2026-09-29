@@ -45,8 +45,11 @@ deal with them.
 - **Decision:** replicate the reachable behaviour: empty `illegal` in every component gives an
   empty combined `illegal`. When a component of a product graph has a non-empty `illegal`,
   Python raises `NotImplementedError` instead of guessing the intended formula.
-- **Pin:** `tests/test_graph.py::test_combinegraphs_illegal_empty` and
-  `::test_combinegraphs_nonempty_illegal_raises` *(item 11)*.
+- **Pin:** `tests/test_graph.py::test_combinegraphs_illegal_empty` (every captured product-graph
+  call in `tests/fixtures/graph.mat` has empty lists) and
+  `::test_combinegraphs_nonempty_illegal_raises` (the fixture records Octave dropping a
+  first-component list silently and failing with `illind(0): subscripts must be ...` on a
+  second-component one; Python raises in both cases).
 
 ### KI-3 `structurefit.m:38,59`: `part{depth,c,pind,2}` misses the component index `i`
 - **Code:** the second partition output of `choose_node_split` is stored as

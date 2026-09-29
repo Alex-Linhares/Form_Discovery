@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 11/36 SOLVED
+- **Current**: 12/36 SOLVED
 
 ---
 
@@ -543,3 +543,67 @@
 ### Next
 - Item 11 (L2-a1: `Graph`/`Component` dataclasses, `combinegraphs`, `makeemptygraph`,
   `tests/helpers.py::graph_equal`).
+
+## Iteration 14 — 2026-09-29 12:37
+### Completed
+- Item 11 **solved** (`[x]`).
+  - `src/formdiscovery/graph.py`: the `Graph` and `Component` dataclasses, with the MATLAB field
+    names (21 graph fields, 14 component fields; unset = `None`) and `copy()`/`replace()` for
+    value semantics. Also `combinegraphs` (`combinegraphs.m:14-131`; the options are keywords
+    `origgraph`, `compind` (0-based), `imap` (0-based), `zonly`) and `makeemptygraph`.
+    `expand_graph` was already ported in item 08.
+  - Replicated quirks: `Wclustersym` comes from the product `W` before the copy from
+    `origgraph`; the leaf edges go to object columns `0..nobj-1`, not to `obsind`; the median
+    fallback is `1` for a 1×1 `oldW` and NaN when it has no positive entry; `globinds` is `N×N`
+    for one component (`zeros(compsizes)` with a scalar).
+  - KI-2 is now pinned. With a non-empty component `illegal` in a product graph, Python raises
+    `NotImplementedError`. The fixture records what Octave does: a first-component list is
+    dropped silently, and a second-component one fails with `illind(0): subscripts must be ...`.
+  - `io.py`: `graph_from_mat` / `component_from_mat` / `graph_to_mat`. They accept loadmat
+    dicts, scipy `mat_struct` and oct2py structs. `CONVENTIONS.md` now says:
+    - `graph.z` uses -1 for a missing object (MATLAB `z < 0` → -1, else `z - 1`).
+    - `globinds` has -1 where MATLAB has an unused 0.
+    - `compinds` is always `N × ncomp`.
+    - `adj`/`adjsym` are bool.
+  - `tests/helpers.py`: `graph_diff` (describes the first differing field, component fields
+    included, with the first differing entry in column-major order), `graph_equal` and
+    `assert_graph_equal`. Structure is compared exactly; `W*`, `leaflengths` and `sigma` to
+    rtol 1e-10.
+  - Fixture `tests/octave/fx_graph.m` → `tests/fixtures/graph.mat` (Octave 10.3.0, generated
+    this iteration). Contents:
+    - `makeemptygraph` for the 24 `ps.structures` names (grid and cylinder included) plus the 4
+      extra domtree names, with 1 and 5 objects, and the unknown-name error.
+    - `combinegraphs` with `zonly` 0 and 1 on all 126 graphs of the 77 baseline growth histories.
+    - 36 product cases.
+    - 135 `combinegraphs` calls captured from seeded `split_node` sequences.
+    - The two KI-2 cases.
+  - **Deviation from the item text**: the baseline growth histories contain no product graphs.
+    The baseline ran only chain/ring/tree and the relational structures, and `runmodel`'s
+    grid/cylinder branches were never run. The product fixtures are therefore built two ways:
+    - **From baseline components**: for each feature demo, the final chain component of
+      `chainout/<d>` and the final ring component of `ringout/<d>` form a cylinder
+      (ring × chain) and a grid (chain × chain). A variant marks two objects missing. For
+      `zonly = 1` the input is the combined graph with one object moved to another cluster in
+      component 2. Each case runs with `prodtied` 0 and 1.
+    - **From split sequences**: 6 seeded `split_node` steps from `makeemptygraph`
+      (grid, cylinder, chain, ring, tree) and from the 6 baseline products, with `prodtied` 0
+      and 1. Before each split, `Wcluster` is given random weights, so the `origgraph` copy
+      path moves distinct values; it changes `Wcluster` in at least 30 calls, which the test
+      asserts.
+
+    A spy `combinegraphs.m` records the real `origgraph`, `compind` and `imap` inputs. It is
+    written to a temp dir that shadows the original, which is copied and renamed to
+    `combinegraphs_orig`. The sources are not modified. `fx_graph(outfile, seedoffset)` takes
+    a seed offset for the live test.
+  - `tests/test_graph.py` has 69 fixture tests and 2 live `octave` tests. The live tests check
+    that the fixture regenerates identically, and they rerun the split sequences with fresh
+    seeds (`seedoffset = 7919`), comparing every captured call.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 271 passed, 20 skipped. The fd
+    env gives 291 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 12 (L2-a2: `add_element`, `empty_graph`, `split_node`). The spy in `fx_graph.m`
+  (`make_spy`) can be reused to capture `split_node` inputs. Split sequences must use
+  `graph_from_mat` and `graph_diff`. `empty_graph` produces `z = -1`, which `combinegraphs`
+  already handles.

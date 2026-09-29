@@ -103,7 +103,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L2 — graph data structure
 
-- [ ] 11. **L2-a1.** `Graph` and `Component` dataclasses (fields named exactly as in the MATLAB
+- [x] 11. **L2-a1.** `Graph` and `Component` dataclasses (fields named exactly as in the MATLAB
       struct), `expand_graph, combinegraphs, makeemptygraph` → `graph.py`. Fixtures:
       `makeemptygraph` for all 24 structure names plus grid/cylinder; `combinegraphs` with and
       without `'zonly'`, with `prodtied` on/off, on product graphs from the baseline growth

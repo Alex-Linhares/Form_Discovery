@@ -6,8 +6,17 @@ that a line of Python can be matched to its `.m` source and compared with Octave
 ## Names and structure
 - Function names are the MATLAB names (already snake_case). Local variable names follow the
   `.m` source where that helps cross-referencing.
-- `graph` becomes a `@dataclass` whose fields have the MATLAB struct's names. `components` is
-  a list of `Component` dataclasses (item 11).
+- `graph` becomes a `graph.Graph` dataclass whose fields have the MATLAB struct's names.
+  `components` is a list of `graph.Component` dataclasses (item 11). Unset fields are
+  `None`. Functions that change a graph return a changed deep copy (`Graph.copy()`), since
+  MATLAB structs are values. `io.graph_from_mat` / `io.graph_to_mat` convert to and from
+  MATLAB structs (fixtures, oct2py); `tests/helpers.py::graph_diff` compares two graphs and
+  names the first differing field.
+- Graph field types: `W`, `Wsym`, `Wcluster`, `Wclustersym`, `adjcluster`, `adjclustersym`
+  and the component matrices are float; `graph.adj`/`graph.adjsym` are bool (MATLAB
+  logical). `compinds` is always 2-D, `N x ncomp`. `globinds` keeps MATLAB's
+  `zeros(compsizes)` shape, which is `N x N` for one component (only column 0 is used).
+  MATLAB's unused 0 entries become -1. Counts (`objcount`, `ncomp`, `nodecount`, ...) are `int`.
 - `ps` becomes a `params.Params` dataclass with a nested `params.RunPs` (item 09). A field
   that MATLAB has not set yet (`isfield` false) is `None`. `ps` is passed by value in MATLAB,
   so functions that change it return a changed copy (`Params.copy()`/`Params.replace()`,
@@ -31,6 +40,9 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `illegal`, `objind`/`featind` chunk lists and permutations (edge maps: see below).
 - Conversion happens only at the boundary: `formdiscovery.io.to0` / `to1` (fixtures, `.mat`
   results) and the parity helpers in `tests/`. Fixtures keep Octave's 1-based values.
+- `graph.z` marks a missing object with **-1** (MATLAB `-1`, `empty_graph.m:13`). Observed
+  is `z >= 0` in both languages, so the boundary maps MATLAB `z < 0` to -1 and every other
+  value to `z - 1`. Component `z` values are always valid nodes.
 - Values that are *labels*, not indices (e.g. the entries of `z` when they are compared as
   cluster ids), are shifted the same way. Otherwise `z` could not index `adj`.
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because

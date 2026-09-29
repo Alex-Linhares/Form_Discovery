@@ -93,3 +93,143 @@ def to1(idx):
     if isinstance(idx, (list, tuple)):
         return type(idx)(to1(i) for i in idx)
     return np.asarray(idx, dtype=float) + 1
+
+
+# --- graph structs (item 11) -----------------------------------------------------------
+_G_SQUARE = ("adjcluster", "adjclustersym", "adj", "Wcluster", "W", "Wclustersym",
+             "adjsym", "Wsym")
+_G_BOOL = ("adj", "adjsym")
+_C_SQUARE = ("adj", "W", "adjsym", "Wsym", "edgemap", "edgemapsym")
+_C_INT = ("prodcount", "nodecount", "edgecount", "edgecountsym")
+
+
+def _struct_dict(d):
+    """scipy ``mat_struct`` (left inside heterogeneous cells by ``simplify_cells``) -> dict."""
+    if hasattr(d, "_fieldnames"):
+        return {f: getattr(d, f) for f in d._fieldnames}
+    return d
+
+
+def _cell_list(v):
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    if isinstance(v, np.ndarray) and v.dtype == object:
+        return list(v.ravel(order="F"))
+    return [v]
+
+
+def _scalar(v):
+    return np.asarray(v).ravel()[0].item()
+
+
+def _str(v):
+    return v if isinstance(v, str) else str(np.asarray(v).ravel()[0])
+
+
+def _vec(v, dtype=float):
+    return np.asarray(v, dtype=dtype).ravel(order="F")
+
+
+def _idx0(v):
+    """1-based MATLAB index vector -> 0-based 1-D int array (0 becomes -1)."""
+    return to0(_vec(v)).ravel()
+
+
+def component_from_mat(d):
+    """A MATLAB ``graph.components{i}`` (dict from ``loadmat(simplify_cells=True)`` or
+    oct2py) -> :class:`formdiscovery.graph.Component`, indices shifted to 0-based
+    (``z``, ``illegal``, ``nodemap``; edge maps keep MATLAB edge numbers)."""
+    from .graph import COMPONENT_FIELDS, Component
+    d = _struct_dict(d)
+    unknown = set(d) - set(COMPONENT_FIELDS)
+    if unknown:
+        raise KeyError(f"component_from_mat: unknown fields {sorted(unknown)}")
+    c = Component()
+    for k, v in d.items():
+        if k == "type":
+            v = _str(v)
+        elif k in _C_INT:
+            v = int(_scalar(v))
+        elif k in _C_SQUARE:
+            v = np.atleast_2d(np.asarray(v, dtype=float))
+        else:  # z, illegal, nodemap
+            v = _idx0(v)
+        setattr(c, k, v)
+    return c
+
+
+def graph_from_mat(d):
+    """A MATLAB ``graph`` struct (dict from ``loadmat(simplify_cells=True)`` or oct2py) ->
+    :class:`formdiscovery.graph.Graph` (``CONVENTIONS.md``): ``z`` 0-based with ``-1`` for
+    missing objects (MATLAB ``z < 0``), ``illegal``/``compinds`` 0-based, ``globinds``
+    0-based with -1 for MATLAB's unused 0 entries; ``compinds`` is ``N x ncomp`` and
+    ``globinds`` gets back its ``zeros(compsizes)`` shape. ``adj``/``adjsym`` become bool.
+    """
+    from .graph import GRAPH_FIELDS, Graph
+    d = _struct_dict(d)
+    unknown = set(d) - set(GRAPH_FIELDS)
+    if unknown:
+        raise KeyError(f"graph_from_mat: unknown fields {sorted(unknown)}")
+    g = Graph()
+    ncomp = int(_scalar(d["ncomp"])) if "ncomp" in d else None
+    for k, v in d.items():
+        if k == "type":
+            v = _str(v)
+        elif k in ("objcount", "ncomp"):
+            v = int(_scalar(v))
+        elif k in ("sigma", "extlen", "intlen"):
+            v = float(_scalar(v))
+        elif k in _G_SQUARE:
+            v = np.atleast_2d(np.asarray(v, dtype=float))
+            if k in _G_BOOL:
+                v = v != 0
+        elif k == "z":
+            v = _vec(v)
+            v = np.where(v < 0, -1, v - 1).astype(np.int64)
+        elif k == "leaflengths":
+            v = _vec(v)
+        elif k == "compsizes":
+            v = _vec(v, np.int64)
+        elif k == "illegal":
+            v = _idx0(v)
+        elif k == "compinds":
+            v = to0(np.asarray(v, dtype=float).reshape(-1, ncomp, order="F"))
+        elif k == "globinds":
+            cs = _vec(d["compsizes"], np.int64)
+            shape = (int(cs[0]),) * 2 if len(cs) == 1 else tuple(int(s) for s in cs)
+            v = to0(np.asarray(v, dtype=float).reshape(shape, order="F"))
+        elif k == "components":
+            v = [component_from_mat(c) for c in _cell_list(v)]
+        setattr(g, k, v)
+    return g
+
+
+def _to_mat_value(k, v, index_fields):
+    if v is None or isinstance(v, str):
+        return v
+    if k in index_fields:
+        return to1(v)
+    if isinstance(v, np.ndarray):
+        return v.astype(float)
+    return float(v)
+
+
+def graph_to_mat(g):
+    """Inverse of :func:`graph_from_mat`: a dict of MATLAB values (1-based indices, floats,
+    ``components`` a list of dicts) for ``savemat``/oct2py. Fields that are ``None`` are
+    left out."""
+    from .graph import COMPONENT_FIELDS, GRAPH_FIELDS
+    out = {}
+    for k in GRAPH_FIELDS:
+        v = getattr(g, k)
+        if v is None:
+            continue
+        if k == "components":
+            out[k] = [{f: _to_mat_value(f, getattr(c, f), ("z", "illegal", "nodemap"))
+                       for f in COMPONENT_FIELDS if getattr(c, f) is not None} for c in v]
+        elif k == "z":
+            v = np.asarray(v)
+            out[k] = np.where(v < 0, -1.0, v + 1.0)
+        else:
+            out[k] = _to_mat_value(k, v, ("illegal", "compinds", "globinds"))
+    return out
