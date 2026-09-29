@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 17/36 SOLVED
+- **Current**: 18/36 SOLVED
 
 ---
 
@@ -933,3 +933,78 @@
   prior bookkeeping (`llc - wpriors`, `dWveccprior` subtracted for c > 1). Use the
   `judges` chunks. The spy pattern in `fx_dataprob.m` (`make_spy`) can capture real
   chunk calls, because the recursive call goes through the spy.
+
+## Iteration 20 — 2026-09-29 14:01
+### Completed
+- Item 17 **solved** (`[x]`).
+  - `src/formdiscovery/likelihood_feat.py`: `dataprobwsig` now runs the missing-data chunk
+    loop (`dataprobwsig.m:24-60`) in `_dataprob_chunks`, with the source lines in its
+    docstring. For each of `ps.runps.chunknum` chunks it does the following:
+    - builds `obsind`/`missind` from `objind` and the assigned objects (`z >= 0`);
+    - calls `reordermissing`;
+    - takes the rows of `d` by rank (`tind[:nobs]`);
+    - sets `runps.SS = chunkSS[c]` and `chunkcount = chunksize[c]`;
+    - makes the recursive call through the module-level name, so a test can wrap it.
+
+    It then reassembles the gradient via `sind` (skipped when `fixedexternal`) and does the
+    prior bookkeeping as MATLAB does (`ll = wpriors + Σ(llc - wpriors)`, with
+    `dWveccprior` subtracted for chunks after the first).
+
+    `nargout=2` now returns `(ll, dWvec)` on both paths. This is what `fminunc` and
+    `checkgrad` ask for.
+  - Two new KIs, both replicated. `test_known_issues.py` now expects KI-1..21.
+    - **KI-20**: with `fixedall` and without `fixedexternal`, `reordermissing.m:22` reads
+      out of bound. `graph.reordermissing` now raises `FormDiscoveryError` instead of an
+      `IndexError`. `runmodel.m:89` (`griddimsearch`, see KI-11) reaches this on judges.
+    - **KI-21**: the chunk path never sets `dWvecprior`, so three outputs fail with 'element
+      number 3 undefined in return list'. No caller asks for three outputs.
+  - Fixture `tests/octave/fx_dpmiss.m` → `tests/fixtures/dpmiss.mat` (Octave 10.3.0,
+    generated this iteration, ~68 s). It uses judges after `scaledata` (13 objects,
+    38 chunks) and has these parts:
+    - **gr**: 25 graphs with random weights: one cluster, seeded split sequences for chain,
+      ring, tree, partition, connected, grid and cylinder, and 4 with unassigned objects.
+      No hierarchy graph survived the split sequence; tree covers the hierarchy family's
+      paths here.
+    - **cs**: every graph × 8 tying modes (200 cases, 161 succeed), with
+      `d = data(z > 0, :)` as `graph_like.m:7-10` passes it. The 39 errors: 25 KI-20 cases
+      (fixedall), 7 chol failures (the partition:6 holes, KI-19), and 7 nonconformant (a
+      tree graph with unassigned objects).
+    - **ch**: a spy records all 228 recursive per-chunk calls of 6 cases, with inputs and
+      outputs.
+    - **bl**: a spy records 16 outer calls (8 value, 8 gradient) from a real
+      partition × judges run with `run_baseline.m`'s settings. The final score is
+      -16201.27918, the same as a separate `run_baseline('feat', 1, 13)` run (42 s).
+    - **err3**: the KI-21 message.
+  - `tests/test_dpmiss.py` has 26 fast tests, 7 `slow` tests (the full checkgrad) and 2
+    live `octave` tests:
+    - All cases in all modes match to rtol 1e-10 (value, gradient, one-output value), and
+      every error case raises with the matching kind.
+    - Each recursive chunk call matches Octave: reordered Wvec, data block, reordered
+      graph, SS, chunkcount and the three outputs.
+    - The spied-run calls match.
+    - A one-chunk setup reduces to the direct path.
+    - Python checkgrad (every 6th case per mode in the gate, all cases when slow) and
+      Octave's checkgrad (92 values, max 4e-9) both pass FD_TOL 1e-6.
+    - Inputs are not mutated.
+    - Live: the fixture regenerates identically, and fresh seeds (`seedoffset = 7919`)
+      match and pass checkgrad.
+
+    The judges data from Python `scaledata` differ from Octave's by up to 1 ulp, so the
+    chunk-data comparison uses rtol 1e-12.
+  - A mutation check confirmed that the tests catch each of these deliberate breaks: the
+    prior subtracted for every chunk, no `sind` reassembly, no `- wpriors`, rows taken by
+    object id instead of rank, and `chunkcount` not set.
+  - `test_dataprob.py::test_missingdata_path_not_ported` was replaced by `test_two_outputs`.
+    `CONVENTIONS.md` now describes `nargout=2` and the chunk path's `d`.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 496 passed, 33 skipped. The
+    fd env gives 529 passed, live Octave tests included (8 min, most of it the live
+    fresh-seed runs).
+### Blockers
+- None.
+### Next
+- Item 18 (L3-b1: `graph_like_conn` fast mode and the `graph_like` dispatcher).
+  `graph_like` passes `data(z > 0, :)`, which the chunk path now expects. In the `dpmiss`
+  fixture, every spied outer call from the judges run has `dsame = 1`, which confirms that
+  subsetting. The fixture's `bl` calls with nargout 1 are probably fast-mode
+  `graph_like_conn` calls (l.16) on judges, which item 18 could reuse. This is not checked:
+  Octave's `fminunc` might also make one-output calls.

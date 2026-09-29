@@ -1,6 +1,6 @@
 """Parity of ``likelihood_feat.inv_covariance``, ``gplike`` and ``dataprobwsig`` (item 16,
-L3-a1, no missing-data chunk path) with Octave, and the analytic gradient against finite
-differences (``checkgrad``).
+L3-a1; the missing-data chunk path is item 17, ``test_dpmiss.py``) with Octave, and the
+analytic gradient against finite differences (``checkgrad``).
 
 The fixture ``tests/fixtures/dataprob.mat`` comes from ``tests/octave/fx_dataprob.m``
 (regenerate with ``python tools/gen_fixtures.py dataprob``):
@@ -221,11 +221,14 @@ def test_featSS_uses_runps_SS():
     assert ll2 == pytest.approx(ll3, rel=1e-12)
 
 
-def test_missingdata_path_not_ported():
+def test_two_outputs():
+    """nargout=2 returns (ll, dWvec), as graph_like_conn's fminunc call asks for (the
+    missing-data chunk path is tested in test_dpmiss.py)."""
     r = OK[0]
     g, d, ps, _ = case_inputs(r)
-    with pytest.raises(NotImplementedError, match="item 17"):
-        dataprobwsig(_vec(r["Wvec"]), d, g, ps.replace(missingdata=1))
+    ll, dW = dataprobwsig(_vec(r["Wvec"]), d, g, ps, nargout=2)
+    assert ll == float(r["ll"]) or abs(ll - float(r["ll"])) < 1e-10 * abs(ll)
+    assert_vec(dW, r["dW"], "nargout 2")
 
 
 def test_inputs_not_mutated():

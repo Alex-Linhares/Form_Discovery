@@ -1213,7 +1213,8 @@ def reordermissing(graph, Wvec, obsind, missind, ps):
     nodes), and unless ``ps.fixedexternal`` the leaf weights ``Wvec[1:nobj+1]`` (entry 0
     is sigma) likewise. The object-object block is left alone, as in MATLAB. Raises
     :class:`FormDiscoveryError` when ``len(obsind) + len(missind) != graph.objcount``
-    (a nonconformant assignment in MATLAB).
+    (a nonconformant assignment in MATLAB), and when ``Wvec`` has fewer than
+    ``objcount + 1`` entries without ``ps.fixedexternal`` (an out-of-bound read, KI-20).
     """
     graph = graph.copy()
     Wvec = np.asarray(Wvec, dtype=float).ravel().copy()
@@ -1240,6 +1241,9 @@ def reordermissing(graph, Wvec, obsind, missind, ps):
 
     # first position is for sigma
     if not ps.fixedexternal:
+        if nobj + 1 > len(Wvec):  # e.g. ps.fixedall without ps.fixedexternal (KI-20)
+            raise FormDiscoveryError(f"reordermissing: index ({nobj + 1}): out of bound "
+                                     f"{len(Wvec)}")
         Wvec[1:nobj + 1] = Wvec[tind + 1]
 
     # adjust leaflengths, W, Wsym, adjsym etc

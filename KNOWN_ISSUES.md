@@ -296,3 +296,26 @@ deal with them.
   `dataprobwsig` raises `FormDiscoveryError`.
 - **Pin:** `tests/test_dataprob.py::test_hole_hack_is_exercised`,
   `::test_inv_covariance_holes_block` and the `chol` error cases in `::test_cases`.
+
+### KI-20 `reordermissing.m:22`: `ps.fixedall` without `ps.fixedexternal` fails on missing data
+- **Code:** unless `ps.fixedexternal`, `Wvec(2:nobj+1) = Wvec(tind+1)` permutes one leaf
+  weight per object. With `ps.fixedall`, `mat2vec` returns a single weight, so `Wvec` has
+  two entries and the read fails ('Wvec(14): out of bound 2' for judges' 13 objects). Only
+  the missing-data chunk path (`dataprobwsig.m:39`) calls `reordermissing`.
+- **Reachable:** `runmodel.m:89` (`griddimsearch`) sets `ps.fixedall = 1` twice and leaves
+  `fixedexternal` at 0 (KI-11), so `griddimsearch` on a data set with missing values
+  (judges) would stop here. The default `masterrun` grid does not run `griddimsearch`.
+- **Decision:** replicate. `graph.reordermissing` raises `FormDiscoveryError`.
+- **Pin:** `tests/test_dpmiss.py::test_fixedall_errors` (every `fixedall` case of
+  `tests/fixtures/dpmiss.mat`).
+
+### KI-21 `dataprobwsig.m:24-60`: the chunk path never sets `dWvecprior`
+- **Code:** the missing-data branch returns after the loop without assigning the third
+  output, so `[ll dW dWp] = dataprobwsig(...)` with `ps.missingdata = 1` fails in Octave
+  with 'element number 3 undefined in return list'. The recursive per-chunk calls use `ps.missingdata = 0` and are not
+  affected.
+- **Reachable:** no. `graph_like_conn.m` asks for one output (fast mode, l.16) or two
+  (`fminunc`, l.55); `checkgrad` asks for two.
+- **Decision:** replicate. `dataprobwsig(..., nargout=3)` raises `FormDiscoveryError` on the
+  chunk path; `nargout=2` returns `(ll, dWvec)`.
+- **Pin:** `tests/test_dpmiss.py::test_three_outputs_error`.

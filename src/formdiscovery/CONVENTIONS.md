@@ -62,8 +62,10 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   returns a float `adjcluster` also where MATLAB's `A | A'` makes it logical.
 - Where a MATLAB function does extra work depending on `nargout`, the port takes a
   `nargout=` keyword with the MATLAB default. `likelihood_feat.dataprobwsig(Wvec, d,
-  graph, ps, nargout=3)` returns `(ll, dWvec, dWvecprior)`, or just `ll` for
-  `nargout=1`, which skips the gradient. Objective callbacks for `hessiangrad`/`checkgrad`
+  graph, ps, nargout=3)` returns `(ll, dWvec, dWvecprior)`, `(ll, dWvec)` for
+  `nargout=2`, or just `ll` for `nargout=1`, which skips the gradient. With
+  `ps.missingdata` (the chunk path, item 17) `d` holds the rows of the assigned objects
+  (`z >= 0`, as `graph_like` passes them), and only `nargout` 1 and 2 work (KI-21). Objective callbacks for `hessiangrad`/`checkgrad`
   wrap it as `lambda x: dataprobwsig(x, ...)[:2]`. Weight vectors passed to
   `dataprobwsig` are log weights: entry 0 is `log(sigma)`, then `mat2vec` order.
 - Weight vectors (`weights.mat2vec`, `combineWs`, `extract_weights`; item 15) are 1-D and

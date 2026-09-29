@@ -4,7 +4,10 @@ Item 08 (L0-b) adds ``hessiangrad``, pinned by ``tests/octave/fx_l0b.m`` →
 ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``). Item 16 (L3-a1) adds
 ``inv_covariance``, ``gplike`` and ``dataprobwsig`` without the missing-data chunk path,
 pinned by ``tests/octave/fx_dataprob.m`` → ``tests/fixtures/dataprob.mat``
-(``tests/test_dataprob.py``). The chunk path is item 17, ``graph_like_conn`` items 18-19.
+(``tests/test_dataprob.py``). Item 17 (L3-a2) adds the missing-data chunk path
+(``dataprobwsig.m:24-60``), pinned by ``tests/octave/fx_dpmiss.m`` →
+``tests/fixtures/dpmiss.mat`` (``tests/test_dpmiss.py``). ``graph_like_conn`` is items
+18-19.
 
 Matrix products keep MATLAB's left-to-right order, so rounding is close to Octave's.
 MATLAB errors (non-positive-definite ``chol``, out-of-bound reads, nonconformant
@@ -14,8 +17,10 @@ products) raise :class:`~formdiscovery.FormDiscoveryError`.
 import numpy as np
 
 from . import FormDiscoveryError
+from .matlab_compat import stable_argsort
 from .util import inv_posdef, logdet, matrixpartition, triplepartition, vec
 from .weights import combineWs, extract_weights, weightprior
+from .graph import reordermissing
 
 __all__ = ["hessiangrad", "inv_covariance", "gplike", "dataprobwsig"]
 
@@ -179,8 +184,8 @@ def dataprobwsig(Wvec, d, graph, ps, nargout=3):
     ps.runps.dim``), ``ps.runps.SS`` when ``size(d, 1) == ps.runps.chunkcount``, else
     ``d @ d.T / size(d, 2)``.
 
-    Returns ``ll`` (``nargout == 1``) or ``(ll, dWvec, dWvecprior)``, the gradient (1-D,
-    length ``len(Wvec)``) and its prior part. The rows of ``d`` are the first
+    Returns ``ll`` (``nargout == 1``), ``(ll, dWvec)`` (``nargout == 2``) or ``(ll,
+    dWvec, dWvecprior)``, the gradient (1-D, length ``len(Wvec)``) and its prior part. The rows of ``d`` are the first
     ``nobs = size(d, 1)`` objects. ``nobs == graph.objcount`` uses the two-block partition
     (l.96-154); otherwise the remaining ``nmiss = objcount - nobs`` objects are
     unobserved and the three-block partition is used (l.155-236, as the chunk path's
@@ -189,8 +194,8 @@ def dataprobwsig(Wvec, d, graph, ps, nargout=3):
     ``trace(c5)`` unless ``ps.zglreg`` ("as of August 19"). A NaN gradient raises
     (l.237-239, ``keyboard`` in the original).
 
-    ``ps.missingdata`` (the chunk loop, l.24-60) is item 17 and raises
-    ``NotImplementedError`` here.
+    With ``ps.missingdata`` the chunk loop (l.24-60) runs instead, see
+    :func:`_dataprob_chunks`.
     """
     logWvec = np.asarray(Wvec, dtype=float).ravel()  # noqa: F841  (as MATLAB, unused)
     Wvec = np.exp(logWvec)
@@ -200,7 +205,7 @@ def dataprobwsig(Wvec, d, graph, ps, nargout=3):
     pk = 2  # 2 for exponential: 3 for gamma shape 2
 
     if ps.missingdata:
-        raise NotImplementedError("dataprobwsig: missing-data chunk path (item 17)")
+        return _dataprob_chunks(Wvec, d, graph, ps, nargout, wbeta, sigbeta)
 
     d = np.atleast_2d(np.asarray(d, dtype=float))
     if ps.runps.type == "sim":
@@ -238,7 +243,78 @@ def dataprobwsig(Wvec, d, graph, ps, nargout=3):
                                               wbeta, sigbeta, pk, graph, ps)
     if np.sum(np.isnan(dWvec)):
         raise FormDiscoveryError("dataprobwsig: NaNs in gradient")
+    if nargout == 2:
+        return ll, dWvec
     return ll, dWvec, dWvecprior
+
+
+def _dataprob_chunks(Wvec, d, graph, ps, nargout, wbeta, sigbeta):
+    """``dataprobwsig.m:24-60``: the missing-data path. ``Wvec`` holds the weights (not
+    their logs) and ``d`` the rows of the assigned objects (``z >= 0``) in object order,
+    as ``graph_like.m:7-10`` passes them; ``Inf`` marks a missing value.
+
+    For each chunk ``c`` (``ps.runps.objind[c]``/``featind[c]``, ``preprocess.makechunks``)
+    the assigned objects are split into observed (``obsind``) and unobserved
+    (``missind``); ``reordermissing`` moves the unobserved ones behind the observed ones,
+    and ``dataprobwsig`` is called recursively (through the module-level name, so a test
+    can wrap it) with ``ps.missingdata = 0``, ``ps.runps.SS = chunkSS[c]``,
+    ``ps.runps.chunkcount = chunksize[c]`` on ``d[tind[:nobs], featind[c]]``. The recursive
+    call therefore takes the ``nmiss > 0`` gradient branch, and uses ``chunkSS`` only when
+    every observed object of the chunk is assigned (otherwise ``d*d'/dim``).
+
+    Replicated: ``ll`` starts at ``wpriors = -(prior of Wvec)`` and each chunk adds its
+    value minus ``wpriors``, so the prior is counted once. The prior gradient is kept for
+    chunk 0 only (``c > 1`` in MATLAB). Unless ``ps.fixedexternal``, the leaf entries
+    ``dWvecc[1:len(sind)+1]`` are put back in object order via ``sind``. MATLAB never sets
+    ``dWvecprior`` on this path, so ``nargout == 3`` raises as Octave does after the loop
+    (KI-21).
+    """
+    ps = ps.replace(missingdata=0)
+    wpriors = -(weightprior(Wvec[1:], wbeta) + weightprior(Wvec[0], sigbeta))
+    ll = wpriors
+    dWvec = 0
+    z = np.asarray(graph.z).ravel()
+    theseobjs = z >= 0
+    d = np.atleast_2d(np.asarray(d, dtype=float))
+    r = ps.runps
+    for c in range(int(r.chunknum)):
+        inchunk = np.zeros(len(z), dtype=bool)
+        inchunk[np.asarray(r.objind[c], dtype=np.int64)] = True
+        obsind = np.flatnonzero(theseobjs & inchunk)
+        missind = np.flatnonzero(theseobjs & ~inchunk)
+        currobs = np.concatenate([obsind, missind])
+        sind = stable_argsort(currobs)
+        tind = stable_argsort(sind)
+
+        # shuffle the missing objects for this chunk to the end of the list. We can then
+        # ignore them when computing probability of the data for this chunk. (MATLAB)
+        newgraph, newWvec = reordermissing(graph, Wvec, obsind, missind, ps)
+        rows = tind[:len(obsind)]
+        if len(rows) and rows.max() >= d.shape[0]:
+            raise FormDiscoveryError(
+                f"dataprobwsig: index ({rows.max() + 1},_): out of bound {d.shape[0]}")
+        newdata = d[np.ix_(rows, np.asarray(r.featind[c], dtype=np.int64))]
+        psc = ps.copy()
+        psc.runps.SS = r.chunkSS[c]
+        psc.runps.chunkcount = r.chunksize[c]
+        if nargout > 1:
+            llc, dWvecc, dWveccprior = dataprobwsig(np.log(newWvec), newdata, newgraph, psc)
+            llc = llc - wpriors
+            if c > 0:  # include dWveccprior for first chunk
+                dWvecc = dWvecc - dWveccprior
+            if not ps.fixedexternal:
+                dWvecc = dWvecc.copy()
+                dWvecc[1:len(sind) + 1] = dWvecc[sind + 1]
+            dWvec = dWvec + dWvecc
+        else:
+            llc = dataprobwsig(np.log(newWvec), newdata, newgraph, psc, nargout=1) - wpriors
+        ll = ll + llc
+    if nargout <= 1:
+        return ll
+    if nargout == 2:
+        return ll, np.atleast_1d(dWvec)
+    raise FormDiscoveryError("dataprobwsig: element number 3 undefined in return list "
+                             "(KI-21)")
 
 
 def _grad_observed(J, Wsym, SS, dim, nobj, nlat, sigma, wbeta, sigbeta, pk, graph, ps):

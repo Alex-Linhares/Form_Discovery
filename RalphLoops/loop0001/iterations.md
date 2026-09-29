@@ -129,7 +129,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 - [x] 16. **L3-a1.** `inv_covariance, gplike, dataprobwsig` (value and gradient, no missing
       data) → `likelihood_feat.py`. Port `checkgrad` as a test utility and assert the analytic
       gradient matches finite differences on every fixture graph.
-- [ ] 17. **L3-a2.** `dataprobwsig` missing-data chunk path (recursive call per chunk,
+- [x] 17. **L3-a2.** `dataprobwsig` missing-data chunk path (recursive call per chunk,
       gradient reassembly via `sind`). Fixtures from `judges`.
 - [ ] 18. **L3-b1.** `graph_like_conn` fast mode (`ps.fast=1`) and `graph_like` dispatcher →
       exact parity on all baseline graphs.
