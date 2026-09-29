@@ -165,7 +165,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       (MATLAB `cat(2, graph, nearmgraphs{:})` drops empties). `graphsig` stubbed to raise
       `NotImplementedError` (only reached when `ps.nauty=1`). Parity at speed 5 fast, then
       speed 4.
-- [ ] 27. **L4-c2.** `structurefit (+bestsplit, graphscorenoopt, optimizebranches,
+- [x] 27. **L4-c2.** `structurefit (+bestsplit, graphscorenoopt, optimizebranches,
       optimizedepth)`. Reproduce the Octave growth history (`bestgraphlls`, `bestgraph`) for
       `demo_chain_feat` × chain with replayed permutations. Replace `save(savefile, ...)` with
       an optional callback/output dir.

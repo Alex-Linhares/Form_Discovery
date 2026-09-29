@@ -156,7 +156,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   which one `max` sees first. Python and Octave round differently, so the parity tests
   accept any Python candidate within rtol 1e-10 of the best whose graph and parts equal
   Octave's (`tests/test_search.py::check_call`). Growth histories (item 27) can diverge at
-  such a tie.
+  such a tie; see `structurefit` below.
 - `search.swapobjclust` (item 24) takes `comp` as a 0-based component or `None`
   (MATLAB `[]`, the whole graph), the MATLAB options as keywords (`objflag`, `fastflag`,
   `debug`) and `rng=None`. The near-miss graphs are a list. `chooseswaps` returns float
@@ -191,7 +191,30 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `swsub.m` behind a dispatcher so they can be called directly; `fx_spr.m` does the same
   for `spr` and `collapsedims` (`sprsub.m`, `cdsub.m`, one spy `l4b2_spy.m`).
   `fx_gibbs.m` spies on `gibbs_clean` (`gibbs_spy.m`). While a spied call runs,
-  it also wraps `graph_like` (`glc_spy.m`) to record the slow calls.
+  it also wraps `graph_like` (`glc_spy.m`) to record the slow calls. `fx_structurefit.m`
+  spies on `structurefit` (`sf_spy.m`), with `glc_spy.m` and a `choose_node_split`
+  wrapper (`cns_spy.m`).
+- `search.structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None)`
+  (item 27) returns `(ll, graph, bestgraphlls, bestgraph)`: a 1-D array and a list of
+  graphs. `graph=None` is MATLAB's `[]`. `save(savefile, ...)` becomes optional: with
+  `savefile` a `.mat` file is written after each accepted depth (`.mat` is appended, as
+  MATLAB does; Octave's `save` does not append it), and `callback(bestgraphlls,
+  bestgraph)` is called at the same points. The per-depth `lls`/`newgraph` cell arrays
+  become dicts keyed by `(i, c, pind)`: `i` is a 0-based component, or `ncomp` for the
+  product-graph moves; `c` is a 0-based node (for `i = ncomp`, the 0-based move number);
+  `pind` is the production label. `bestsplit` returns `(m, key)`, and `(0, 0, 1)` when
+  nothing beats `-inf`. `tests/test_structurefit.py` replays with Octave's slow results
+  (the speed-4 oracle pattern, used at both speeds since `structurefit` itself scores
+  slowly). It also uses two tie rules:
+  - **split ties:** when Python's `choose_node_split` graph is not Octave's, Octave's
+    graph must be one of Python's `best_split` candidates tied with the best to
+    `TIE_RTOL`, and that candidate is used instead (`SplitOracle`);
+  - **near-miss ties:** mirror-image near misses can reach their slow scores in the
+    other order. A request may then take a later unused Octave record whose slow score
+    ties with the expected one (`TieOracle`).
+
+  The committed fixture needs these 4 times: the first split of both
+  `chain:demo_chain_feat` runs and of the cylinder run, and one near-miss pair.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

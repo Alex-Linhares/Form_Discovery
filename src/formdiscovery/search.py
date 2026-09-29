@@ -4,6 +4,8 @@
 ``sourcecls`` and ``cltypes``. Part b2 (item 25, L4-b2): ``spr`` (with ``makerp`` and
 ``makers``) and ``collapsedims`` (with ``getocc``, ``get_occnodescomp`` and ``zassign``).
 Part c1 (item 26, L4-c1): ``gibbs_clean`` (with ``nearmissopts``; ``graphsig`` is a stub).
+Part c2 (item 27, L4-c2): ``structurefit`` (with ``bestsplit``, ``graphscorenoopt``,
+``optimizebranches`` and ``optimizedepth``).
 
 Randomness enters through ``randperm`` at ``choose_seedpairs.m:24``,
 ``best_split.m:35``, ``swapobjclust.m:33``, ``spr.m:57/59`` and ``collapsedims.m:35``. The ports take ``rng=None`` and draw with
@@ -14,7 +16,9 @@ Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
 (``tests/test_search.py``) and ``tests/octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
 (``tests/test_swap.py``) and ``tests/octave/fx_spr.m`` → ``tests/fixtures/spr.mat``
 (``tests/test_spr.py``) and ``tests/octave/fx_gibbs.m`` → ``tests/fixtures/gibbs.mat``
-(``tests/test_gibbs.py``), which replay Octave's recorded draws.
+(``tests/test_gibbs.py``) and ``tests/octave/fx_structurefit.m`` →
+``tests/fixtures/structurefit.mat`` (``tests/test_structurefit.py``), which replay
+Octave's recorded draws.
 """
 
 import numpy as np
@@ -1014,3 +1018,263 @@ def nearmissopts(nearmgraphs, nearmscores, graph, nearmisses, nearmissesk, ps, e
         optg.append(sg)
         optscores.append(scores[j - 1])
     return optg, np.asarray(optscores, dtype=float)
+
+
+# --- structurefit (item 27) ------------------------------------------------------------------
+
+def graphscorenoopt(graph, data, ps):
+    """``structurefit.m:246-250`` (``graphscorenoopt``): the fast score (``ps.fast = 1``,
+    no MAP branch lengths) ``graph_like + graph_prior``. Returns ``(ll, graph)`` with the
+    graph from ``graph_like``."""
+    return _score(data, graph, ps.replace(fast=1))
+
+
+def optimizebranches(graph, data, ps):
+    """``structurefit.m:255-259`` (``optimizebranches``): the slow score (``ps.fast = 0``:
+    optimised branch lengths and the Laplace approximation). Returns ``(ll, graph)`` with
+    the optimised graph."""
+    return _score(data, graph, ps.replace(fast=0))
+
+
+def _cluster_keys(graph):
+    """The ``(i, c, pind)`` keys of ``structurefit.m:30-35`` (also ``bestsplit`` l.221-226
+    and ``optimizedepth`` l.266-271) in MATLAB's loop order: 0-based component ``i``,
+    0-based occupied node ``c`` (``ismember(c, unique(z))``) and the production label
+    ``pind`` (1-based, not shifted)."""
+    keys = []
+    for i in range(int(graph.ncomp)):
+        comp = graph.components[i]
+        clegal = set(np.asarray(comp.z).ravel().astype(int).tolist())
+        for c in range(int(comp.nodecount)):
+            if c in clegal:
+                for pind in range(1, int(comp.prodcount) + 1):
+                    keys.append((i, c, pind))
+    return keys
+
+
+def _prod_keys(graph, lls):
+    """The ``graph.ncomp + 1`` entries of one depth (``structurefit.m:47-64``), in the
+    order of ``c = 1:size(lls, 3)``. Entries that MATLAB leaves empty are absent, so the
+    loops only see the ones that were set."""
+    i = int(graph.ncomp)
+    return sorted(k for k in lls if k[0] == i)
+
+
+def bestsplit(graph, lls):
+    """``structurefit.m:216-242`` (``bestsplit``): the key ``(mi, mc, mpind)`` and score
+    ``m`` of the best split at the current depth, with ``lls`` a dict ``{(i, c, pind):
+    score}`` for that depth (the other depths are never read). The first strict maximum
+    wins; with nothing above ``-inf`` the result is ``(-inf, (0, 0, 1))`` (MATLAB's
+    ``mi = mc = mpind = 1``).
+
+    KI-4 (replicated): the product-graph entries (``i = ncomp``) are tested as
+    ``lls{depth,i,c,1}`` but read and returned with the ``pind`` left over from the
+    component loops, i.e. the last component's ``prodcount``. That is always 1 for grid
+    and cylinder; any other value raises :class:`FormDiscoveryError`.
+    """
+    m = -np.inf
+    best = (0, 0, 1)
+    pind = None
+    for key in _cluster_keys(graph):
+        pind = key[2]
+        if lls[key] > m:
+            m = lls[key]
+            best = key
+    if graph.ncomp > 1:
+        for key in _prod_keys(graph, lls):
+            if lls[key] > m:
+                if pind != 1:  # KI-4: m = lls{depth,i,c,pind}; mpind = pind
+                    raise FormDiscoveryError(
+                        f"structurefit bestsplit: stale pind {pind} != 1 (KI-4)")
+                m = lls[key]
+                best = key
+    return m, best
+
+
+def optimizedepth(graph, lls, newgraph, data, ps):
+    """``structurefit.m:263-290`` (``optimizedepth``): every split at the current depth
+    that has a graph is scored slowly with :func:`optimizebranches`, in MATLAB's order
+    (the component splits, then the product-graph entries). ``lls``/``newgraph`` are the
+    dicts of one depth; returns updated copies."""
+    lls, newgraph = dict(lls), dict(newgraph)
+    keys = [k for k in _cluster_keys(graph)]
+    if graph.ncomp > 1:
+        keys += _prod_keys(graph, lls)
+    for key in keys:
+        # there'll be no splits of nodes with one object
+        if newgraph.get(key) is not None:
+            lls[key], newgraph[key] = optimizebranches(newgraph[key], data, ps)
+    return lls, newgraph
+
+
+def _save_history(savefile, bestgraphlls, bestgraph):
+    """``save(savefile, 'bestgraphlls', 'bestgraph')`` (``structurefit.m:196``) as a
+    MATLAB ``.mat`` file (``.mat`` is appended as MATLAB does when there is no
+    extension)."""
+    import os
+
+    import scipy.io
+
+    from .io import graph_to_mat
+    path = os.fspath(savefile)
+    if not path.endswith(".mat"):
+        path += ".mat"
+    cells = np.empty((1, len(bestgraph)), dtype=object)
+    for k, g in enumerate(bestgraph):
+        cells[0, k] = graph_to_mat(g)
+    scipy.io.savemat(path, {"bestgraphlls": np.asarray(bestgraphlls, dtype=float)[None, :],
+                            "bestgraph": cells})
+
+
+def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None):
+    """``structurefit.m:1-213``: grow a graph of structure ``ps.runps.structname`` by
+    splitting cluster nodes while the score improves. Returns ``(ll, graph, bestgraphlls,
+    bestgraph)``: the final score and graph, and the growth history (a 1-D array and a
+    list of graphs, one entry per accepted depth).
+
+    ``graph=None`` (MATLAB ``[]``) starts from :func:`makeemptygraph`. The start graph is
+    scored with :func:`optimizebranches` (and :func:`graphscorenoopt` at speed 5). Each
+    depth then, with one shared ``rng`` in MATLAB's call order:
+
+    - tries every production on every occupied node (:func:`choose_node_split`) and, for
+      product graphs, moving the members of each node with more than one object into
+      each vacant neighbour (``compind = -1``, the neighbour as ``pind``);
+    - takes the best with :func:`bestsplit` (``-inf`` everywhere: the current graph),
+      scored slowly first at speed 4;
+    - cleans it with a fast ``gibbs_clean`` (``loopmax 2, fast 1``; relational data: two
+      passes, ``swaptypes`` ``[1 0 0 0 0]`` then ``[0 1 0 0 0]``);
+    - speed 5: at ``depth < 10`` rescored as optimise-then-fast-score; if the gain is at
+      most ``loopeps = 1e-2``, the current graph rescored the same way, then (``depth >=
+      10``) the raw best split, then a slow ``gibbs_clean`` of the current graph, then
+      :func:`optimizedepth`. Speeds 1-4: :func:`optimizedepth` (speed 4 only), a slow
+      ``gibbs_clean``, then ``gibbs_clean`` with 10 near misses. Each fallback runs only
+      while the gain is still at most ``loopeps``.
+    - stops when the gain is at most ``loopeps``; otherwise accepts the new graph and
+      appends it to the history.
+
+    Deviations: ``save(savefile, ...)`` (l.196) becomes optional: with ``savefile`` the
+    history is written to ``savefile`` (``.mat`` appended), and ``callback(bestgraphlls,
+    bestgraph)`` is called after each accepted depth; with neither nothing is written.
+    The ``disp`` lines and the display blocks (``ps.showpreclean``/``showpostclean``,
+    l.85-95, 198-208) are dropped. ``part`` is not kept (KI-3); ``bestsplit`` keeps KI-4.
+    MATLAB keeps ``lls``/``newgraph`` for all depths but reads only the current one; the
+    port keeps one depth's dicts.
+    """
+    from .graph import makeemptygraph
+    from .matlab_compat import hist_centres
+
+    rng = as_provider(rng)
+    loopeps = 1e-2
+    bestgraphlls, bestgraph = [], []
+
+    if graph is None:  # set up initial graph
+        graph = makeemptygraph(ps)
+
+    currprob, graph = optimizebranches(graph, data, ps)
+    if ps.speed == 5:
+        currprob, graph = graphscorenoopt(graph, data, ps)
+
+    stopflag = 0
+    depth = 1
+    # continue splitting cluster nodes while score improves
+    while stopflag == 0:
+        lls, newgraph = {}, {}
+        for key in _cluster_keys(graph):
+            i, c, pind = key
+            # split node c in component i using production pind
+            lls[key], _, _, newgraph[key] = choose_node_split(graph, i, c, pind, data, ps,
+                                                              rng=rng)
+
+        # for combinations: try moving objects to vacant neighbors
+        if graph.ncomp > 1:
+            i = int(graph.ncomp)
+            lls[(i, 0, 1)] = -np.inf
+            newgraph[(i, 0, 1)] = None
+            nclusternodes = np.shape(graph.adjcluster)[0]
+            z = np.asarray(graph.z).ravel()
+            nodecounts = hist_centres(np.where(z < 0, -1, z + 1),
+                                      np.arange(1, nclusternodes + 1))
+            c = 0
+            for nd in range(nclusternodes):
+                if nodecounts[nd] > 1:
+                    nbs = np.flatnonzero(np.asarray(graph.adjclustersym)[:, nd])
+                    for nb in nbs:
+                        if nodecounts[nb] == 0:
+                            c += 1
+                            lls[(i, c - 1, 1)], _, _, newgraph[(i, c - 1, 1)] = \
+                                choose_node_split(graph, -1, nd, int(nb), data, ps, rng=rng)
+
+        m, best = bestsplit(graph, lls)
+
+        if m == -np.inf:  # no splits possible
+            lls[best] = currprob
+            newgraph[best] = graph
+
+        if ps.speed == 4:
+            # optimize branches for best split
+            lls[best], newgraph[best] = optimizebranches(newgraph[best], data, ps)
+
+        newscore, newg = lls[best], newgraph[best]
+
+        if ps.runps.type == "rel":
+            # try swapping objects before removing clusters (l.98-111)
+            newscore, newg = gibbs_clean(newg, data, ps, loopmax=2, fast=1,
+                                         swaptypes=[1, 0, 0, 0, 0], rng=rng)
+            newscore, newg = gibbs_clean(newg, data, ps, loopmax=2, fast=1,
+                                         swaptypes=[0, 1, 0, 0, 0], rng=rng)
+        else:
+            # clean new graph using a fast pass
+            newscore, newg = gibbs_clean(newg, data, ps, loopmax=2, fast=1, rng=rng)
+
+        if ps.speed == 5:  # avoid optimizing branch lengths in many cases
+            if depth < 10:  # small depth: optimizing branch lengths of best split
+                _, ng = optimizebranches(newg, data, ps)
+                newscore, newg = graphscorenoopt(ng, data, ps)
+            if newscore - currprob <= loopeps:
+                # opt branch lengths as heuristic
+                _, ng = optimizebranches(graph, data, ps)
+                newscore, newg = graphscorenoopt(ng, data, ps)
+                if newscore - currprob <= loopeps and depth >= 10:
+                    _, ng = optimizebranches(newgraph[best], data, ps)
+                    newscore, newg = graphscorenoopt(ng, data, ps)
+            if newscore - currprob <= loopeps:
+                # clean current graph using a gibbs-style pass
+                newscore, newg = gibbs_clean(graph, data, ps, loopmax=2, rng=rng)
+            if newscore - currprob <= loopeps:
+                # optimize all splits at this depth
+                lls, newgraph = optimizedepth(graph, lls, newgraph, data, ps)
+                m, best = bestsplit(graph, lls)
+                if lls[best] > newscore:
+                    newscore, newg = lls[best], newgraph[best]
+        elif ps.speed in (1, 2, 3, 4):
+            if newscore - currprob <= loopeps and ps.speed == 4:
+                # optimize all splits at this depth
+                lls, newgraph = optimizedepth(graph, lls, newgraph, data, ps)
+                m, best = bestsplit(graph, lls)
+                if lls[best] > newscore:
+                    newscore, newg = lls[best], newgraph[best]
+            if newscore - currprob <= loopeps:
+                # clean current graph using a gibbs-style pass
+                newscore, newg = gibbs_clean(graph, data, ps, loopmax=2, rng=rng)
+            if newscore - currprob <= loopeps:
+                # replace best split with a near miss of current graph if we can find a
+                # good one
+                newscore, newg = gibbs_clean(graph, data, ps, loopmax=2, nearmisses=10,
+                                             loopeps=loopeps, rng=rng)
+
+        # if we still can't beat current graph
+        if newscore - currprob <= loopeps:
+            stopflag = 1
+        else:  # NB: we might go around a few extra times when graph and newgraph are
+            # basically the same
+            graph = newg
+            currprob = newscore
+            bestgraph.append(graph)
+            bestgraphlls.append(currprob)
+            depth += 1
+            if savefile is not None:
+                _save_history(savefile, bestgraphlls, bestgraph)
+            if callback is not None:
+                callback(np.asarray(bestgraphlls, dtype=float), list(bestgraph))
+
+    return currprob, graph, np.asarray(bestgraphlls, dtype=float), bestgraph

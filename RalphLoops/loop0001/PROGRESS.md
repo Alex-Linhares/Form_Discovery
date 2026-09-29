@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 27/36 SOLVED
+- **Current**: 28/36 SOLVED
 
 ---
 
@@ -1824,3 +1824,128 @@
     The Python optimizer can then be checked separately with tolerances.
   - Tied split candidates (item 23 note, bl 0) can still make the choices diverge:
     compare with the oracle and a tie-aware check.
+
+## Iteration 30 — 2026-09-29 18:30
+### Completed
+- Item 27 **solved** (`[x]`).
+  - `src/formdiscovery/search.py` gains these functions, each citing its source lines:
+    - `structurefit` (`structurefit.m:1-213`):
+      `structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None)`
+      returns `(ll, graph, bestgraphlls, bestgraph)`. One `rng` is shared by all callees
+      in MATLAB's call order. It covers:
+      - the speed-5 heuristics (optimise then fast-score at depth < 10, the
+        current-graph and best-split fallbacks, the slow `gibbs_clean`,
+        `optimizedepth`);
+      - the speed 1-4 branch (`optimizedepth` at speed 4, slow `gibbs_clean`, 10 near
+        misses);
+      - the relational two-pass fast cleaning;
+      - the product-graph vacant-neighbour moves (`hist` via `hist_centres`);
+      - the `m == -inf` fallback.
+
+      MATLAB's per-depth cell arrays become dicts keyed by `(i, c, pind)`.
+    - `bestsplit` (l.216-242), which keeps KI-4 and raises if the stale `pind` is not 1.
+    - `optimizedepth` (l.263-290).
+    - `graphscorenoopt` (l.246-250) and `optimizebranches` (l.255-259).
+  - **Deviation (planned):** `save(savefile, ...)` becomes optional. With `savefile`, a
+    `.mat` file (`.mat` appended as MATLAB does; Octave does not append it) is written
+    after each accepted depth, and `callback(bestgraphlls, bestgraph)` is called at the
+    same points. The `disp` lines and the display blocks are dropped, and `part` is not
+    kept (KI-3).
+  - `KNOWN_ISSUES.md`: the KI-3 and KI-4 pins now exist (no new KI).
+  - Fixture `tests/octave/fx_structurefit.m` → `tests/fixtures/structurefit.mat` (Octave
+    10.3.0, generated this iteration, 19 s, 548 KB). New helpers:
+    - `tests/octave/sf_spy.m` (structurefit spy);
+    - `tests/octave/cns_spy.m` (records every `choose_node_split` call: arguments, `ll`
+      and graph);
+    - `glc_spy.m` (from item 26) records the slow `graph_like` calls.
+    - Runs:
+      - 5 runs with run_baseline.m's settings (speed 54): chain × demo_chain_feat,
+        ring × demo_ring_feat, tree × demo_tree_feat (incl. the root-removal pass),
+        cylinder × demo_ring_feat and dirring × demo_ring_rel_bin;
+      - a speed-4 chain × demo_chain_feat run (growth from the empty graph through the
+        speed 1-4 branch).
+
+      The 4 runs that have a baseline reproduce it exactly.
+    - 25 records: 21 real calls (`bl`, every call of the runs) and 4 crafted ones
+      (`cr`). The real runs never try a vacant-neighbour move, so the crafted calls
+      provide them:
+      - a 2 × 3 cylinder with objects on two cells;
+      - the grown cylinder with its chain dimension extended by a one-object node and a
+        vacant node;
+
+      each at speeds 5 and 4. The records hold 26 growth steps in total. The growth
+      history saved by Octave equals the returned one.
+  - `tests/test_structurefit.py` has 41 gate tests, 1 `slow` test and 2 live `octave`
+    tests:
+    - **Exact replay** (`test_growth_history_matches_octave`, all 25 records): the
+      draws are replayed and used up exactly, and slow scores come from Octave
+      (`test_gibbs.Oracle` checks each input graph). Every record matches: `ll` to
+      rtol 1e-10, the final graph, `bestgraphlls` and every `bestgraph` entry. The
+      target run, chain × demo_chain_feat (3 depths at speed 5), is also checked
+      separately (`test_demo_chain_feat_chain`).
+    - **Ties.** As item 23 predicted, the first split of chain × demo_chain_feat is a
+      mirror-image tie, and Python picks the other child order. So is the first split
+      of the cylinder run. There is also one pair of mirror-image near misses (slow
+      scores equal to 2e-12) that `nearmissopts` passes to the slow scorer in the other
+      order. The tests use two rules:
+      - `SplitOracle` checks each `choose_node_split` call against Octave's (arguments,
+        `ll`). If the graph differs, Octave's graph must be one of Python's `best_split`
+        candidates tied to `TIE_RTOL`, and that candidate is used.
+      - `TieOracle` lets a slow request take a later unused record whose slow score
+        ties with the expected one.
+
+      In the committed fixture the rules are needed 4 times (calls 0, 13 and 18 ×2).
+      `test_ties_are_rare` bounds that.
+    - **Python optimizer** (scipy): on the target run (speed 5 call 0 and speed 4
+      call 18) the draws replay to the end, the score and growth history are within
+      1e-6 rel of Octave's, and every graph has Octave's structure. On all 25 records
+      (slow test), 14 replay to the end (all within 3e-6 rel, same structure). In the
+      others a slightly different optimum changes a decision, and the draws differ.
+    - Other checks:
+      - `bestsplit`: first strict maximum, default `(0, 0, 1)`, product entries, and
+        the KI-4 raise (and no raise when nothing reads the stale `pind`);
+      - `optimizedepth` includes the product entries;
+      - no splits possible (`-inf` everywhere): the current graph goes to the cleaning
+        pass;
+      - `savefile` and `callback`: the `.mat` file matches Octave's history when read
+        back, and nothing is written without them;
+      - inputs are not mutated;
+      - the default rng runs;
+      - `graphscorenoopt` does not modify `ps`.
+    - Live (fd env): the fixture regenerates identically, and fresh seeds
+      (`seedoffset = 7918`) replay exactly on every record (77 passed, with
+      `test_known_issues`, 66 s).
+  - A mutation check confirmed that the tests catch 12 of 13 deliberate breaks:
+    - `>=` in `bestsplit`;
+    - no initial fast score at speed 5;
+    - `depth < 2`;
+    - no current-graph heuristic;
+    - no `optimizedepth` at speed 5;
+    - relational data cleaned like feature data;
+    - no speed-4 optimisation of the best split;
+    - no near-miss pass;
+    - vacant moves from one-object nodes;
+    - fast cleaning with `loopmax 1`;
+    - `loopeps = 1e-3`;
+    - product entries skipped in `optimizedepth`.
+
+    The first run missed the last two. The crafted records and
+    `test_optimizedepth_includes_product_entries` were added for them. The missed break
+    stores `-inf` instead of `currprob` in the `m == -inf` fallback. It is equivalent:
+    that value is always overwritten (`gibbs_clean`, l.78) before it is compared.
+  - Docs: `CONVENTIONS.md` (Randomness: the structurefit conventions, the two tie rules,
+    the spy list).
+  - Gate: base `python -m pytest -q -m "not slow"`: 2083 passed, 56 skipped (142 s).
+### Blockers
+- None.
+### Next
+- Item 28 (L5-a: `runmodel (+brlencases)` → `run.py`). `structurefit` takes
+  `savefile=`, which replaces runmodel's `growthhistory<init><speed>` names under an
+  explicit `outdir`.
+  - To reproduce the baseline runs, the `fx_structurefit.m` pattern should carry over:
+    record every slow call and every `choose_node_split` call for the whole run, then
+    replay with `SplitOracle` and `TieOracle`.
+  - Also port the speed-5 "true score" step (runmodel.m:174-179) and the tree
+    root-removal pass.
+  - Without the oracle, scipy's optimizer diverges on about 40% of the calls, so compare
+    the end-to-end Python optimizer runs by score (item 29, PLAN §7.1).

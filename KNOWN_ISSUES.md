@@ -60,8 +60,9 @@ deal with them.
   in `structurefit.m`.
 - **Decision:** fix by omission. The Python `structurefit` does not keep `part`, because
   nothing reads it. Results are the same.
-- **Pin:** `tests/test_structurefit.py::test_growth_history_matches_octave` *(item 27)*
-  (identical outputs show the dropped variable does not matter).
+- **Pin:** `tests/test_structurefit.py::test_growth_history_matches_octave`. Every
+  structurefit call in `tests/fixtures/structurefit.mat` replays to Octave's outputs,
+  which shows that the dropped variable does not matter.
 
 ### KI-4 `structurefit.m:239`: stale `pind` in the product-graph branch
 - **Code:** in the "move objects to vacant neighbours" block (`graph.ncomp > 1`) the test
@@ -74,8 +75,9 @@ deal with them.
 - **Decision:** replicate. Python uses the leftover `pind` in the same way, with a comment
   citing this entry, and asserts `pind == 1` there so that a future structure with
   `prodcount > 1` fails loudly.
-- **Pin:** `tests/test_structurefit.py::test_product_graph_vacant_move_uses_pind_1`
-  *(item 27)*.
+- **Pin:** `tests/test_structurefit.py::test_product_graph_vacant_move_uses_pind_1`. The
+  real grid/cylinder runs never try a vacant-neighbour move, so the fixture adds crafted
+  cylinder calls (`cr`) that do; they replay exactly.
 
 ### KI-5 `zinit_rel.m:14`: undefined `irmdatadir`, discarded `defaultps`
 - **Code:** a script, not a function. It calls `cd(irmdatadir)`, but `irmdatadir` is never
