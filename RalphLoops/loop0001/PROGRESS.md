@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 21/36 SOLVED
+- **Current**: 22/36 SOLVED
 
 ---
 
@@ -1220,3 +1220,110 @@
   demos "fast" and "slow" are the same number. Check how the `.mat` files store the true
   graphs before writing the script (the demo files are loaded by `io.load_dataset`, which
   currently keeps only `data`/`names`).
+
+## Iteration 24 — 2026-09-29 15:57
+### Completed
+- Item 21 **solved** (`[x]`). This is the M3 checkpoint.
+  - How the `.mat` files store the true graphs:
+    - **Feature demos** have `adj`/`W` over the 8 objects plus the cluster nodes, `sigma`
+      (2) and `structure`. `W` holds weights: 5 for leaves and 2 between clusters.
+      `G = inv(diag(sum W) - W + diag(1/sigma^2 on objects))` to 1e-15, which is the
+      model's own covariance.
+    - The true tree is unrooted: its two internal nodes are joined directly. The model's
+      trees have a degree-2 root.
+    - **Relational demos** have a `graph` struct (`adjcluster`, `adj`, `objcount`, `z`)
+      with no `type`.
+  - New fixture script `tests/octave/fx_truegraphs.m` → `tests/fixtures/truegraphs.mat`
+    (Octave 10.3.0, generated this iteration, 0.3 s).
+    - **fe**: each feature demo's true graph, built with the model's own code. It starts
+      from `makeemptygraph(ps)` and adds one component with these fields:
+      - `z` = the cluster each object hangs from;
+      - `adj` = triu of the cluster block (only `adjsym`/`Wsym` reach the feature
+        likelihood);
+      - `illegal` = the clusters that hold no object;
+      - `leaflengths` = the leaf weights, and `extlen`/`intlen` = the unique leaf/cluster
+        weight.
+
+      Then `combinegraphs` runs. Each graph is scored in 3 tying modes (none, exttie,
+      alltie), in fast mode and in slow mode. The record stores the returned graphs and
+      `graph_prior`.
+    - **re**: each relational demo's graph under every relational form of its generating
+      family. Ring and hierarchy each get dir/undir × self/noself. Order gets order and
+      ordernoself.
+  - New `tools/compare_runs.py --score-true-graphs`:
+    - `true_feat_graph`/`true_rel_graph` build the same graphs in Python.
+    - `score_true_graphs` scores them and compares against the committed fixture, or
+      against a fresh Octave run with `--live`.
+    - `--method` picks the scipy method for slow mode.
+    - It prints a Markdown table and exits with 1 on any failure.
+
+    Checks per row:
+    - the Python graph equals Octave's input graph (`graph_diff`);
+    - fast `logI` and `graph_prior` match to rtol 1e-10;
+    - feature slow `logI` matches to rel 2e-4 (`test_glslow.LOGI_RTOL`);
+    - optimality: the fast score at Python's optimised weights is ≥ the fast score at
+      Octave's, minus 1e-6;
+    - relational slow is identical to fast (there is no optimiser).
+  - `tests/test_truegraphs.py` has 27 gate tests and 2 live `octave` tests:
+    - one test per row;
+    - fast mode agrees to < 1e-14;
+    - feature slow `logI` agrees to < 1e-5 on these graphs, and Python's optimum is always
+      at least as good;
+    - relational slow equals fast;
+    - a baseline sanity check (below);
+    - the checker catches perturbed Octave scores, priors and graphs;
+    - `main` output and exit code.
+
+    Live tests: the fixture regenerates identically, and `--live` passes.
+  - **True graphs vs the baseline search** (pinned in `test_true_scores_vs_baseline_search`).
+    Compare the true graph's untied slow `logI + graph_prior` with the final score the
+    Octave search reached for the generating form:
+    | form × data | true graph | baseline search |
+    |---|---|---|
+    | chain × demo_chain_feat | -8247.196 | -8247.205 |
+    | ring × demo_ring_feat | -8500.517 | -8500.520 |
+    | tree × demo_tree_feat | -8707.827 | -8707.814 |
+    | dirring × demo_ring_rel_bin | -22.187 | same, exact |
+    | order × demo_order_rel_freq | -3682.199 | same, exact |
+    | dirhierarchy × demo_hierarchy_rel_bin | -81.05 | -70.25 |
+
+    The first three agree within optimiser noise. For dirring and order the search
+    recovered the true graph exactly. For dirhierarchy the search found a graph that
+    scores better than the truth.
+  - No new KI; no package code changed.
+  - **M3 table** (`python tools/compare_runs.py --score-true-graphs`; "opt gain" is the
+    Python optimum's fast score minus Octave's, so a positive value means Python's
+    optimum is better):
+
+    | data | form | tying | Octave fast | Python fast | rel diff | Octave slow | Python slow | rel diff | opt gain | prior | ok |
+    |---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+    | demo_chain_feat | chain | none | -8223.958415 | -8223.958415 | 4.4e-16 | -8235.337295 | -8235.333485 | 4.6e-07 | 3.4e-03 | -11.858932 | yes |
+    | demo_chain_feat | chain | exttie | -8215.606384 | -8215.606384 | 4.4e-16 | -8223.755961 | -8223.750087 | 7.1e-07 | 5.1e-03 | -11.858932 | yes |
+    | demo_chain_feat | chain | alltie | -8213.552671 | -8213.552671 | 4.4e-16 | -8220.094005 | -8220.093830 | 2.1e-08 | 9.9e-04 | -11.858932 | yes |
+    | demo_ring_feat | ring | none | -8542.135175 | -8542.135175 | 0.0e+00 | -8489.172608 | -8489.173582 | 1.1e-07 | 2.6e-03 | -11.344652 | yes |
+    | demo_ring_feat | ring | exttie | -8533.783144 | -8533.783144 | 0.0e+00 | -8476.529255 | -8476.525548 | 4.4e-07 | 7.0e-03 | -11.344652 | yes |
+    | demo_ring_feat | ring | alltie | -8530.702575 | -8530.702575 | 0.0e+00 | -8471.970942 | -8471.969387 | 1.8e-07 | 7.7e-04 | -11.344652 | yes |
+    | demo_tree_feat | tree | none | -8686.976946 | -8686.976946 | 4.2e-16 | -8696.480260 | -8696.461848 | 2.1e-06 | 1.6e-02 | -11.346881 | yes |
+    | demo_tree_feat | tree | exttie | -8678.624916 | -8678.624916 | 4.2e-16 | -8685.772557 | -8685.770600 | 2.3e-07 | 3.0e-03 | -11.346881 | yes |
+    | demo_tree_feat | tree | alltie | -8674.517490 | -8674.517490 | 4.2e-16 | -8679.069206 | -8679.066800 | 2.8e-07 | 1.2e-03 | -11.346881 | yes |
+    | demo_ring_rel_bin | dirring | - | -10.581857 | -10.581857 | 6.7e-16 | -10.581857 | -10.581857 | (= fast) | - | -11.605378 | yes |
+    | demo_ring_rel_bin | dirringnoself | - | -4.966065 | -4.966065 | 2.1e-15 | -4.966065 | -4.966065 | (= fast) | - | -11.605378 | yes |
+    | demo_ring_rel_bin | undirring | - | -12.622906 | -12.622906 | 2.8e-16 | -12.622906 | -12.622906 | (= fast) | - | -11.344652 | yes |
+    | demo_ring_rel_bin | undirringnoself | - | -10.667355 | -10.667355 | 3.3e-16 | -10.667355 | -10.667355 | (= fast) | - | -11.344652 | yes |
+    | demo_hierarchy_rel_bin | dirhierarchy | - | -18.765387 | -18.765387 | 1.9e-15 | -18.765387 | -18.765387 | (= fast) | - | -62.284607 | yes |
+    | demo_hierarchy_rel_bin | dirhierarchynoself | - | -8.979946 | -8.979946 | 6.7e-15 | -8.979946 | -8.979946 | (= fast) | - | -62.284607 | yes |
+    | demo_hierarchy_rel_bin | undirhierarchy | - | -21.904421 | -21.904421 | 1.1e-15 | -21.904421 | -21.904421 | (= fast) | - | -59.873732 | yes |
+    | demo_hierarchy_rel_bin | undirhierarchynoself | - | -18.088085 | -18.088085 | 2.9e-15 | -18.088085 | -18.088085 | (= fast) | - | -59.873732 | yes |
+    | demo_order_rel_freq | order | - | -3669.675536 | -3669.675536 | 1.2e-16 | -3669.675536 | -3669.675536 | (= fast) | - | -12.522996 | yes |
+    | demo_order_rel_freq | ordernoself | - | -3651.093281 | -3651.093281 | 8.7e-16 | -3651.093281 | -3651.093281 | (= fast) | - | -12.522996 | yes |
+    
+    19/19 rows pass (fast rtol 1e-10, slow rel 0.0002, optimum tol 1e-06)
+  - Gate results:
+    - base `python -m pytest -q -m "not slow"`: 1252 passed, 41 skipped (81 s);
+    - fd env `-m octave tests/test_truegraphs.py`: 2 passed.
+### Blockers
+- None.
+### Next
+- Item 22 (permutation replay: `rng.py` plus the `matlab/octave_shims/randperm.m` shim).
+  L0–L3 are now all verified against Octave. M3 holds: every fast score is exact and every
+  slow score is within tolerance.

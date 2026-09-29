@@ -141,7 +141,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 - [x] 20. **L3-c.** `countmatrix, rellikebin, rellikefreqs, graph_like_rel` →
       `likelihood_rel.py`. Fixtures: every `relbin`/`relfreq` data set × every dir/undir/noself
       variant (covers diagonal self-link and symmetrisation branches).
-- [ ] 21. **M3 checkpoint.** Script `tools/compare_runs.py --score-true-graphs`: for each demo
+- [x] 21. **M3 checkpoint.** Script `tools/compare_runs.py --score-true-graphs`: for each demo
       data set, build the true graph stored in the `.mat`, score it in Octave and in Python
       (fast and slow mode), print a table. All fast-mode scores exact, slow-mode within
       tolerance. Commit the table into PROGRESS.md.
