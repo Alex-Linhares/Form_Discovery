@@ -214,3 +214,20 @@ deal with them.
   point at which the MATLAB queue repeats itself. It always returns `n` entries, with empty
   arrays for unreached nodes. Every input where MATLAB ends gives the same result.
 - **Pin:** `tests/test_l0b.py::test_find_descendants_repro_and_cycle`, `::test_find_descendants`.
+
+## Issues found while porting L1 params (item 09)
+
+### KI-16 `structcounts.m:31`: `nobjects = 1` grows `counts` to two columns
+- **Code:** `counts(3, 1:2) = [0,0];` writes column 2 even when `maxn = 1`, so the 8×1
+  `counts` becomes 8×2. Rows 4-8 are then 1×1 values assigned to both columns, and
+  `logcounts + repmat(logclustercounts, 8, 1)` adds an 8×2 matrix to an 8×1 one. MATLAB 7
+  (no implicit expansion) stops with a dimension error. Octave 10.3.0 broadcasts: every
+  `totsums(i)` gets a phantom second term, so `logps{i}(1)` is `log(1/2)` instead of 0, and
+  the tree row is complex (`gammaln(-0.5)` is complex in Octave; the result is
+  `36.64 + 1.57i`). For `maxn >= 2` the overwrite on line 31 stays inside the matrix, and
+  `gammaln(-0.5)` at `counts(4,1)` is overwritten on line 35, so the output is real.
+- **Reachable:** no. It needs a data set with a single object, and none of the 20 has fewer
+  than 8.
+- **Decision:** follow MATLAB 7: `params.structcounts` raises `FormDiscoveryError` for
+  `nobjects < 2`. The Octave result for n = 1 stays in the fixture as evidence.
+- **Pin:** `tests/test_params.py::test_structcounts` (case n = 1).

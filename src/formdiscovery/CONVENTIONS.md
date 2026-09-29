@@ -8,7 +8,12 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `.m` source where that helps cross-referencing.
 - `graph` becomes a `@dataclass` whose fields have the MATLAB struct's names. `components` is
   a list of `Component` dataclasses (item 11).
-- `ps` becomes a `Params` dataclass with a nested `runps` (item 09).
+- `ps` becomes a `params.Params` dataclass with a nested `params.RunPs` (item 09). A field
+  that MATLAB has not set yet (`isfield` false) is `None`. `ps` is passed by value in MATLAB,
+  so functions that change it return a changed copy (`Params.copy()`/`Params.replace()`,
+  deep copies). `ps.logps` is a list of 10 1-D arrays, so `ps.logps{i}(n)` is
+  `ps.logps[i-1][n-1]`. `setrunps` takes a 0-based `dind`. `setps` builds `dlocs` from
+  `io.DATA_DIR`, not from `pwd`.
 - Each function's docstring cites its source file and line range, e.g. ``mysetdiff.m`` (whole
   file) or ``scaledata.m:45-63``.
 - `keyboard` and `error` in the MATLAB code become `raise FormDiscoveryError(...)`

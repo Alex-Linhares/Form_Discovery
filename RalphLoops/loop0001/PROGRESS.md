@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 9/36 SOLVED
+- **Current**: 10/36 SOLVED
 
 ---
 
@@ -451,3 +451,45 @@
 ### Next
 - Item 09 (L1 params: `setps, defaultps, setrunps, gridpriors, structcounts, graph_prior`).
   `structcounts` can use `util.stirling2`.
+
+## Iteration 12 — 2026-09-29 12:25
+### Completed
+- Item 09 **solved** (`[x]`).
+  - New `src/formdiscovery/params.py`: a `Params` dataclass mirroring `ps` with the MATLAB field
+    names (fields not set yet are `None`, as MATLAB's `isfield` would say) and a nested `RunPs`.
+    `copy()`/`replace()` give deep copies, since MATLAB passes `ps` by value. Also
+    `Params.default()` (`defaultps(setps())`), the `STRUCTURES`/`DATASETS` tuples, and the
+    functions `setps` (the `dlocs` come from `io.DATA_DIR`, not `pwd`), `defaultps`,
+    `setrunps` (0-based `dind`; relational data sets `speed=5`, `init='none'`; a square array is
+    `sim` unless `featforce`), `gridpriors` (grid/cylinder, column-major `occind`),
+    `structcounts` (`T` plus the 10 `logps`; `factorial` is correctly rounded, which matches
+    Octave's `round(gamma(n+1))` for n ≤ 40, while `cumprod` would be off by one ulp at
+    28-30 and 34-39), `prior_index` and `graph_prior` (accepts a dict, an object or a scipy
+    `mat_struct`; a count ≤ 0 or past the end raises instead of wrapping around).
+  - Deviation **KI-16**: for `structcounts(1)`, `counts(3,1:2)=[0,0]` grows `counts` to 2
+    columns. MATLAB 7 would raise a dimension error. Octave broadcasts and returns wrong priors,
+    and the tree prior comes out complex. The port raises for `nobjects < 2`, which no data set
+    reaches (the smallest has 8 objects). `test_known_issues.py` now expects KI-1..16.
+  - Fixture `tests/octave/fx_params.m` → `tests/fixtures/params.mat` (Octave 10.3.0, generated
+    this iteration). Contents:
+    - `setps` and `defaultps` (the `dlocs` are saved relative to `pwd`);
+    - `setrunps` on all 20 data sets, plus the featforce, rectangular and square cases;
+    - `structcounts` for n ∈ {1, 2, 3, 8, 12, 14, 28, 33, 35, 40};
+    - `gridpriors` directly with theta 0.3, n ∈ {1, 2, 5, 9}, plus the bad-type error;
+    - `graph_prior` for all 24 structure names plus the 4 domtree names, with every cluster count
+      up to 12 (up to 144 for grid and cylinder) and trees that have illegal nodes, plus the
+      unknown-type error;
+    - `graph_prior` on the 63 final baseline graphs (feat and rel), each with
+      `structcounts(objcount)`.
+  - `tests/test_params.py` has 20 fixture tests and 2 live `octave` tests: one checks that the
+    fixture regenerates identically, the other runs structcounts and graph_prior with random
+    theta through oct2py. `T` matches exactly and the priors to rtol 1e-10.
+  - `CONVENTIONS.md`: the `Params` conventions, including value semantics, the `logps`
+    indexing and the 0-based `dind`.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 147 passed, 15 skipped. The fd
+    env gives 162 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 10 (L1 preprocess: `simpleshiftscale`, `makesimlike`, `scaledata` (+`makechunks`)).
+  It can use `params.setrunps` and `matlab_compat.unique_rows` (for the `judges` chunk order).

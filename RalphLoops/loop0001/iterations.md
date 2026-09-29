@@ -92,7 +92,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L1 — parameters, priors, preprocessing
 
-- [ ] 09. **L1 params.** `setps, defaultps, setrunps, gridpriors, structcounts, graph_prior` →
+- [x] 09. **L1 params.** `setps, defaultps, setrunps, gridpriors, structcounts, graph_prior` →
       `params.py` with a `Params` dataclass mirroring `ps` (nested `runps`). Fixtures:
       `structcounts(n)` for n in {8, 12, 14, 28, 33, 35, 40}; `graph_prior` for every structure
       name and cluster count.
