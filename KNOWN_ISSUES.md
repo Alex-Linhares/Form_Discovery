@@ -156,7 +156,9 @@ deal with them.
   have meant to set a second flag here.
 - **Reachable:** yes (the `alltie` stage). It has no effect.
 - **Decision:** replicate (set `fixedall` once).
-- **Pin:** `tests/test_run.py::test_runmodel_matches_baseline` *(item 28)*.
+- **Pin:** `tests/test_runmodel.py::test_runmodel_matches_octave` (the two `griddimsearch`
+  runs replay Octave exactly; a mutation check confirmed that dropping `fixedall = 1`
+  breaks them).
 
 ### KI-12 `mylogdet.m` / `logdet.m`: behaviour on non-positive-definite input
 - **Code:** `logdet.m:7` calls `U = chol(A)` with one output, so it errors on non-PD input.
@@ -420,3 +422,17 @@ deal with them.
 - **Pin:** `tests/test_gibbs.py::test_nearmissopts_drops_empties_and_puts_graph_first` and
   `test_speed4_slow_call_counts`; the speed-4 oracle replay checks the order of the slow
   calls.
+
+### KI-29 `runmodel.m:109`: `cyldimsearchring` grows an `order`, not a `ring`
+- **Code:** the `cyldimsearchring` branch runs `runmodel(ps, 3, dind, rind)` to grow the
+  first dimension, and then sets `graph.components{1}.type = 'ring'` (l.110). In
+  `setps.m:3`, `ps.structures{3}` is `'order'` (`{'partition', 'chain', 'order', 'ring',
+  ...}`); the ring is `{4}`. The index was probably written for an older structure list.
+  So the nested search grows an order (saved under `results/orderout/`), and that
+  component, relabelled, becomes the "ring" dimension of the cylinder. The `griddimsearch` and `cyldimsearchchain` branches use `{2}` (`'chain'`),
+  which is correct.
+- **Reachable:** only when a user appends `'cyldimsearchring'` to `ps.structures`. It is not
+  in `setps.m`, and the default `masterrun` grid does not use it.
+- **Decision:** replicate. `run.runmodel` runs the nested search on `ps.structures[2]`.
+- **Pin:** `tests/test_runmodel.py::test_cyldimsearchring_grows_an_order` and the exact
+  replay of the `cyldimsearchring` run in `test_runmodel_matches_octave`.

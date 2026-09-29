@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 28/36 SOLVED
+- **Current**: 29/36 SOLVED
 
 ---
 
@@ -1949,3 +1949,107 @@
     root-removal pass.
   - Without the oracle, scipy's optimizer diverges on about 40% of the calls, so compare
     the end-to-end Python optimizer runs by score (item 29, PLAN §7.1).
+
+## Iteration 31 — 2026-09-29 18:57
+### Completed
+- Item 28 **solved** (`[x]`).
+  - New `src/formdiscovery/run.py`. Each function cites its source lines:
+    - `runmodel` (`runmodel.m:1-193`):
+      `runmodel(ps, sind, dind, rind, outdir=None, rng=None)` takes 0-based `sind`/`dind`
+      and returns `(ll, graph, names, bestglls, bestgraph)`. One `rng` is shared by all
+      callees, nested runs included. It covers:
+      - data and names loading (missing names → `'1'..'n'`), `setrunps`, `scaledata`;
+      - the `ps.outsideinit` start graph (only the `graph` variable is read);
+      - relational `'overd'` init through `relgraphinit`. The `'external'` init (ASCII
+        `_bestz` file) is ported but untested: the release has no such files;
+      - `overrideSS`, `cleanstrong = 0`, `structcounts`;
+      - `griddimsearch`/`cyldimsearchring`/`cyldimsearchchain` (a nested speed-5 run,
+        then a one-node second dimension and `combinegraphs` with the nested `ps`);
+      - speeds 1-5 and 54 (unknown → raises `'Unknown speed value'`);
+      - the tree root-removal pass;
+      - the speed-5 true score (`graph_like` slow + `graph_prior`).
+    - `brlencases` (l.198-234): all four `init` schedules with MATLAB's file names. The
+      returned `ps` keeps the untied flags. An unknown `init` raises (MATLAB leaves `ll`
+      undefined). Replicated quirk: `'ext'` stores its first history in `bestgraph{1}`
+      (linear index, l.208).
+    - The `{stage, speed}` history cells are 2-D object arrays grown as MATLAB grows
+      cells, with `None` for empty cells (`_cellset`, `_cellset_linear`).
+  - **Deviation (planned):** an explicit `outdir` replaces `mkdir`/`cd`. With it the
+    histories go to `<outdir>/results/<struct>out/<data><rind>/growthhistory<stage><speed>.mat`
+    (`run_dir`), and the nested dimension-search runs use the run directory as their
+    base, as MATLAB's relative `mkdir` does. Without it nothing is written. The
+    `display`/`disp` lines and the figures are dropped.
+  - New **KI-29** (replicate): `cyldimsearchring` runs `runmodel(ps, 3, ...)`, and
+    `ps.structures{3}` is `order`, not `ring`. So the nested search grows an order
+    (Octave saves it under `results/orderout/`), which is then relabelled `ring`.
+    `test_known_issues.py` expects KI-1..29 and pins `runmodel.m:109`. The KI-11 pin now
+    points to `test_runmodel.py`.
+  - Fixture `tests/octave/fx_runmodel.m` → `tests/fixtures/runmodel.mat` (Octave 10.3.0,
+    generated this iteration, 49 s, 1.1 MB).
+    - `graph_like` (`glc_spy.m`) and `choose_node_split` (`cns_spy.m`) are wrapped for
+      the whole run, and every draw of the run is logged.
+    - 21 whole runs:
+      - the 9 feature baselines (chain/ring/tree × demos 1-3, speed 54, intext);
+      - 2 relational baselines (dirring × demo_ring_rel_bin with `relgraphinit`,
+        partition × demo_hierarchy_rel_bin);
+      - speed 5 on chain and tree (true score, root removal);
+      - `init` `none`/`ext`/`int`;
+      - `griddimsearch` at speeds 54 and 5, `cyldimsearchring` at 54,
+        `cyldimsearchchain` at 5 (appended to `ps.structures`);
+      - an `outsideinit` start graph.
+    - The 11 runs that have a baseline reproduce it exactly. Each record also keeps the
+      growth-history files written under the run directory and their contents.
+  - `tests/test_runmodel.py` has 33 gate tests, 1 `slow` test and 2 live `octave` tests:
+    - **Exact replay of all 21 runs**: the draws are replayed and used up. Octave's slow
+      scores are injected (`TieOracle`), tied splits are accepted (`SplitOracle`), and
+      Octave's scaled feature data are used. `ll` matches to rtol 1e-10, and the graph,
+      names, both history cells (shape and every entry) and the set of growth-history
+      files and their `bestgraphlls` all match.
+    - The tie rules are needed 11 times in 8 runs (bounded by `test_ties_are_rare`).
+    - Other checks:
+      - the `ext` linear-index quirk;
+      - `_cellset` growth;
+      - KI-29 (the nested run is `order`, components `ring × chain`);
+      - unknown speed/init raise;
+      - no `outdir` → no files;
+      - a preset `cleanstrong = 1` is reset;
+      - `ps` not mutated;
+      - `brlencases` stage names and flags;
+      - the default rng.
+    - Slow: scipy's optimizer on chain × demo_chain_feat at speed 5. It replays to the
+      end, within `LOGI_RTOL`, with Octave's structure.
+    - Live (fd env, 2 passed, 112 s): the fixture regenerates identically, and fresh
+      seeds (`seedoffset = 7918`) replay exactly on all 21 runs.
+  - A mutation check confirmed that the tests catch 13 of 13 deliberate breaks:
+    - no true score;
+    - true score without the prior;
+    - `init` kept at speed 4;
+    - no root removal;
+    - `ext` quirk fixed;
+    - `cyldimsearchring` using ring;
+    - no `cleanstrong = 0`;
+    - no `overd` init;
+    - `intext` stage order swapped;
+    - wrong type for the second dimension;
+    - `outsideinit` ignored;
+    - `griddimsearch` without `fixedall`;
+    - 0-based default names.
+
+    The first run missed the `cleanstrong` break (the default is `None`).
+    `test_cleanstrong_reset` was added for it.
+  - Docs:
+    - `CONVENTIONS.md`: the runmodel conventions and the spy list;
+    - `KNOWN_ISSUES.md`: KI-29 and the KI-11 pin.
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 2117 passed, 58 skipped (175 s);
+    - base `-m slow tests/test_runmodel.py`: 1 passed.
+### Blockers
+- None.
+### Next
+- Item 29 (L5-b: `masterrun` → CLI `formdiscovery run`).
+  - `run.runmodel` is the per-run building block. masterrun seeds `rand('state', rind)`
+    per run, stores `pss{sind,dind,rind} = ps` (the outer `ps`, not runmodel's), and
+    stores `llhistory` = runmodel's `bestglls` cell.
+  - End-to-end: without the oracle, compare by score, cluster count and ARI (PLAN §7.1).
+    With replay, `tests/fixtures/runmodel.mat` already holds all 9 feature baseline
+    runs with their draws.

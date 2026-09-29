@@ -172,7 +172,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L5 — drivers and end-to-end
 
-- [ ] 28. **L5-a.** `runmodel (+brlencases)` → `run.py`; explicit `outdir` instead of
+- [x] 28. **L5-a.** `runmodel (+brlencases)` → `run.py`; explicit `outdir` instead of
       `mkdir/cd`; the `griddimsearch`/`cyldimsearch*` branches ported but marked untested
       unless the baseline covered them. Parity vs baseline for the three feature demos.
 - [ ] 29. **L5-b.** `masterrun` → CLI `formdiscovery run --structures chain,ring,tree

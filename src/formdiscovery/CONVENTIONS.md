@@ -185,7 +185,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   within `LOGI_RTOL`, and most graphs must match; an accept decision can flip, and then
   the draws differ.
 - Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`,
-  `fx_spr.m`, `fx_gibbs.m`) copy the
+  `fx_spr.m`, `fx_gibbs.m`, `fx_structurefit.m`, `fx_runmodel.m`) copy the
   original to `<name>_orig.m` in a temporary directory placed first on the path. A
   forwarding `<name>.m` records the calls. `fx_swap.m` also copies the subfunctions into
   `swsub.m` behind a dispatcher so they can be called directly; `fx_spr.m` does the same
@@ -215,6 +215,20 @@ that a line of Python can be matched to its `.m` source and compared with Octave
 
   The committed fixture needs these 4 times: the first split of both
   `chain:demo_chain_feat` runs and of the cylinder run, and one near-miss pair.
+- `run.runmodel(ps, sind, dind, rind, outdir=None, rng=None)` (item 28) takes 0-based
+  `sind`/`dind` into `ps.structures`/`ps.data` and returns `(ll, graph, names, bestglls,
+  bestgraph)`. One `rng` is shared by every callee, nested dimension searches included.
+  `bestglls`/`bestgraph` are MATLAB's cells `{stage, speed}` as 2-D object arrays, grown as
+  MATLAB grows cells, with `None` for empty cells: entry `[k, speed - 1]` holds stage `k`'s
+  1-D history array or list of graphs. `outdir` replaces `mkdir`/`cd`: with it the growth
+  histories go to `<outdir>/results/<struct>out/<data><rind>/growthhistory<stage><speed>.mat`
+  (`run.run_dir`), and without it nothing is written. The `griddimsearch`/`cyldimsearch*`
+  names are not in `setps.structures`; append them to use them. Their nested run uses the
+  run directory as its base, as MATLAB's relative `mkdir` does. `tests/test_runmodel.py`
+  replays whole runs from `fx_runmodel.m`, which wraps `graph_like` (`glc_spy.m`) and
+  `choose_node_split` (`cns_spy.m`) for the whole run. It uses the `SplitOracle`/`TieOracle`
+  rules above and substitutes Octave's scaled feature data for Python's `scaledata` output
+  (they agree to about 1 ulp, which can flip ties).
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
