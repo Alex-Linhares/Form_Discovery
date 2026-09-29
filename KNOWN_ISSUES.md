@@ -141,7 +141,11 @@ deal with them.
 - **Reachable:** yes, on every slow-mode `graph_like_conn` call.
 - **Decision:** the Octave baseline stands in for MATLAB (PLAN §4.1). The Python port uses
   `scipy.optimize.minimize` and is compared by optimality within a tolerance.
-- **Pin:** `tests/test_likelihood_feat.py` slow-mode tests *(item 19)*.
+- **Pin:** `tests/test_glslow.py` (item 19): the Laplace step and the returned graph at
+  Octave's optimum match to rtol 1e-10; the Python optimum is at least as good as
+  Octave's (objective ≤ `fX + 1e-6`, smaller gradient norm) and `logI` agrees to rel 2e-4.
+  Octave's `fminunc` (TolFun = TolX = 1e-6) stops early, with gradient norms up to ~15,
+  which accounts for the whole `logI` gap.
 
 ### KI-11 `runmodel.m:89`: `ps.fixedall` is set twice
 - **Code:** `ps.speed = 5; ps.fixedall= 1; ps.fixedall= 1; ...`. The duplicate is harmless.

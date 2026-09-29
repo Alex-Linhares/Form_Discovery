@@ -27,7 +27,6 @@ import formdiscovery.likelihood_feat as lf
 from formdiscovery import FormDiscoveryError
 from formdiscovery.io import graph_from_mat, load_dataset, load_fixture
 from formdiscovery.likelihood import graph_like
-from formdiscovery.likelihood_feat import graph_like_conn
 from formdiscovery.params import DATASETS, Params, RunPs, graph_prior, setrunps, structcounts
 from formdiscovery.preprocess import scaledata
 from tests.helpers import assert_graph_equal
@@ -226,13 +225,6 @@ def test_data_subsetting(monkeypatch):
     np.testing.assert_array_equal(seen[-1], D[obs, :])
     with pytest.raises(NotImplementedError, match="item 20"):
         graph_like({"R": D}, g, ps.replace(runps=RunPs(type="rel")))
-
-
-def test_slow_mode_not_ported():
-    d, g, ps = _gh_inputs(FX["gh"][0])
-    for fast in (0, None):
-        with pytest.raises(NotImplementedError, match="item 19"):
-            graph_like_conn(d, g, ps.replace(fast=fast))
 
 
 def test_inputs_not_mutated():

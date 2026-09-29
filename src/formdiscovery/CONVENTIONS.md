@@ -70,8 +70,13 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `dataprobwsig` are log weights: entry 0 is `log(sigma)`, then `mat2vec` order.
 - `likelihood.graph_like(data, graph, ps)` and `likelihood_feat.graph_like_conn` return
   `(logI, graph)` (item 18). `graph_like` takes the full data set and keeps the assigned
-  objects (`z >= 0`). Fast mode is `ps.fast == 1`; `None`/0 means slow mode (item 19),
-  which raises `NotImplementedError` for now, as does `runps.type == 'rel'` (item 20).
+  objects (`z >= 0`). Fast mode is `ps.fast == 1`; `None`/0 means slow mode (item 19):
+  `scipy.optimize.minimize` (`likelihood_feat.SLOW_METHOD`, default `trust-exact` with a
+  symmetrised finite-difference Hessian; `graph_like_conn(..., method=)` overrides it)
+  replaces `fminunc`, then `laplace_logI` and `slow_graph` port l.76-101 exactly. Its
+  results are compared with Octave by optimality, not bit for bit (`tests/test_glslow.py`).
+  MATLAB's `disp('WARNING: ...')` lines become `warnings.warn`. `runps.type == 'rel'`
+  raises `NotImplementedError` (item 20).
 - Weight vectors (`weights.mat2vec`, `combineWs`, `extract_weights`; item 15) are 1-D and
   keep MATLAB's entry order, which is column-major: leaf weights in object order, then
   cluster edges on the strict lower triangle of `adjclustersym` (or of each component's

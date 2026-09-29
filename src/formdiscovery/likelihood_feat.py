@@ -8,22 +8,33 @@ pinned by ``tests/octave/fx_dataprob.m`` → ``tests/fixtures/dataprob.mat``
 (``dataprobwsig.m:24-60``), pinned by ``tests/octave/fx_dpmiss.m`` →
 ``tests/fixtures/dpmiss.mat`` (``tests/test_dpmiss.py``). Item 18 (L3-b1) adds ``graph_like_conn`` in fast mode,
 pinned by ``tests/octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
-(``tests/test_graphlike.py``); slow mode is item 19.
+(``tests/test_graphlike.py``). Item 19 (L3-b2) adds its slow mode (optimizer + Laplace
+approximation), pinned by ``tests/octave/fx_glslow.m`` → ``tests/fixtures/glslow.mat``
+(``tests/test_glslow.py``).
 
 Matrix products keep MATLAB's left-to-right order, so rounding is close to Octave's.
 MATLAB errors (non-positive-definite ``chol``, out-of-bound reads, nonconformant
 products) raise :class:`~formdiscovery.FormDiscoveryError`.
 """
 
+import warnings
+
 import numpy as np
+import scipy.optimize
 
 from . import FormDiscoveryError
 from .matlab_compat import stable_argsort
-from .util import inv_posdef, logdet, matrixpartition, triplepartition, vec
+from .util import inv_posdef, logdet, matrixpartition, mylogdet, triplepartition, vec
 from .weights import combineWs, extract_weights, mat2vec, weightprior
 from .graph import reordermissing
 
-__all__ = ["hessiangrad", "inv_covariance", "gplike", "dataprobwsig", "graph_like_conn"]
+__all__ = ["hessiangrad", "inv_covariance", "gplike", "dataprobwsig", "graph_like_conn",
+           "laplace_logI", "slow_graph", "SLOW_METHOD"]
+
+# scipy.optimize.minimize method used by graph_like_conn's slow mode in place of fminunc
+# (see graph_like_conn and tests/test_glslow.py for the comparison with Octave)
+SLOW_METHOD = "trust-exact"
+UPPER_BOUND = 200  # graph_like_conn.m:36
 
 
 def hessiangrad(f, X, e, *args):
@@ -455,7 +466,7 @@ def _finish(dEdsig, sigma, sigbeta, pk, dWvec, dWvecprior):
     return -dWvec, -dWvecprior
 
 
-def graph_like_conn(data, graph, ps):
+def graph_like_conn(data, graph, ps, method=None, info=None):
     """``graph_like_conn.m:1-110``: ``log P(data | graph)`` for feature or similarity data.
     Returns ``(logI, graph)``.
 
@@ -468,8 +479,17 @@ def graph_like_conn(data, graph, ps):
     unchanged. ``dataprobwsig`` receives the log-weight graph (l.7-8), which only matters
     for the ``prodtied`` components (KI-18). The input graph is not modified.
 
-    Slow mode (l.35-110, ``fminunc`` + Laplace approximation) is item 19 and raises
-    ``NotImplementedError``.
+    Slow mode (any other ``ps.fast``, l.35-110) finds the MAP log weights from ``Xinit``
+    with :func:`scipy.optimize.minimize` in place of ``fminunc`` (l.54; ``method``,
+    default :data:`SLOW_METHOD`, see :func:`_slow_minimize`), then scores the optimum
+    with the Laplace approximation (:func:`laplace_logI`, l.76-93). The returned graph
+    is ``combineWs`` of the log-weight graph with ``exp(X[1:])`` and ``sigma =
+    exp(X[0])`` (:func:`slow_graph`, l.95-101). The ``'XXXHIDDENtree'`` case (l.59-68) can never match a
+    graph type and is not ported. The optimum cannot match Octave's bit for bit; see
+    ``tests/test_glslow.py`` for the tolerances. With ``info`` (a dict) the intermediate
+    values are stored in it: ``Xinit``, ``X``, ``fX``, ``g`` (the gradient at ``X``),
+    ``res`` (scipy's result) and :func:`laplace_logI`'s ``H``, ``includeind``, ``ll``,
+    ``logI0``.
     """
     graph = graph.copy()
     # convert to log weights
@@ -492,4 +512,105 @@ def graph_like_conn(data, graph, ps):
         graph.sigma = np.exp(graph.sigma)
         return logI, graph
 
-    raise NotImplementedError("graph_like_conn: slow mode (fminunc + Laplace) is item 19")
+    # SLOW MODE: run gradient-based optimization, use Laplace approximation
+    Xinit = mat2vec(graph.Wsym, graph, ps)
+    # add value for sigma
+    Xinit = np.concatenate([[graph.sigma], Xinit])
+
+    # Find MAP values of branch lengths
+    res = _slow_minimize(lambda x: dataprobwsig(x, data, graph, ps, nargout=2), Xinit,
+                         method or SLOW_METHOD)
+    X, fX = res.x, float(res.fun)
+
+    logI, lap = laplace_logI(dataprobwsig, X, data, graph, ps)
+
+    out = slow_graph(graph, X, ps)
+    if info is not None:
+        info.update(lap, Xinit=Xinit, X=X, fX=fX, res=res,
+                    g=dataprobwsig(X, data, graph, ps, nargout=2)[1])
+    return logI, out
+
+
+def slow_graph(graphorig, X, ps):
+    """``graph_like_conn.m:95-101``: the graph returned by slow mode, ``combineWs`` of
+    ``graphorig`` (the log-weight graph) with ``exp(X[1:])``, and ``sigma = exp(X[0])``."""
+    # convert back to original weights
+    Xorig = np.exp(np.asarray(X, dtype=float).ravel())
+    graph = combineWs(graphorig, Xorig[1:], ps)
+    graph.sigma = Xorig[0]
+    return graph
+
+
+def _fd_hess(fun, e=1e-5):
+    """Symmetrised central-difference Hessian of the analytic gradient (as
+    :func:`hessiangrad`), for the optimizers that need one."""
+    def hess(x):
+        H = hessiangrad(fun, x, e)
+        return (H + H.T) / 2
+    return hess
+
+
+def _slow_minimize(fun, X0, method):
+    """Minimise ``fun(x) -> (f, g)`` from ``X0`` (``graph_like_conn.m:54``, ``fminunc``
+    with ``GradObj`` on). ``method`` is a :func:`scipy.optimize.minimize` method; the
+    trust-region and Newton methods get the symmetrised finite-difference Hessian
+    :func:`_fd_hess`. Tolerances are tighter than ``fminunc``'s defaults (TolFun = TolX =
+    1e-6), so the result is at least as good an optimum as Octave's."""
+    kw = {}
+    if method in ("trust-exact", "trust-ncg", "trust-krylov", "dogleg", "Newton-CG"):
+        kw["hess"] = _fd_hess(fun)
+    opts = {"gtol": 1e-8} if method in ("trust-exact", "trust-ncg", "trust-krylov",
+                                         "dogleg", "BFGS") else {}
+    if method == "L-BFGS-B":
+        opts = {"gtol": 1e-9, "ftol": 1e-15, "maxiter": 15000}
+    with np.errstate(over="ignore"):
+        res = scipy.optimize.minimize(fun, np.asarray(X0, dtype=float), jac=True,
+                                      method=method, options=opts, **kw)
+    return res
+
+
+def laplace_logI(dprobfun, X, data, graphL, ps):
+    """``graph_like_conn.m:76-93``: the Laplace approximation to ``log p(D | S)`` at the
+    optimum ``X`` of ``dprobfun(x, data, graphL, ps) -> -log p`` (with ``nargout=``
+    ``1``/``2``). Returns ``(logI, info)`` with ``info`` holding ``ll``, the full
+    finite-difference ``H`` (before truncation), ``includeind`` (0-based) and ``logI0``
+    (the l.89 value, ``complex`` when ``mylogdet`` is).
+
+    ``H = -hessiangrad(-ll, X, 1e-5)``, not symmetrised; ``includeind`` keeps the
+    entries with ``X < upper_bound - 5 = 195`` and ``H`` is cut to them; no entries left
+    raises (MATLAB's ``includeind(1)`` out of bound). A warning is issued when
+    ``X[0]`` (sigma) is left out (``disp('WARNING: sigma blows up')``). ``logI =
+    (d/2) log(2 pi) + mylogdet(inv(-H))/2 + ll``; when that is complex (MATLAB
+    ``~isreal``), it is recomputed from ``real(prod(es(es > 0)))`` over the eigenvalues
+    ``es`` of ``inv(-H)`` (``es > 0`` compares real parts, as MATLAB does for complex
+    values) with a 'laplacian approx gone awry' warning.
+    """
+    def datal(x):
+        return dprobfun(x, data, graphL, ps, nargout=2)
+
+    X = np.asarray(X, dtype=float).ravel()
+    ll = -dprobfun(X, data, graphL, ps, nargout=1)
+
+    # Laplace approximation to p(D|S)
+    # minus sign because datal computes -ll
+    Hfull = -hessiangrad(datal, X, 1e-5)
+
+    includeind = np.flatnonzero(X < UPPER_BOUND - 5)
+    H = Hfull[np.ix_(includeind, includeind)]
+    d = len(includeind)
+    if d == 0:
+        raise FormDiscoveryError("graph_like_conn: index (1): out of bound; value 1 out of "
+                                 "bound 0 (includeind is empty)")
+    if includeind[0] != 0:
+        warnings.warn("graph_like_conn: sigma blows up")
+
+    iH = np.linalg.inv(-H)
+    logI = (d / 2) * np.log(2 * np.pi) + 0.5 * mylogdet(iH) + ll
+    logI0 = logI
+    if isinstance(logI, complex):
+        warnings.warn("graph_like_conn: laplacian approx gone awry")
+        es = np.linalg.eigvals(iH)
+        dapprox = float(np.real(np.prod(es[es.real > 0])))
+        logI = (d / 2) * np.log(2 * np.pi) + 0.5 * np.log(complex(dapprox) if dapprox < 0
+                                                          else dapprox) + ll
+    return logI, {"ll": ll, "H": Hfull, "includeind": includeind, "logI0": logI0}
