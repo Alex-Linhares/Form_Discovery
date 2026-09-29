@@ -41,6 +41,7 @@ QUIRKS = {
     "KI-23": ("best_split.m", 58, "d.ys(:, membout)=inf; d.ys(membout, :)=inf;"),
     "KI-24": ("best_split.m", 143, "part1 = find(graph.z == c1);"),
     "KI-25": ("choose_seedpairs.m", 19, "seedpairs = nchoosek(partmembers,2);"),
+    "KI-26": ("swapobjclust.m", 126, "pairs = nchoosek(csource, 2);"),
 }
 
 
@@ -57,7 +58,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 26)}
+    assert ids == {f"KI-{n}" for n in range(1, 27)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

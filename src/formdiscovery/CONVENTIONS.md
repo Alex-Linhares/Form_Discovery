@@ -157,6 +157,19 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   accept any Python candidate within rtol 1e-10 of the best whose graph and parts equal
   Octave's (`tests/test_search.py::check_call`). Growth histories (item 27) can diverge at
   such a tie.
+- `search.swapobjclust` (item 24) takes `comp` as a 0-based component or `None`
+  (MATLAB `[]`, the whole graph), the MATLAB options as keywords (`objflag`, `fastflag`,
+  `debug`) and `rng=None`. The near-miss graphs are a list. `chooseswaps` returns float
+  `(sw1, sw2)` arrays that hold 0-based indices, with NaN where MATLAB has NaN. After an
+  accepted change the pass goes on with the old permutation, as in MATLAB.
+  Ties in the near-miss list: equal-scoring candidates can be stored in a different order,
+  and when more of them tie than fit, a different subset can be kept.
+  `tests/test_swap.py::check_nearmisses` accepts both, but only among entries that tie
+  to rtol 1e-10.
+- Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`) copy the
+  original to `<name>_orig.m` in a temporary directory placed first on the path. A
+  forwarding `<name>.m` records the calls. `fx_swap.m` also copies the subfunctions into
+  `swsub.m` behind a dispatcher so they can be called directly.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

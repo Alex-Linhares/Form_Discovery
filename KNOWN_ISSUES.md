@@ -370,3 +370,21 @@ deal with them.
 - **Decision:** fix (deviation). `search.choose_seedpairs` raises `FormDiscoveryError`
   for fewer than two members.
 - **Pin:** `tests/test_search.py::test_seedpairs_too_few_members`.
+
+### KI-26 `swapobjclust.m:104-130`: whole-graph swaps with one source cluster
+- **Code:** in the full whole-graph mode `pairs = nchoosek(csource, 2)` (l.126). With a
+  single source cluster, `csource` is a scalar. MATLAB's `nchoosek(n, 2)` then returns a
+  count, and `pairs(:,2)` fails. Octave errors in `nchoosek` itself when `n < 2`. The fast
+  mode (l.104-118) has no `nchoosek`. On a one-node product graph, though, Octave fails
+  there too, when it concatenates the empty blocks at l.117-118 ('vertical dimensions
+  mismatch (0x4 vs 0x2)'). The list would have been empty anyway.
+- **Reachable:** no. `gibbs_clean.m:101` calls the whole-graph mode only when
+  `ncomp > 1` and at least two components have more than one node. The graph then has
+  at least four clusters. The error needs all objects in one of them, which did not
+  happen in the fixture's spied grid and cylinder runs. Only the direct `chooseswaps`
+  calls on one-cluster graphs in `tests/fixtures/swap.mat` (sub) reach it.
+- **Decision:** fix (deviation). `search.chooseswaps` raises `FormDiscoveryError` in
+  full mode when there are fewer than two source clusters. In fast mode it returns the
+  empty candidate list instead of replicating Octave's concatenation error.
+- **Pin:** `tests/test_swap.py::test_ki26_single_source_cluster` and
+  `::test_chooseswaps_and_doswap` (the Octave errors in the sub records).

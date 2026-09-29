@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 24/36 SOLVED
+- **Current**: 25/36 SOLVED
 
 ---
 
@@ -1510,3 +1510,115 @@
   demo_chain_feat, 1st `choose_node_split`). The two choices are mirror images with
   equal scores, so later steps should be equivalent up to relabelling, but an exact
   growth-history comparison may need a tie-aware or relabelling-invariant check.
+
+## Iteration 27 — 2026-09-29 16:53
+### Completed
+- Item 24 **solved** (`[x]`).
+  - `src/formdiscovery/search.py` gains these functions, each citing its source lines:
+    - `swapobjclust` (`swapobjclust.m:1-58`). `comp` is 0-based, or `None` for the whole
+      graph. `objflag`/`fastflag`/`debug` are keywords, and it takes `rng=None`. It
+      returns `(graph, currscore, overallchange, nearmscores, nearmgraphs)`, and the
+      near-miss graphs are a list. Replicated quirks:
+      - After an accepted change the candidates are listed again, but the pass goes on
+        with the **old permutation**. Indices past the new list are skipped.
+      - The accepted graph is the simplified candidate, not `graph_like`'s output.
+      - The `disp` is dropped. `debug` raises.
+    - `chooseswaps` (l.68-199). It covers all five kinds of change: object moves;
+      cluster moves and swaps within a component; cluster moves and swaps across the
+      whole graph. Each has a full mode and a fast mode (`dijkstra` neighbourhood of 3).
+      Details:
+      - The MATLAB row orders are kept. For whole-graph moves the source is the outer
+        loop; within a component the source is the inner loop.
+      - Self-moves are listed in full mode.
+      - With one occupied node, the component swap list is the `[1 1]` pair (node 0 with
+        itself).
+      - Rows are float arrays holding 0-based indices, with NaN where MATLAB has NaN.
+    - `doswap` (l.205-235).
+    - `sourceobjs` (l.239-255) and `sourcecls` (l.259-272). Their type lists are
+      replicated as they are, and they differ: `tree` is in neither list.
+    - `cltypes` (l.277-283).
+  - New **KI-26** (fix, unreachable): whole-graph full mode with one source cluster.
+    `nchoosek(scalar, 2)` fails in MATLAB and in Octave; the port raises. On a one-node
+    graph Octave's fast mode also fails (empty concatenation); the port returns an empty
+    list. `gibbs_clean.m:101` never calls it on such graphs. `test_known_issues.py` now
+    expects KI-1..26 and pins `swapobjclust.m:126`.
+  - Fixture `tests/octave/fx_swap.m` → `tests/fixtures/swap.mat` (Octave 10.3.0,
+    generated this iteration, 61 s, 633 KB).
+    - It re-runs 11 runs with run_baseline.m's settings: chain, ring, tree, hierarchy,
+      grid and cylinder on the feature demos; dirring, undirchain, order, dirhierarchy
+      and undirhierarchy on the relational demos.
+    - During these runs `swapobjclust` is replaced by a spy (new helper
+      `tests/octave/swap_spy.m`). The original is copied to `swapobjclust_orig.m`, and
+      its subfunctions to `swsub.m` behind a dispatcher, both in a temporary directory.
+    - The runs' final scores equal the committed baselines for the 8 runs that have one.
+    - Parts:
+      - **sw**: 238 calls in two kinds.
+        - `bl` (119): real `gibbs_clean` calls, the first 2 per mode and run plus up to
+          2 more that changed the score. Each kept call is replayed in Octave with
+          placeholder near-miss graphs `'in1'...`, so the output shows which entries
+          are new.
+        - `pt` (119): the same mode on a perturbed graph (random object moves plus one
+          change of the call's own mode), with loopmax 1-3 and seeded draws.
+
+        Every mode appears both with an accepted change and without one. The records
+        include near-miss lists, product graphs (whole-graph moves and swaps on the
+        cylinder) and loopmax 1, 2 and 3.
+      - **sub**: 59 records, one per mode and run. Each has `chooseswaps` in every mode
+        (Octave errors caught), `sourceobjs`, `sourcecls` (whole graph and per
+        component), `cltypes`, and `doswap` on one random row per mode.
+  - `tests/test_swap.py` has 250 gate tests and 2 live `octave` tests:
+    - Every sw record replays Octave's draws, and the queue is used up exactly.
+      `currscore` matches to rtol 1e-10. The graph and `overallchange` match exactly
+      (graph weights to 1e-10). The near-miss scores match to 1e-10, and the near-miss
+      graphs match, placeholders included.
+    - Every sub output matches exactly, including the NaN pattern of the swap rows.
+      KI-26 errors are handled as described above.
+    - Other checks:
+      - an accepted graph's score is its `currscore` and it is already simplified;
+      - the stale-permutation quirk occurs (the list length changes after an accept);
+      - inputs are not mutated;
+      - `debug` raises;
+      - the default numpy rng runs;
+      - the one-node `[1 1]` swap;
+      - the KI-26 pin.
+    - **Near-miss ties.** Some candidates have equal scores. In the committed fixture 4
+      near-miss entries sit at a different position among tied entries. On the live
+      fresh-seed run, once, six or more candidates tied exactly (Python's set is 1e-13
+      away from Octave's) and fewer fit in the list, so a different subset was kept.
+      `check_nearmisses` accepts a tied permutation. If the tied group reaches the end
+      of the list, it also accepts any Python graph that rescores to the tied value.
+      This is documented in `CONVENTIONS.md`.
+    - Live: the fixture regenerates identically, and fresh seeds (`seedoffset = 7918`,
+      seed 7919) replay (fd env, 2 passed).
+  - A mutation check confirmed that the tests catch 8 of 9 deliberate breaks:
+    - no re-listing after an accept;
+    - component moves with the source as the outer loop;
+    - `undirhierarchy` dropped from `sourcecls`;
+    - a whole-graph swap reading the new `z`;
+    - the one-node swap using the occupied node;
+    - no `simplify_graph`;
+    - distance 0 included in fast mode;
+    - `>=` in the near-miss test.
+
+    The one missed break was keeping `graph_like`'s graph instead of the candidate.
+    That change is equivalent here: in fast mode `graph_like` returns the graph
+    unchanged, and `swapobjclust` always runs in fast mode.
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 1830 passed, 50 skipped (101 s);
+    - fd env `tests/test_swap.py tests/test_known_issues.py` (live tests included):
+      283 passed.
+### Blockers
+- None.
+### Next
+- Item 25 (L4-b2: `spr (+makerp, makers)`, `collapsedims (+getocc, get_occnodescomp,
+  zassign)`). The `fx_swap.m` spy pattern should carry over:
+  - copy the original to `<name>_orig.m` and write a forwarding spy;
+  - copy the subfunctions into a dispatcher file;
+  - record the draws per call;
+  - replay kept calls with placeholder near-miss graphs.
+
+  `spr` needs tree/hierarchy runs, and `collapsedims` needs grid/cylinder runs. In
+  fx_swap only the cylinder run reached the whole-graph branch of `gibbs_clean` (the
+  grid run on demo_chain_feat never grew in two dimensions), so for `collapsedims`
+  consider cylinder on demo_ring_feat, grid on a larger data set, or crafted product
+  graphs. Near-miss lists can hold tied candidates, so reuse `check_nearmisses`.

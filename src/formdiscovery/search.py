@@ -1,24 +1,29 @@
-"""Search heuristics, part a (item 23, L4-a; PLAN.md §5): ``addnearmiss``,
-``choose_seedpairs``, ``best_split`` and ``choose_node_split``.
+"""Search heuristics (PLAN.md §5). Part a (item 23, L4-a): ``addnearmiss``,
+``choose_seedpairs``, ``best_split`` and ``choose_node_split``. Part b1 (item 24, L4-b1):
+``swapobjclust`` and its subfunctions ``chooseswaps``, ``doswap``, ``sourceobjs``,
+``sourcecls`` and ``cltypes``.
 
-Randomness enters through ``randperm`` at ``choose_seedpairs.m:24`` and
-``best_split.m:35``. The ports take ``rng=None`` and draw with
+Randomness enters through ``randperm`` at ``choose_seedpairs.m:24``,
+``best_split.m:35`` and ``swapobjclust.m:33``. The ports take ``rng=None`` and draw with
 ``as_provider(rng).randperm(n)`` exactly as often, and in the same order, as the MATLAB
 code (``rng.py``, item 22).
 
 Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
-(``tests/test_search.py``), which replays Octave's recorded draws.
+(``tests/test_search.py``) and ``tests/octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
+(``tests/test_swap.py``), which replay Octave's recorded draws.
 """
 
 import numpy as np
 
 from . import FormDiscoveryError, likelihood
-from .graph import add_element, empty_graph, simplify_graph, split_node
-from .matlab_compat import max_first, setdiff, stable_argsort, unique_matlab
+from .graph import add_element, combinegraphs, empty_graph, simplify_graph, split_node
+from .matlab_compat import intersect, max_first, setdiff, stable_argsort, unique_matlab
+from .util import dijkstra
 from .params import graph_prior
 from .rng import as_provider
 
-__all__ = ["addnearmiss", "choose_seedpairs", "best_split", "choose_node_split"]
+__all__ = ["addnearmiss", "choose_seedpairs", "best_split", "choose_node_split",
+           "swapobjclust", "chooseswaps", "doswap", "sourceobjs", "sourcecls", "cltypes"]
 
 _EMPTY = np.empty(0, dtype=np.int64)
 
@@ -281,3 +286,314 @@ def choose_node_split(graph, compind, splitind, pind, data, ps, rng=None, info=N
     if np.isnan(ll):
         raise FormDiscoveryError("choose_node_split: NaN log-likelihood")
     return ll, part1, part2, newgraph
+
+
+# --- swapobjclust (item 24) ------------------------------------------------------------------
+
+# sourceobjs.m l.241-244 and sourcecls.m l.266-267 (the lists differ: 'tree' is in
+# neither, 'dirtree'/'undirhierarchy' only in the second, the chains/rings only in the
+# first)
+_SOURCEOBJS_TYPES = ('hierarchy', 'dirhierarchynoself', 'dirchain', 'dirring',
+                     'dirhierarchy', 'dirchainnoself', 'dirringnoself', 'undirintree',
+                     'undirhierarchynoself', 'undirchain', 'undirchainnoself',
+                     'undirring', 'undirringnoself')
+_SOURCECLS_TYPES = ('hierarchy', 'dirtree', 'dirhierarchynoself', 'undirhierarchy',
+                    'undirhierarchynoself')
+
+
+def cltypes(graph, i):
+    """``swapobjclust.m:277-283`` (``cltypes``): the external clusters of component ``i``
+    (column sums of ``adjsym`` at most 1) and the internal ones (the rest). 0-based;
+    returns two sorted int64 arrays."""
+    c = graph.components[i]
+    adj = np.atleast_2d(np.asarray(c.adjsym, dtype=float))
+    extcls = np.flatnonzero(adj.sum(axis=0) <= 1)
+    intcls = setdiff(np.arange(int(c.nodecount)), extcls).astype(np.int64)
+    return extcls.astype(np.int64), intcls
+
+
+def sourceobjs(graph):
+    """``swapobjclust.m:239-255`` (``sourceobjs``): the objects that may be moved.
+
+    For the types in MATLAB's list (hierarchies, dir/undir chains and rings; not
+    ``tree``) an object alone in an *internal* cluster of component 1 stays put; every
+    other object may move. ``graph.z`` is compared with component 1's node numbers,
+    which is right for the single-component types in the list. 0-based int64 array.
+    """
+    objcount = int(graph.objcount)
+    if graph.type in _SOURCEOBJS_TYPES:
+        _, intcls = cltypes(graph, 0)
+        z = np.asarray(graph.z).ravel()
+        inds = np.ones(objcount, dtype=bool)
+        for i in intcls:
+            if np.sum(z == i) == 1:
+                inds[:z.size][z == i] = False
+        return np.flatnonzero(inds).astype(np.int64)
+    return np.arange(objcount, dtype=np.int64)
+
+
+def sourcecls(graph, i=None):
+    """``swapobjclust.m:259-272`` (``sourcecls``): the clusters whose objects may be moved.
+
+    The occupied clusters of the combined graph (``i is None``) or of component ``i``;
+    for the types in MATLAB's list only those that are external in component 1
+    (:func:`cltypes`). 0-based, sorted int64 array.
+    """
+    z = graph.z if i is None else graph.components[i].z
+    csource = np.unique(np.asarray(z, dtype=np.int64).ravel())
+    if graph.type in _SOURCECLS_TYPES:
+        extcls, _ = cltypes(graph, 0)
+        csource = intersect(csource, extcls)
+    return np.asarray(csource, dtype=np.int64)
+
+
+def _rows(col0, col1, rest, ncol):
+    """Stack swap rows ``[col0, col1, rest...]`` as a float array with ``ncol`` columns."""
+    col1 = np.asarray(col1, dtype=float).ravel()
+    out = np.full((col1.size, ncol), np.nan)
+    out[:, 0] = col0
+    out[:, 1] = col1
+    if rest is not None:
+        out[:, 2:] = np.asarray(rest, dtype=float).reshape(col1.size, ncol - 2)
+    return out
+
+
+def chooseswaps(graph, whole, oflag, comp, fastflag, graphngb=3):
+    """``swapobjclust.m:68-199`` (``chooseswaps``): the candidate moves and swaps.
+
+    Returns ``(sw1, sw2)``, float arrays with ``2 + ncomp`` columns, one row per
+    candidate, holding 0-based indices and NaN (MATLAB's format, l.60-66):
+    ``[c, j, z_1, ..., z_ncomp]``. ``sw1`` row ``[c, j, z]``: move component ``c``'s
+    node ``j`` (or, with ``c`` NaN, combined cluster ``j``, or object ``j`` when
+    ``oflag``) to the node(s) ``z`` (NaN in the components that do not change).
+    A swap has a second row in ``sw2`` (all NaN for a move).
+
+    - ``oflag`` (l.70-95): each movable object (:func:`sourceobjs`) to each legal
+      combined cluster (not in ``graph.illegal``), object outer and cluster inner; its
+      own cluster included. With ``fastflag`` only clusters at distance
+      ``1..graphngb`` in ``adjclustersym`` (``dijkstra``), grouped by the occupied
+      clusters in sorted order.
+    - ``whole`` (l.96-130): moves of each :func:`sourcecls` cluster to each legal
+      cluster (source outer), then swaps of every ``nchoosek`` pair of source clusters.
+      With ``fastflag`` both are limited to the ``graphngb`` neighbourhood, and each
+      swap is listed once (partner index larger).
+    - otherwise, within component ``comp`` (l.131-198): moves of each
+      ``sourcecls(graph, comp)`` node to each legal node, source *inner* and target
+      outer (the opposite order to the whole-graph case), then swaps of every pair of
+      occupied nodes. With one occupied node MATLAB's swap list is the pair
+      ``[1 1]``: node 0 with itself (a no-op that is still scored). With ``fastflag``
+      as above.
+
+    Deviation (``KNOWN_ISSUES.md`` KI-26): in the ``whole`` full mode with a single
+    source cluster, MATLAB's ``nchoosek(csource, 2)`` gives a scalar (Octave: an
+    error) and ``pairs(:,2)`` fails; the port raises :class:`FormDiscoveryError`.
+    """
+    ncomp = int(graph.ncomp)
+    ncol = 2 + ncomp
+    compinds = np.atleast_2d(np.asarray(graph.compinds, dtype=np.int64))
+    if compinds.shape[1] != ncomp:
+        compinds = compinds.reshape(-1, ncomp)
+    if oflag or whole:
+        nnode = np.atleast_2d(graph.adjcluster).shape[0]
+        # cluster nodes that are free to accept objects
+        clegal = setdiff(np.arange(nnode), np.asarray(graph.illegal, dtype=np.int64))
+        clegal = clegal.astype(np.int64)
+        clegalv = np.zeros(nnode, dtype=bool)
+        clegalv[clegal] = True
+    if oflag:
+        objmovable = sourceobjs(graph)  # objects that are free to move
+        objmovablev = np.zeros(int(graph.objcount), dtype=bool)
+        objmovablev[objmovable] = True
+        z = np.asarray(graph.z, dtype=np.int64).ravel()
+        if fastflag:
+            dijk = dijkstra(graph.adjclustersym)
+            col1, col2 = [], []
+            for c in np.unique(z):
+                ds = np.flatnonzero((dijk[c] <= graphngb) & (dijk[c] > 0) & clegalv)
+                cmembers = np.flatnonzero((z == c) & objmovablev[:z.size])
+                col1 += [m for m in cmembers for _ in ds]
+                col2 += [d for _ in cmembers for d in ds]
+            col2 = np.asarray(col2, dtype=np.int64)
+        else:
+            col1 = np.repeat(objmovable, clegal.size)
+            col2 = np.tile(clegal, objmovable.size)
+        sw1 = _rows(np.nan, col1, compinds[col2], ncol)
+        sw2 = np.full(sw1.shape, np.nan)
+    elif whole:
+        # cluster nodes whose objects we can steal
+        csource = sourcecls(graph)
+        csourcev = np.zeros(nnode, dtype=bool)
+        csourcev[csource] = True
+        if fastflag:
+            dijk = dijkstra(graph.adjclustersym)
+            col1, col2, col1a, col2a = [], [], [], []
+            for c in csource:
+                near = (dijk[c] <= graphngb) & (dijk[c] > 0)
+                ds = np.flatnonzero(near & clegalv)
+                col1 += [c] * ds.size
+                col2 += list(ds)
+                swopts = np.flatnonzero(near & csourcev)
+                swopts = swopts[swopts > c]  # don't want to try swaps twice
+                col1a += [c] * swopts.size
+                col2a += list(swopts)
+            col2, col1a, col2a = (np.asarray(v, dtype=np.int64) for v in (col2, col1a, col2a))
+        else:
+            # moves
+            col1 = np.repeat(csource, clegal.size)
+            col2 = np.tile(clegal, csource.size)
+            # swaps (only bother with swaps of occupied nodes)
+            if csource.size < 2:
+                raise FormDiscoveryError(
+                    "chooseswaps: nchoosek(csource, 2) with one source cluster (KI-26)")
+            i, j = np.triu_indices(csource.size, 1)
+            col1a, col2a = csource[i], csource[j]
+        sw1 = np.vstack([_rows(np.nan, col1, compinds[col2], ncol),
+                         _rows(np.nan, col1a, compinds[col2a], ncol)])
+        sw2 = np.vstack([np.full((len(col1), ncol), np.nan),
+                         _rows(np.nan, col2a, compinds[col1a], ncol)])
+    else:  # within component moves/swaps
+        cg = graph.components[comp]
+        nodecount = int(cg.nodecount)
+        clegal = setdiff(np.arange(nodecount), np.asarray(cg.illegal, dtype=np.int64))
+        clegal = clegal.astype(np.int64)
+        clegalv = np.zeros(nodecount, dtype=bool)
+        clegalv[clegal] = True
+        csourcemove = sourcecls(graph, comp)
+        csourceswap = np.unique(np.asarray(cg.z, dtype=np.int64).ravel())
+        csourceswapv = np.zeros(nodecount, dtype=bool)
+        csourceswapv[csourceswap] = True
+        if fastflag:
+            dijk = dijkstra(cg.adjsym)
+            col1, col2 = [], []
+            for c in csourcemove:
+                ds = np.flatnonzero((dijk[c] <= graphngb) & (dijk[c] > 0) & clegalv)
+                col1 += [c] * ds.size
+                col2 += list(ds)
+            p1, p2 = [], []
+            for c in csourceswap:
+                ds = np.flatnonzero((dijk[c] <= graphngb) & (dijk[c] > 0) & csourceswapv)
+                ds = ds[ds > c]  # don't want to try swaps twice
+                p1 += [c] * ds.size
+                p2 += list(ds)
+        else:
+            # moves
+            col1 = np.tile(csourcemove, clegal.size)
+            col2 = np.repeat(clegal, csourcemove.size)
+            # swaps (only bother with swaps of occupied nodes)
+            if csourceswap.size > 1:
+                i, j = np.triu_indices(csourceswap.size, 1)
+                p1, p2 = csourceswap[i], csourceswap[j]
+            else:
+                p1, p2 = [0], [0]
+        sw1 = _rows(comp, col1, None, ncol)
+        sw1[:, 2 + comp] = col2
+        sw2 = np.full(sw1.shape, np.nan)
+        sw1b = _rows(comp, p1, None, ncol)
+        sw1b[:, 2 + comp] = p2
+        sw2b = _rows(comp, p2, None, ncol)
+        sw2b[:, 2 + comp] = p1
+        sw1 = np.vstack([sw1, sw1b])
+        sw2 = np.vstack([sw2, sw2b])
+    return sw1, sw2
+
+
+def doswap(graph, sw1, sw2, oflag, ps):
+    """``swapobjclust.m:205-235`` (``doswap``): apply one row of :func:`chooseswaps`.
+
+    ``oflag``: object ``sw1[1]`` goes to node ``sw1[2 + i]`` of every component ``i``.
+    Within component ``c = sw1[0]``: the objects of node ``sw1[1]`` go to node
+    ``sw1[2 + c]``, and for a swap those of ``sw2[1]`` to ``sw2[2 + c]`` (both read from
+    the old assignment). Whole graph (``sw1[0]`` NaN): the members of combined cluster
+    ``sw1[1]`` get component nodes ``sw1[2:]``, and for a swap those of ``sw2[1]`` get
+    ``sw2[2:]``. Then ``combinegraphs(..., zonly=1)``. Returns a new graph.
+    """
+    g = graph.copy()
+    sw1 = np.asarray(sw1, dtype=float).ravel()
+    sw2 = np.asarray(sw2, dtype=float).ravel()
+    ncomp = int(g.ncomp)
+    if oflag:  # object move
+        obj = int(sw1[1])
+        for i in range(ncomp):
+            g.components[i].z[obj] = int(sw1[2 + i])
+    elif not np.isnan(sw1[0]):  # within component move/swap
+        c = int(sw1[0])
+        oldz = np.asarray(g.components[c].z)
+        newz = oldz.copy()
+        newz[oldz == int(sw1[1])] = int(sw1[2 + c])
+        if not np.isnan(sw2[0]):
+            newz[oldz == int(sw2[1])] = int(sw2[2 + c])
+        g.components[c].z = newz
+    else:  # move/swap at highest level
+        oldz = np.asarray(g.z).ravel()
+        clmembers = np.flatnonzero(oldz == int(sw1[1]))
+        for i in range(ncomp):
+            g.components[i].z[clmembers] = int(sw1[2 + i])
+        if not np.isnan(sw2[1]):
+            clmembers = np.flatnonzero(oldz == int(sw2[1]))
+            for i in range(ncomp):
+                g.components[i].z[clmembers] = int(sw2[2 + i])
+    return combinegraphs(g, ps, zonly=1)
+
+
+def swapobjclust(graph, data, ps, comp, epsilon, currscore, overallchange, loopmax,
+                 nearmscores, nearmgraphs, objflag=0, debug=0, fastflag=0, rng=None):
+    """``swapobjclust.m:1-58``: improve ``graph`` by moving or swapping clusters or
+    single objects.
+
+    ``comp`` is a 0-based component, or ``None`` (MATLAB ``[]``) for moves at the level
+    of the whole graph; ``objflag``, ``debug`` and ``fastflag`` are MATLAB's name/value
+    options (with ``objflag`` set, ``comp`` is ignored). Returns ``(graph, currscore,
+    overallchange, nearmscores, nearmgraphs)``; the inputs are not modified.
+    ``nearmgraphs`` is a list (MATLAB's cell; empty slots may be ``None``).
+
+    Each pass of the ``while`` loop (at most ``loopmax``) lists the candidates with
+    :func:`chooseswaps` (``graphngb = 3``) and draws one ``randperm`` over them. Each
+    candidate in that order is applied (:func:`doswap`), simplified
+    (``simplify_graph``) and scored (``graph_like + graph_prior``, with ``ps`` as
+    given). A gain above ``epsilon`` is accepted, and the candidates are listed again
+    for the new graph, **but the loop goes on with the old permutation**: indices past
+    the new list are skipped (l.36-37), so the rest of the pass visits the new list in
+    an order drawn for the old one. This is replicated. Otherwise, if there is a
+    near-miss list and the score beats its last entry, the candidate goes to
+    :func:`addnearmiss`. The accepted graph is the simplified candidate, not the graph
+    ``graph_like`` returns.
+
+    ``debug`` raises :class:`FormDiscoveryError` on an accepted change (MATLAB's
+    ``keyboard``, patched to ``error``). The ``disp`` when ``loopcount == loopmax`` is
+    dropped.
+    """
+    rng = as_provider(rng)
+    whole = comp is None
+    graphngb = 3  # neighborhood within which to try swaps (fast mode)
+    nearmscores = np.asarray(nearmscores, dtype=float).ravel().copy()
+    nearmgraphs = list(nearmgraphs)
+    nmissflag = nearmscores.size > 0
+
+    change = 1
+    loopcount = 0
+    while change and loopcount < loopmax:
+        change = 0
+        loopcount += 1
+        sw1, sw2 = chooseswaps(graph, whole, objflag, comp, fastflag, graphngb)
+        rp = rng.randperm(sw1.shape[0])
+        for j in rp:
+            if j >= sw1.shape[0]:
+                continue
+            testgraph = doswap(graph, sw1[j], sw2[j], objflag, ps)
+            testgraph = simplify_graph(testgraph, ps)
+            testscore, _ = likelihood.graph_like(data, testgraph, ps)
+            testscore = testscore + graph_prior(testgraph, ps)
+            if testscore - currscore > epsilon:
+                if debug:
+                    raise FormDiscoveryError("swapobjclust: debug stop (was keyboard)")
+                change = 1
+                overallchange = 1
+                graph = testgraph
+                currscore = testscore
+                sw1, sw2 = chooseswaps(graph, whole, objflag, comp, fastflag, graphngb)
+            elif nmissflag:  # add graph to list of nearmisses
+                if testscore > nearmscores[-1]:
+                    nearmscores, nearmgraphs = addnearmiss(
+                        nearmscores, nearmgraphs, testgraph, testscore, graph, currscore,
+                        epsilon)
+    return graph, currscore, overallchange, nearmscores, nearmgraphs

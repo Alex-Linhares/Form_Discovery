@@ -157,7 +157,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `search.py`. Exact parity with replayed permutations; also a property test that the
       chosen split maximises the candidate scores. Cover the >5-members branch of
       `choose_seedpairs`.
-- [ ] 24. **L4-b1.** `swapobjclust (+chooseswaps, doswap, sourceobjs, sourcecls, cltypes)`.
+- [x] 24. **L4-b1.** `swapobjclust (+chooseswaps, doswap, sourceobjs, sourcecls, cltypes)`.
       Replayed permutations; all five swap types; single and product graphs.
 - [ ] 25. **L4-b2.** `spr (+makerp, makers), collapsedims (+getocc, get_occnodescomp, zassign)`.
       Tree/hierarchy graphs for `spr`; grid/cylinder graphs for `collapsedims`.
