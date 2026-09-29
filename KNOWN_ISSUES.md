@@ -149,8 +149,26 @@ deal with them.
 - **Pin:** `tests/test_run.py::test_runmodel_matches_baseline` *(item 28)*.
 
 ### KI-12 `mylogdet.m` / `logdet.m`: behaviour on non-positive-definite input
-- **Decision deferred to item 07** (TASK.md): MATLAB can return a complex value there. Item 07
-  records the decision here.
+- **Code:** `logdet.m:7` calls `U = chol(A)` with one output, so it errors on non-PD input.
+  `mylogdet.m:7-12` (whose `function` line says `logdet`; the file name wins) calls
+  `[U p] = chol(A)` and on `p ~= 0` returns `log(det(A))` of the *full* matrix. That value is
+  complex (`log|det| + i*pi`) when `det(A) < 0`, real when `det(A) > 0` (an even number of
+  negative eigenvalues), and `-Inf` when `det(A) == 0`. Both functions read only the upper
+  triangle of `A` on the `chol` path.
+- **Reachable:** `mylogdet` only at `graph_like_conn.m:90`, `mylogdet(inv(-H))` on the Laplace
+  Hessian, which is followed by `if ~isreal(logI)` → recompute from the positive eigenvalues of
+  `inv(-H)`. The complex value is therefore part of the control flow. `logdet` is called by
+  `gplike.m:11` on a covariance built by `inv_posdef`, so non-PD input would already have
+  failed there.
+- **Decision:** replicate. `util.mylogdet` returns a Python `complex` when `det < 0` and a
+  `float` otherwise (`-inf` for `det == 0`), so the item-19 port of `graph_like_conn` tests
+  `isinstance(logI, complex)` as the analogue of `~isreal`. The indefinite-with-`det > 0` case
+  stays real and silently wrong, exactly as in MATLAB. `util.logdet` and `util.inv_posdef`
+  raise `FormDiscoveryError` where MATLAB's `chol` errors.
+- **Pin:** `tests/test_util.py::test_mylogdet_fallback_replicates_complex_log_det` (the five
+  non-PD fixture cases: det < 0, det > 0, singular, non-symmetric, negative definite),
+  `::test_logdet_and_inv_posdef_raise_on_non_pd`, and the live
+  `::test_live_random_parity`.
 
 ## Octave-vs-MATLAB built-in differences found while writing `matlab_compat.py` (item 06)
 

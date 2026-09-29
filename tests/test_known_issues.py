@@ -48,8 +48,6 @@ def test_every_entry_documented():
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:
-        if entry.startswith("KI-12"):
-            continue  # decision deferred to item 07
         assert "**Decision:**" in entry and "**Pin:**" in entry, entry[:40]
 
 

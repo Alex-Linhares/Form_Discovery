@@ -81,7 +81,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L0 — pure math and utilities (PLAN §5)
 
-- [ ] 07. **L0-a.** `vec, inv_triu, inv_posdef, logdet, mylogdet, sumlogs, meanlogs, mysetdiff,
+- [x] 07. **L0-a.** `vec, inv_triu, inv_posdef, logdet, mylogdet, sumlogs, meanlogs, mysetdiff,
       subv2ind, trans2orig, matrixpartition, triplepartition, weightprior` → `util.py` /
       `weights.py`. Fixtures: random SPD matrices, log-space vectors, a non-PD matrix for the
       `mylogdet` fallback (note MATLAB returns complex; decide and document).

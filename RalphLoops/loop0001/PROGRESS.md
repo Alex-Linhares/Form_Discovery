@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 7/36 SOLVED
+- **Current**: 8/36 SOLVED
 
 ---
 
@@ -369,3 +369,41 @@
 - None. The loop can be restarted; the next item is 07.
 ### Next
 - Item 07 (L0-a utilities).
+
+## Iteration 10 — 2026-09-29 12:14
+### Completed
+- Item 07 **solved** (`[x]`).
+  - `src/formdiscovery/util.py`: `vec` (column-major, 1-D), `inv_triu` (triangular solve),
+    `inv_posdef`, `logdet`, `mylogdet`, `sumlogs`, `meanlogs`, `mysetdiff` (re-exported from
+    `matlab_compat`), `subv2ind` (0-based in/out, keeps the all-twos branch that takes `d` from
+    `subv`, no bounds check, empty `siz` → `[0]`), `trans2orig`, `matrixpartition`,
+    `triplepartition` (copies, MATLAB output order `A1, A2, B1, B2, D`), and a small
+    `matlab_reduce` helper for MATLAB's `sum`/`mean` dimension choice.
+    `src/formdiscovery/weights.py`: `weightprior`. Each docstring cites the file and lines.
+  - **KI-12 decided: replicate.** `mylogdet` on non-PD input returns `log(det(A))` of the full
+    matrix: a Python `complex` when det < 0, a `float` when det > 0, and `-inf` when det = 0.
+    That way the `~isreal(logI)` fallback at `graph_like_conn.m:90` ports as
+    `isinstance(logI, complex)`. `logdet`/`inv_posdef` raise `FormDiscoveryError` where
+    MATLAB's `chol` errors. Written up in `KNOWN_ISSUES.md`. `test_known_issues.py` no longer
+    skips KI-12, so it now needs the Decision and Pin lines. `CONVENTIONS.md` has two new
+    rows (`matlab_reduce`, `~isreal`).
+  - Fixture `tests/octave/fx_util.m` → `tests/fixtures/util.mat` (Octave 10.3.0, generated
+    this iteration). Contents: seeded SPD matrices of size 1/3/8/20; one SPD whose lower
+    triangle was overwritten with garbage (checks that only the upper triangle is read); the
+    inverse of an SPD, i.e. the `inv(-H)` kind of input; `hilb(6)`; five non-PD cases (det < 0,
+    det > 0 indefinite, singular, non-symmetric, negative definite); log-space vectors
+    including ±1000-scale values, `-Inf` entries, all `-Inf` (→ NaN), and a matrix
+    (per-column results); `subv2ind` in both branches plus the empty cases; partitions
+    including the empty-block edge cases; `weightprior` including empty `w`.
+  - `tests/test_util.py`: 13 fixture tests (rtol 1e-10 / atol 1e-12, exact for indices and
+    blocks) and 2 live `octave` tests (the fixture regenerates identically; random-input parity
+    for `inv_posdef`, `logdet`, complex `mylogdet`, `sumlogs`, `meanlogs`, `weightprior`,
+    `subv2ind`).
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 110 passed, 11 skipped. fd env
+    gives 121 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 08 (L0-b: `stirling2`, `hessiangrad`, `dijkstra`, `get_edgemap`, `find_descendants`,
+  `expand_graph`, `makehyps`, `bbloglike`, `bblikesumhyps`, `dirmultloglike`). `makehyps` can use
+  `util.trans2orig`.

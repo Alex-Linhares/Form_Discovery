@@ -44,6 +44,8 @@ that a line of Python can be matched to its `.m` source and compared with Octave
 | `setdiff`, `intersect`, `union` | `matlab_compat.setdiff/intersect/union` | sorted unique; never rely on insertion order |
 | `mysetdiff(A,B)` | `mysetdiff(A,B)` | the one order-preserving set op; keeps duplicates of `A` |
 | `[U,p] = chol(A)` | `chol_upper(A)` | upper-triangular, reads only the upper triangle |
+| `sum(X)`, `mean(X)` on vector-or-matrix input | `util.matlab_reduce(np.sum, X)` | a vector of either orientation → float; a matrix → per-column 1-D array |
+| `~isreal(y)` after `mylogdet` | `isinstance(y, complex)` | `util.mylogdet` returns `complex` only when `det < 0` (KI-12) |
 | `sparse(i,j,v,m,n)` | `sparse_accum(i,j,v,shape)` | duplicates are summed |
 | `median([])` | `median_matlab(x)` | NaN for empty input or any NaN |
 | `[s,i] = sort(x)`, `sort(x,'descend')` | `stable_argsort(x, descending=)` | stable in both directions; NaN last (asc) / first (desc) |
