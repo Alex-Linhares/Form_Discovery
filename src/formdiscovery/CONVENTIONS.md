@@ -140,7 +140,23 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   share one format: a 1-based `n p1 ... pn` line per draw (`write_queue`/`read_queue`).
   In live tests, the `replay` fixture offers `queue(perms)`, `identity()` and
   `record(seed)` + `from_log()`. Fixture scripts `addpath` the shim directory themselves
-  and call `randperm_config()` before they save.
+  and call `randperm_config()` before they save. To record the draws of one call, a
+  fixture truncates the log, calls the function in pass-through mode and stores the log
+  text; the test replays it with `ReplayPermutations(parse_queue(text))`
+  (`fx_search.m`, item 23).
+- `search.py` (item 23): `choose_seedpairs`, `best_split` and `choose_node_split` take
+  0-based `compind`/`c`/object indices and `rng=None`; `choose_node_split` passes one
+  provider to both of its callees. For a high-level split (`compind < 0`,
+  `structurefit.m:60`) the `pind` argument of `best_split`/`choose_node_split` is the
+  vacant neighbour's 0-based node index, not a production number. A node that cannot be
+  split returns `(-inf, parts, None)` instead of MATLAB's `newgraph = []`.
+  `addnearmiss` works on a 1-D score array and a list of graphs and returns new copies.
+- Ties: when two `best_split` candidates are mirror images (the same split with the
+  children swapped) their scores are equal in exact arithmetic, and rounding decides
+  which one `max` sees first. Python and Octave round differently, so the parity tests
+  accept any Python candidate within rtol 1e-10 of the best whose graph and parts equal
+  Octave's (`tests/test_search.py::check_call`). Growth histories (item 27) can diverge at
+  such a tie.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

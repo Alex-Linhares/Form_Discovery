@@ -31,7 +31,8 @@ deal with them.
 - **Decision:** replicate. For speed 1 or 2, Python `best_split` raises `FormDiscoveryError`
   (the MATLAB run crashes too). The code of the intended branch (`graph_like` for every
   candidate split) is not ported.
-- **Pin:** `tests/test_search.py::test_best_split_speed_1_2_raises` *(item 23)*.
+- **Pin:** `tests/test_search.py::test_best_split_speed_1_2_raises` and `::test_speed_errors`
+  (Octave fails with "'mind' undefined near line 141" for speeds 1, 2 and 54).
 
 ### KI-2 `combinegraphs.m:48,66`: operator precedence in the product-graph `illegal` indices
 - **Code:** `illegal = na*0:(nb-1)+illegal;` and `illind(nb*0:(na-1)+newillegal) = 1;`.
@@ -334,3 +335,38 @@ deal with them.
 - **Decision:** replicate (the result is the input graph). `likelihood_rel._reldom` does not
   compute the flip.
 - **Pin:** `tests/test_rellike.py::test_reldom_direction_flip_discarded`.
+
+## Issues found while porting L4-a (item 23)
+
+### KI-23 `best_split.m:57-58`: relational data are never masked
+- **Code:** feature data hide the unplaced objects with `d(membout, :) = inf`. For
+  relational data the code writes `d.ys(:, membout) = inf` etc. into new fields `ys`/`ns`
+  of the data struct, and before the loop (l.38-42) it does not mask at all.
+  `graph_like_rel` reads only `data.R` and `data.type`, so every call sees the full data.
+  (The feature masking has no effect on the score either: the unplaced objects have
+  `z = -1` after `empty_graph`, and `graph_like` drops their rows.)
+- **Reachable:** yes, on every relational split.
+- **Decision:** replicate. `search.best_split` passes relational data unchanged.
+- **Pin:** `tests/test_search.py::test_rel_data_not_masked` (plus exact parity of every
+  relational `sq`/`bl` record).
+
+### KI-24 `best_split.m:142-145`: high-level split parts come from the input graph
+- **Code:** for `compind < 0` (`structurefit.m:60`, moving objects of a product graph
+  into a vacant neighbour cell) `part1 = find(graph.z == c1)` and
+  `part2 = find(graph.z == c2)` read the *input* graph, not `newgraph`. So `part1` is
+  every member of the split cell and `part2` (the vacant cell) is empty, whatever the
+  split did.
+- **Reachable:** yes, on grid and cylinder runs. The effect is invisible: `structurefit`
+  stores the parts in `part`, which it never reads (KI-3).
+- **Decision:** replicate.
+- **Pin:** `tests/test_search.py::test_high_level_parts_from_input_graph`.
+
+### KI-25 `choose_seedpairs.m:19`: `nchoosek` of a one-member node is a count
+- **Code:** `seedpairs = nchoosek(partmembers, 2)`. With one member, `partmembers` is a
+  scalar and `nchoosek(n, 2)` returns the number `n*(n-1)/2`, not pairs. With none,
+  `best_split` then fails at `partmembers(1)`.
+- **Reachable:** no. `choose_node_split.m:13` handles one member itself, and
+  `structurefit` only splits occupied nodes.
+- **Decision:** fix (deviation). `search.choose_seedpairs` raises `FormDiscoveryError`
+  for fewer than two members.
+- **Pin:** `tests/test_search.py::test_seedpairs_too_few_members`.

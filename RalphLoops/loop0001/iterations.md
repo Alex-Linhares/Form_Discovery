@@ -153,7 +153,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       shadows Octave's `randperm` by reading permutations from a file set via an env var (or
       returning identity). conftest fixture `replay` that produces matching Octave/Python
       providers. Test that both sides consume the same sequence.
-- [ ] 23. **L4-a.** `addnearmiss, choose_seedpairs, best_split, choose_node_split` →
+- [x] 23. **L4-a.** `addnearmiss, choose_seedpairs, best_split, choose_node_split` →
       `search.py`. Exact parity with replayed permutations; also a property test that the
       chosen split maximises the candidate scores. Cover the >5-members branch of
       `choose_seedpairs`.

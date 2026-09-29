@@ -17,12 +17,12 @@ fixture (``tests/conftest.py``) to run fresh queues and seeds through Octave.
 Everything here is integer data and is compared exactly (PLAN.md §2).
 """
 
-import itertools
 import re
 
 import numpy as np
 import pytest
 
+from formdiscovery.graph import Graph
 from formdiscovery.io import load_fixture, to0
 from formdiscovery.rng import (
     IdentityPermutations,
@@ -37,6 +37,7 @@ from formdiscovery.rng import (
     read_queue,
     write_queue,
 )
+from formdiscovery.search import choose_seedpairs
 
 FX = load_fixture("rng")
 SIZES = [int(n) for n in FX["sizes"]]
@@ -63,25 +64,11 @@ def queue_text(perms):
 
 
 def seedpairs_top(z, c, rng):
-    """Test-only mirror of ``choose_seedpairs.m:10-37`` for a top-level split
-    (``compind < 0``, pc = 1). It exists only to consume permutations at a real call
-    site; the port is item 23. ``z`` holds MATLAB cluster labels, and the result is
-    0-based."""
-    z = np.asarray(z)
-    part = np.flatnonzero(z == c)
-    if part.size <= 5:
-        sp = np.array(list(itertools.combinations(part, 2)))
-    else:
-        pair2 = []
-        for m in part:
-            cm = np.flatnonzero(z == z[m])
-            cm = cm[cm != m]
-            cm = cm[rng.randperm(cm.size)]
-            if cm.size == 0:
-                cm = part[part != m]
-            pair2.append(cm[0])
-        sp = np.column_stack([part, pair2])
-    return np.vstack([sp, sp[:, ::-1]])
+    """``choose_seedpairs.m`` for a top-level split (``compind < 0``) through the port
+    (``search.choose_seedpairs``, item 23). ``z`` holds MATLAB cluster labels and ``c``
+    is one of them; the result is 0-based."""
+    g = Graph(z=np.asarray(z, dtype=np.int64) - 1)
+    return choose_seedpairs(g, -1, int(c) - 1, 1, None, rng=rng)
 
 
 # --- fixture parity ----------------------------------------------------------------------

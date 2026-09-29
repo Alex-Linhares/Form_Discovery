@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 23/36 SOLVED
+- **Current**: 24/36 SOLVED
 
 ---
 
@@ -1408,3 +1408,105 @@
   store the log text so Python can replay it with `parse_queue`. `test_rng.seedpairs_top`
   already mirrors the >5-members branch of `choose_seedpairs`; replace it with the real
   port.
+
+## Iteration 26 — 2026-09-29 16:28
+### Completed
+- Item 23 **solved** (`[x]`).
+  - New `src/formdiscovery/search.py`. Each function cites its source lines:
+    - `addnearmiss` (`addnearmiss.m:1-16`) takes a 1-D score array and a list of graphs
+      and returns new copies. When no stored score is below the new one, MATLAB fails at
+      `lower(1)`; the port raises `FormDiscoveryError`.
+    - `choose_seedpairs` (`choose_seedpairs.m:1-52`) covers the ≤5 branch (all pairs),
+      the >5 branch (one `randperm` per member over its *combined* cluster, drawn even
+      when empty, with the fallback to the node's other members), and the flip rules
+      (high level; `partition` never; `tree` only for pind 2; otherwise not on the first
+      split).
+    - `best_split` (`best_split.m:1-165`):
+      - greedy growth from each seed pair; ties go to `c1`;
+      - the best-first `simplify_graph(cleanstrong=1)` pass that sets collapsing
+        candidates to `-inf`;
+      - speed 3 (slow rescoring), speeds 4 and 5, and other speeds raise (KI-1);
+      - `ll = -inf` when the chosen candidate is `-inf`.
+
+      For `compind < 0`, `pind` is the 0-based vacant neighbour node. `info=` exposes
+      `gs`, `ls0`, `ls`, `mind`, `c1` and `c2`.
+    - `choose_node_split` (`choose_node_split.m:1-23`) shares one provider between its
+      two callees. A node with one member returns `(-inf, [node], [], None)`, and a NaN
+      score raises.
+
+    All of them take `rng=None` and draw with `as_provider(rng).randperm(n)`.
+  - New **KI-23** (replicate): relational data are never masked in `best_split`. The
+    code writes unused `d.ys`/`d.ns` fields. **KI-24** (replicate): high-level split
+    parts are read from the input graph. **KI-25** (fix, unreachable): with one member,
+    `nchoosek` returns a count, so the port raises. KI-1's pin now exists.
+    `test_known_issues.py` expects KI-1..25 and pins the three new lines.
+  - Fixture `tests/octave/fx_search.m` → `tests/fixtures/search.mat` (Octave 10.3.0,
+    generated this iteration, 44 s). The shim runs in pass-through mode with a log, and
+    each call's draws are stored as log text. Parts:
+    - **an**: 60 `addnearmiss` cases, 14 of them errors.
+    - **sq**: 219 `choose_node_split` records.
+      - Sources: 19 seeded growth sequences (partition, chain, ring, tree, hierarchy,
+        grid, cylinder, connected on the feature demos; dirring, undirringnoself,
+        partitionnoself, dirhierarchy, undirhierarchynoself, order, dirchainnoself,
+        connected on the relational demos), plus a crafted grid with 6 objects next to
+        a vacant cell.
+      - Coverage: 13 high-level splits, including the >5-member high-level case; 15
+        one-member nodes; 18 productions that do not apply; 14 where every candidate
+        collapses (`ll = -inf` with a graph).
+      - Speeds: 189 at speed 5, 19 at speed 4, 11 at speed 3.
+      - 204 records also have a separate `choose_seedpairs` call and its draws; 78 of
+        them take the >5-members branch.
+    - **er**: speeds 1, 2 and 54. Octave fails with "'mind' undefined near line 141".
+    - **bl**: 24 calls spied in chain × demo_chain_feat, tree × demo_tree_feat,
+      dirring × demo_ring_rel_bin and dirhierarchy × demo_hierarchy_rel_bin. Their final
+      scores equal the committed baselines.
+  - `tests/test_search.py` has 305 gate tests and 2 live `octave` tests:
+    - Every sq/bl record replays Octave's draws. The queue is used up exactly.
+    - Speeds 4/5: `ll` matches to rtol 1e-10, the parts exactly and `newgraph` to
+      1e-10.
+    - Speed 3: `ll` matches to rel 2e-4 (`LOGI_RTOL`); the graph is compared by
+      structure only.
+    - `choose_seedpairs` alone matches on all 204 calls. Every branch is exercised,
+      including the singleton-cluster fallback on product graphs.
+    - Property test (`test_best_split_maximises_candidates`, 46 records): the result is
+      the first maximum of the candidate scores. Each candidate's score equals its
+      graph's full-data `graph_like + graph_prior`. The `-inf` pass removes exactly a
+      best-first prefix of candidates that collapse to one cluster.
+    - Other checks: the KI-1/23/24/25 pins, NaN → raise, inputs not mutated, the default
+      numpy rng, addnearmiss insertion positions, and that the sequences advance with
+      the best speed-5 graph.
+    - Live: the fixture regenerates identically; fresh seeds (`seedoffset = 7919`) replay.
+  - **Float ties.** 136 records have several candidates tied at the maximum: mirror-image
+    seed pairs give the same split with the children swapped. Python and Octave round
+    differently, so `check_call` accepts any tied Python candidate (rtol 1e-10) whose
+    graph and parts equal Octave's. In the committed fixture 3 records need this
+    (sq 68, sq 212 and baseline call bl 0); the others pick the same candidate.
+    The same can happen inside the greedy loop (`max([g1l, g2l])`). In the fd env,
+    numpy 2.5 flips a 7e-15 tie on the fresh-seed relational run. So as a last rule the
+    test accepts Octave's graph when Python scores it within 1e-10 of Python's own
+    result; the base env never needs that rule. This is documented in `CONVENTIONS.md`
+    (Randomness).
+  - A mutation check confirmed that the tests catch each of these deliberate breaks:
+    - always flip the seed pairs;
+    - greedy ties go to `c2`;
+    - no `-inf` pass;
+    - membout not permuted (a draw is still made);
+    - clustmembers taken from the node instead of the combined cluster;
+    - high-level parts read from `newgraph`;
+    - no `graph_prior` in the greedy step;
+    - wrong addnearmiss shift.
+  - `test_rng.seedpairs_top` now calls the real `search.choose_seedpairs`.
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 1579 passed, 48 skipped (95 s);
+    - fd env `-m octave tests/test_search.py tests/test_rng.py`: 7 passed;
+    - fd env non-live `test_search`/`test_rng`/`test_known_issues`: 354 passed.
+### Blockers
+- None.
+### Next
+- Item 24 (L4-b1: `swapobjclust` + subfunctions). Use the same recording pattern:
+  truncate the log, call, and store `fileread(log)`. Before item 27 (reproducing
+  structurefit growth histories), note that tied candidates **can** make Python and
+  Octave diverge. It already happens once in a baseline call (bl 0: chain ×
+  demo_chain_feat, 1st `choose_node_split`). The two choices are mirror images with
+  equal scores, so later steps should be equivalent up to relabelling, but an exact
+  growth-history comparison may need a tie-aware or relabelling-invariant check.
