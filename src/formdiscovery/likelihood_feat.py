@@ -6,8 +6,9 @@ Item 08 (L0-b) adds ``hessiangrad``, pinned by ``tests/octave/fx_l0b.m`` →
 pinned by ``tests/octave/fx_dataprob.m`` → ``tests/fixtures/dataprob.mat``
 (``tests/test_dataprob.py``). Item 17 (L3-a2) adds the missing-data chunk path
 (``dataprobwsig.m:24-60``), pinned by ``tests/octave/fx_dpmiss.m`` →
-``tests/fixtures/dpmiss.mat`` (``tests/test_dpmiss.py``). ``graph_like_conn`` is items
-18-19.
+``tests/fixtures/dpmiss.mat`` (``tests/test_dpmiss.py``). Item 18 (L3-b1) adds ``graph_like_conn`` in fast mode,
+pinned by ``tests/octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
+(``tests/test_graphlike.py``); slow mode is item 19.
 
 Matrix products keep MATLAB's left-to-right order, so rounding is close to Octave's.
 MATLAB errors (non-positive-definite ``chol``, out-of-bound reads, nonconformant
@@ -19,10 +20,10 @@ import numpy as np
 from . import FormDiscoveryError
 from .matlab_compat import stable_argsort
 from .util import inv_posdef, logdet, matrixpartition, triplepartition, vec
-from .weights import combineWs, extract_weights, weightprior
+from .weights import combineWs, extract_weights, mat2vec, weightprior
 from .graph import reordermissing
 
-__all__ = ["hessiangrad", "inv_covariance", "gplike", "dataprobwsig"]
+__all__ = ["hessiangrad", "inv_covariance", "gplike", "dataprobwsig", "graph_like_conn"]
 
 
 def hessiangrad(f, X, e, *args):
@@ -452,3 +453,43 @@ def _finish(dEdsig, sigma, sigbeta, pk, dWvec, dWvecprior):
     dWvecprior = np.concatenate([[dEdsigprior], np.ravel(dWvecprior)])
     # since the function is - log posterior prob
     return -dWvec, -dWvecprior
+
+
+def graph_like_conn(data, graph, ps):
+    """``graph_like_conn.m:1-110``: ``log P(data | graph)`` for feature or similarity data.
+    Returns ``(logI, graph)``.
+
+    Fast mode (``ps.fast == 1``, l.6-32) scores the graph's current weights without
+    optimising them: ``graph.Wsym`` (where ``adjsym > 0``) and ``sigma`` are taken to logs,
+    ``Xinit = [log(sigma), mat2vec(log-Wsym, graph, ps)]`` and ``logI =
+    -dataprobwsig(Xinit, data, graph, ps)`` (one output, so no gradient). The returned
+    graph is the input with ``Wsym`` and ``sigma`` sent through ``exp(log(.))`` as MATLAB
+    does (l.29-30), so they can differ from the input by an ulp; its other fields are
+    unchanged. ``dataprobwsig`` receives the log-weight graph (l.7-8), which only matters
+    for the ``prodtied`` components (KI-18). The input graph is not modified.
+
+    Slow mode (l.35-110, ``fminunc`` + Laplace approximation) is item 19 and raises
+    ``NotImplementedError``.
+    """
+    graph = graph.copy()
+    # convert to log weights
+    Wsym = np.array(np.atleast_2d(graph.Wsym), dtype=float)
+    mask = np.atleast_2d(np.asarray(graph.adjsym)) > 0
+    with np.errstate(divide="ignore"):
+        Wsym[mask] = np.log(Wsym[mask])
+        graph.sigma = np.log(float(graph.sigma))
+    graph.Wsym = Wsym
+
+    # FAST MODE
+    if getattr(ps, "fast", None) == 1:  # don't optimize branch lengths
+        Xinit = mat2vec(graph.Wsym, graph, ps)
+        Xinit = np.concatenate([[graph.sigma], Xinit])
+        logI = -dataprobwsig(Xinit, data, graph, ps, nargout=1)
+        # convert back to original weights
+        Wsym = graph.Wsym.copy()
+        Wsym[mask] = np.exp(Wsym[mask])
+        graph.Wsym = Wsym
+        graph.sigma = np.exp(graph.sigma)
+        return logI, graph
+
+    raise NotImplementedError("graph_like_conn: slow mode (fminunc + Laplace) is item 19")

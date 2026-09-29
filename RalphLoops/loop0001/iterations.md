@@ -131,7 +131,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       gradient matches finite differences on every fixture graph.
 - [x] 17. **L3-a2.** `dataprobwsig` missing-data chunk path (recursive call per chunk,
       gradient reassembly via `sind`). Fixtures from `judges`.
-- [ ] 18. **L3-b1.** `graph_like_conn` fast mode (`ps.fast=1`) and `graph_like` dispatcher →
+- [x] 18. **L3-b1.** `graph_like_conn` fast mode (`ps.fast=1`) and `graph_like` dispatcher →
       exact parity on all baseline graphs.
 - [ ] 19. **L3-b2.** `graph_like_conn` slow mode: optimizer + Laplace (PLAN §4.1). Implement
       with `scipy.optimize.minimize` (method parameterised; start with `trust-exact` using the

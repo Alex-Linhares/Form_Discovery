@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 18/36 SOLVED
+- **Current**: 19/36 SOLVED
 
 ---
 
@@ -1008,3 +1008,60 @@
   subsetting. The fixture's `bl` calls with nargout 1 are probably fast-mode
   `graph_like_conn` calls (l.16) on judges, which item 18 could reuse. This is not checked:
   Octave's `fminunc` might also make one-output calls.
+
+## Iteration 21 — 2026-09-29 14:24
+### Completed
+- Item 18 **solved** (`[x]`).
+  - `src/formdiscovery/likelihood_feat.py` gains `graph_like_conn` (`graph_like_conn.m:1-110`),
+    fast mode (l.6-32) only. It takes logs of `Wsym` (where `adjsym > 0`) and `sigma`, builds
+    `Xinit = [log(sigma), mat2vec(...)]`, and returns `-dataprobwsig(Xinit, ..., nargout=1)`
+    and the graph with `Wsym`/`sigma` sent through `exp(log(.))` as MATLAB does. Slow mode
+    (`ps.fast` 0 or `None`) raises `NotImplementedError('... item 19')`.
+  - New `src/formdiscovery/likelihood.py`: `graph_like` (`graph_like.m:1-22`). It keeps the
+    assigned objects (`z >= 0`): rows for `feat`, rows and columns for `sim`; `rel` data
+    are passed whole and raise `NotImplementedError('... item 20')`. It calls
+    `graph_like_conn` through the module so tests can wrap it.
+  - `CONVENTIONS.md`: a bullet on `graph_like`'s return value, data and fast/slow flag.
+    No new KI.
+  - Fixture `tests/octave/fx_graphlike.m` → `tests/fixtures/graphlike.mat` (Octave 10.3.0,
+    generated this iteration, ~8 s). It has these parts:
+    - **ds**: the 3 demo feature sets after runmodel's preprocessing.
+    - **gh**: every `bestgraph` of the 19 feature baseline growth histories (47 graphs),
+      scored in the file's own tying mode and, for tied files, also untied (82 records).
+      Each stores `logI`, the returned graph, `graph_prior` and `bestgraphlls`.
+    - **sy**: the 29 `dataprob.mat` graphs (some with unassigned objects) × random
+      feature/similarity data × modes none, fixedexternal, fixedall, prodtied (232
+      records, 24 chol errors from KI-19 graphs).
+    - **jd**: the 25 `dpmiss.mat` graphs × judges (chunk path) × modes none and
+      fixedexternal (50 records, 2 chol errors).
+    - **bl**: a `graph_like` spy in chain × demo_chain_feat and tree × demo_tree_feat
+      (run_baseline.m settings): 30 fast-mode calls with inputs and outputs. The final
+      scores equal the committed baseline. The runs make 1065/2186 fast and 43/128 slow
+      calls.
+  - `tests/test_graphlike.py` has 371 fast tests (one per record) and 2 live `octave`
+    tests:
+    - Every record matches Octave: `logI` and the returned graph to rtol 1e-10, structure
+      exact, and `graph_prior` of the returned graph. Every error case raises.
+    - In the file's own tying mode, fast `logI + graph_prior` equals `bestgraphlls` for 36
+      of 47 growth-history graphs. The exceptions are the 8 speed-4 noinit graphs
+      (slow-mode scores) and depth 2 of the three demo_ring_feat alltie5 files. That
+      score does not come from a fast call on the stored graph; it is probably a slow
+      `gibbs_clean` pass (not checked). The test pins this split exactly.
+    - Other checks: Python preprocessing reproduces the fixture data (rtol 1e-12); the
+      data subsetting for feat/sim/rel; only `Wsym`/`sigma` change in the returned graph;
+      slow mode raises; inputs are not mutated.
+    - Live: the fixture regenerates identically, and fresh seeds (`seedoffset = 7919`)
+      match.
+  - A mutation check confirmed that the tests catch each of these deliberate breaks: no
+    `exp` of sigma on return, no `exp` of `Wsym` on return, a perturbed `Xinit` sigma, and
+    `z > 0` instead of `z >= 0` in `graph_like`.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 869 passed, 35 skipped.
+    FDGATE
+### Blockers
+- None.
+### Next
+- Item 19 (L3-b2: `graph_like_conn` slow mode, `graph_like_conn.m:35-110`). The spy in
+  `fx_graphlike.m` (`make_spy`) counts slow calls (43 and 128 in the two runs). Change it
+  to record slow calls and get `fminunc` optima and `logI` for the tolerance tests. The
+  speed-4 noinit growth-history graphs are slow-mode inputs with known scores
+  (`bestgraphlls`, which include `graph_prior`).
