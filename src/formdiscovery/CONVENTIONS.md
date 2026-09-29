@@ -14,6 +14,11 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   deep copies). `ps.logps` is a list of 10 1-D arrays, so `ps.logps{i}(n)` is
   `ps.logps[i-1][n-1]`. `setrunps` takes a 0-based `dind`. `setps` builds `dlocs` from
   `io.DATA_DIR`, not from `pwd`.
+- The chunk fields of `ps.runps` (`featind`, `objind`, `chunksize`, `chunkSS`; item 10,
+  `preprocess.makechunks`) are Python lists with one entry per chunk, in the lexicographic
+  order of `unique(~isinf(data)', 'rows')`. `featind`/`objind` entries are 0-based int
+  arrays. They are set only when `ps.missingdata` is 1; `SS`/`chunkcount` only when it is 0
+  (feature data).
 - Each function's docstring cites its source file and line range, e.g. ``mysetdiff.m`` (whole
   file) or ``scaledata.m:45-63``.
 - `keyboard` and `error` in the MATLAB code become `raise FormDiscoveryError(...)`

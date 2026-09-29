@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 10/36 SOLVED
+- **Current**: 11/36 SOLVED
 
 ---
 
@@ -493,3 +493,53 @@
 ### Next
 - Item 10 (L1 preprocess: `simpleshiftscale`, `makesimlike`, `scaledata` (+`makechunks`)).
   It can use `params.setrunps` and `matlab_compat.unique_rows` (for the `judges` chunk order).
+
+## Iteration 13 — 2026-09-29 12:32
+### Completed
+- Item 10 **solved** (`[x]`).
+  - New `src/formdiscovery/preprocess.py`: `simpleshiftscale`, `makesimlike`, `makechunks`
+    and `scaledata`, each with its source lines in the docstring. `scaledata` returns
+    `(data, ps)` with `ps` a copy. Relational data comes back untouched and `missingdata`
+    stays unset. The unused `dmean`/`stdev` are dropped. The chunks follow
+    `matlab_compat.unique_rows` on `~isinf(data)'`, so their order is lexicographic.
+    `featind`/`objind` are 0-based int arrays, and every chunk field is a list with one entry
+    per chunk (a new bullet in `CONVENTIONS.md` covers this). `makesimlike` keeps the
+    per-pair quadratic loop, the zero-filled `kmins`/`fmins` (`fmins == 0 → inf`, first
+    argmin), the unused `lb`, and the choice of the largest chunk with the first tie winning.
+  - Two MATLAB error paths, found by the live random test, now raise `FormDiscoveryError`,
+    and a test pins that Octave errors too:
+    - A feature missing for every object gives an empty chunk. In Octave `maxs(ch) = max([])`
+      fails with "nonconformant".
+    - `makesimlike` with no negative discriminant anywhere, e.g. every chunk has one feature,
+      where `b^2 − 4ac` is exactly 0. Octave fails with "'fmins' undefined" at l.48.
+    
+    No data set reaches either path: judges has at least 6 observed objects per feature, and
+    some of its chunks have more than one feature. Both languages error, so neither is a
+    deviation and no KI was added.
+  - Fixture `tests/octave/fx_preprocess.m` → `tests/fixtures/preprocess.mat` (Octave 10.3.0,
+    generated this iteration). It runs `scaledata` in 44 configurations:
+    - all 20 data sets with the defaults;
+    - `makesimlike` and `none` on the 10 feature sets (judges included: 38 chunks);
+    - `simtransform='center'` on colors, faces and cities;
+    - colors with `featforce`.
+    
+    It also has constructed inputs:
+    - identical rows, for the `ub == inf` branch;
+    - a constant row, where delta = 0 exactly;
+    - direct random calls;
+    - a missing-data case with three 2-feature chunks, to check the `max(csize)` first tie;
+    - a 4-chunk case where the largest chunks tie at positions 3 and 4 and one object is seen
+      in only one chunk.
+  - `tests/test_preprocess.py` has 55 non-live tests. The output data and `SS`/`chunkSS`
+    match to rtol 1e-10. `featind`, `objind`, `chunksize`, `chunknum` and `missingdata` match
+    exactly, and the test also checks which fields exist. There are extra checks on the judges
+    chunk order and on not mutating inputs. 3 live `octave` tests: the fixture regenerates
+    identically; random feature data with and without missing entries, under both transforms,
+    plus a centred similarity matrix; the two error paths.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 202 passed, 18 skipped. The fd
+    env gives 220 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 11 (L2-a1: `Graph`/`Component` dataclasses, `combinegraphs`, `makeemptygraph`,
+  `tests/helpers.py::graph_equal`).

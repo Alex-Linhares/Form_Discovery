@@ -96,7 +96,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `params.py` with a `Params` dataclass mirroring `ps` (nested `runps`). Fixtures:
       `structcounts(n)` for n in {8, 12, 14, 28, 33, 35, 40}; `graph_prior` for every structure
       name and cluster count.
-- [ ] 10. **L1 preprocess.** `simpleshiftscale, makesimlike, scaledata (+makechunks)` →
+- [x] 10. **L1 preprocess.** `simpleshiftscale, makesimlike, scaledata (+makechunks)` →
       `preprocess.py`. Fixtures: every data set, including `judges` (inf = missing → chunk
       path; chunk order must match `unique(...,'rows')` lexicographic order) and the
       similarity sets with `simtransform='center'`.
