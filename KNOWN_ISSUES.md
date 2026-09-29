@@ -436,3 +436,25 @@ deal with them.
 - **Decision:** replicate. `run.runmodel` runs the nested search on `ps.structures[2]`.
 - **Pin:** `tests/test_runmodel.py::test_cyldimsearchring_grows_an_order` and the exact
   replay of the `cyldimsearchring` run in `test_runmodel_matches_octave`.
+
+### KI-30 Paper vs code: on `animals` the hierarchy beats the tree
+- **Code:** the PNAS paper (Fig. 3) reports the tree as the best form for the animals data.
+  The released code and `data/animals.mat` (33 animals, 102 features; the data README says
+  4 all-zero features were dropped from the paper's set) give the unrooted hierarchy the
+  best score in Octave: masterrun.m's option b settings (default speed 54),
+  `rand('state', s)` for s = 1, 2, 3: hierarchy -3223.66, -3220.63, -3220.62; tree
+  -3231.95, -3223.30, -3223.31. The tree is the runner-up, 2.7 nats behind. With seed 1 the
+  tree search also stops in a worse local optimum (19 clusters). A hierarchy may put
+  objects at internal nodes, so it contains the tree up to the prior, and the two forms
+  are close on 33 objects. The other paper-level results hold: every synthetic set
+  recovers its form (at speed 5) and `colors` gives the ring.
+- **Reachable:** yes, in the default real-world feature analysis (masterrun.m option b).
+- **Decision:** replicate (the code wins, TASK.md); nothing is changed. The Python port
+  scores Octave's graphs the same (within 1.04e-4 rel), so it too ranks Octave's
+  hierarchy first. Its own searches, with numpy permutations seeded 1-3, do not find the
+  -3220.6 hierarchy: they end with tree -3223.33 against hierarchy -3223.49. With either
+  port, tree and hierarchy are the top two forms and the winner depends on which local
+  optimum the search reaches.
+- **Pin:** `tests/test_paperlevel.py::test_octave_recovers_form`,
+  `test_octave_animals_tree_runner_up`, `test_python_recovers_form` and
+  `test_python_rescores_octave_graphs` (all `slow`; fixture `paperlevel.mat`).

@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 30/36 SOLVED
+- **Current**: 31/36 SOLVED
 
 ---
 
@@ -2130,3 +2130,73 @@
   - animals/colors: data 12 and 14 (1-based).
   - Each Python feature run takes about 2-3 s on the demos; the synthetic sets
     (40 × 2000) will be much slower, so time one first.
+
+## Iteration 33 — 2026-09-29 19:37
+### Completed
+- Item 30 **solved** (`[x]`).
+  - New `tests/test_properties.py` (PLAN §7.3; 20 tests, all `slow`, 3 s). It uses
+    hypothesis, 200 derandomized examples per property. `random_graph` builds a graph
+    from `makeemptygraph`, random `split_node` calls, random weights and random object
+    moves (average 12 cluster nodes; `simplify_graph` changes 241 of 300 samples).
+    - `simplify_graph` is idempotent (`cleanstrong` 0/1, 9 feature forms).
+    - `combinegraphs` (with and without `zonly`) keeps `objcount`, and each object has
+      exactly one leaf edge, to its `z`; `compinds[z]` equals the component `z`.
+    - The likelihood is invariant under relabelling (rtol 1e-9, fast mode). The objects
+      are permuted in the raw data *before* `scaledata`, because `ps.runps.SS` is what the
+      likelihood reads. Covered: feature (demo chain/tree, animals), similarity (colors)
+      and relational (3 relational demos × 10 forms) data, plus one slow-mode case (rtol
+      1e-6).
+    - `graph_prior`:
+      - for the 8 single-component families, `sum_k P(k) <= 1`, and they are normalised
+        over all structures (the `structcounts.m` counts);
+      - PLAN's weaker `sum_k P(k) <= 1` is **false for grid/cylinder** (nobj = 2:
+        1.0024), because `gridpriors.m` gives weight to impossible node counts, as its own
+        comment says. It is not a bug: grid/cylinder are checked for normalisation over
+        k × l shapes instead.
+    - Mutation check: 3 of 3 caught (a one-pass `simplify_graph`, a precision matrix that
+      depends on object order, a relational `countmatrix` that drops object 0).
+  - New `tests/test_paperlevel.py` (PLAN §7.2; 18 `slow` tests + 1 live `octave` test).
+    - Fixture: `tests/octave/fx_paperlevel.m` → `tests/fixtures/paperlevel.mat` (Octave
+      10.3.0, generated this iteration, 180 KB). New tool `tools/gen_paperlevel.py` runs
+      the 45 jobs in parallel Octave processes (434 s on 32 cores) and merges them with
+      `tests/octave/paperlevel_merge.m`. `tools/gen_fixtures.py paperlevel` also works,
+      serially.
+    - Jobs:
+      - the 5 synthetic sets × {partition, chain, ring, tree, grid} at **speed 5**. The
+        default 54 adds a speed-4 pass that is several times slower on 40 × 2000 data;
+        speed 5 still ends with runmodel's slow true score;
+      - animals and colors × the 8 feature forms at speed 54;
+      - animals × {tree, hierarchy} with seeds 2 and 3.
+    - Python runs all 45 in a spawn process pool (one BLAS thread each; about 10 min, the
+      longest being grid × synthring).
+    - Results:
+      - every synthetic set recovers its true form, in Octave and in Python;
+      - colors → ring in both.
+    - **Finding, new KI-30 (paper vs code):** on animals the original code picks the
+      **hierarchy**, not the paper's tree.
+      - Octave's best hierarchy scores -3220.62; its best tree scores -3223.30.
+      - With seed 1, Octave's tree search also stops early, at -3231.95.
+      - Python's own searches end with tree -3223.33 against hierarchy -3223.49, so the
+        tree wins there by 0.16.
+      - Scoring is not the cause: Python scores each of Octave's final animals/colors
+        graphs within 1.04e-4 rel (`test_python_rescores_octave_graphs`). With Octave's
+        graphs, Python also ranks hierarchy first.
+      - Tests pin: Octave picks hierarchy with tree second, less than 3 nats behind.
+        Python has {tree, hierarchy} as its top two.
+    - Score parity, no replay: 33 of 45 runs are within 1e-3 rel with the same cluster
+      count (§7.1). The other 12 end in different local optima and are listed in
+      `DIVERGENT`, which the test keeps exact: grid on synthchain/synthring/synthgrid/animals,
+      cylinder on animals/colors, synthgrid ring/chain/tree, and animals tree (seeds 1-2) and hierarchy (seed 3). All
+      are within 2e-2 rel; the worst is colors × cylinder (1.5e-2, Python better).
+    - Live (fd env, 23 s): jobs 26, 34 and 35 regenerate in Octave identically (`ll` and
+      graph).
+  - `KNOWN_ISSUES.md`: KI-30. `test_known_issues.py` now expects KI-1..30.
+  - Toolchain: `hypothesis==6.168.3` pip-installed into the base interpreter, as pinned
+    in `environment.yml`. Both test files use `pytest.importorskip("hypothesis")`.
+  - Gate: base `python -m pytest -q -m "not slow"`: 2136 passed, 59 skipped, 76
+    deselected (187 s). Base `-m slow` on the two new files: 38 passed (621 s).
+### Blockers
+- None.
+### Next
+- Item 31 (Viz A1: `viz/dot.py`, `graph_to_dot` / `dot_to_graph`).
+  `tests/fixtures/dot_to_graph*` already exists from item 03's `dot_to_graph.m` patch.

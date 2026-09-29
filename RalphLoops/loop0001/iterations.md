@@ -179,7 +179,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       --datasets 1,2,3 --seed 1 --out results/`, saving `.npz` + JSON summary. End-to-end
       regression (PLAN §7.1): final log-probability within 1e-3 rel of Octave, same cluster
       count, ARI = 1 with replay / ≥ 0.9 over 3 seeds without. Mark as `slow` if > 2 min.
-- [ ] 30. **Paper-level checks and property tests** (PLAN §7.2–7.3), all marked `slow`:
+- [x] 30. **Paper-level checks and property tests** (PLAN §7.2–7.3), all marked `slow`:
       synthetic sets recover their true form; `animals` → tree, `colors` → ring; hypothesis
       tests for `simplify_graph` idempotence, `combinegraphs` objcount preservation,
       relabelling invariance of the likelihood.
