@@ -234,3 +234,27 @@ deal with them.
 - **Decision:** follow MATLAB 7: `params.structcounts` raises `FormDiscoveryError` for
   `nobjects < 2`. The Octave result for n = 1 stays in the fixture as evidence.
 - **Pin:** `tests/test_params.py::test_structcounts` (case n = 1).
+
+## Issues found while porting L2-a2 (item 12)
+
+### KI-17 `split_node.m:66-149`: edge weights misplaced when a split duplicates or deletes an edge marker
+- **Code:** the old edges of the component get the markers `1..nold` in column-major order
+  (l.70: `origadj(origind)=1:nold`). The new node copies the row and column of `c`, and the
+  old weights are then written to the first `nold` entries of a stable sort of the markers
+  (l.141-148: `newW(newind(sind(1:nold)))=origW(origind)`). This is correct only when every
+  marker survives exactly once. Two productions break that:
+  - `connected` keeps every copied edge, and `domtreeflat` keeps the parents of `c` on the
+    new node. Markers then appear twice. The duplicates take later weights, so the weights
+    shift. The positions past `nold` keep the raw marker value (an integer such as `3`)
+    as their weight.
+  - `treever2` deletes the marker of the edge from the parent to the sibling (l.127). The
+    weights after it shift by one, and the first new `inf` edge (column-major) gets the last
+    old weight instead of the median.
+- **Reachable:** yes. It happens in every `connected*` split of a component with edges and in
+  every hierarchy pind-3 (`domtreeflat`) split of a node with parents, and the baseline
+  relational runs do both (`tests/fixtures/split.mat`, `bl_sp`). The weights of those
+  components are placeholders: with `ps.fast` or tied weights `graph_like` re-derives them,
+  and otherwise the optimiser moves them.
+- **Decision:** replicate. `graph.split_node` uses the same markers and
+  `matlab_compat.stable_argsort`.
+- **Pin:** `tests/test_split.py::test_marker_weight_quirk` and every `split_node` parity test.

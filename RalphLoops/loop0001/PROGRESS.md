@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 12/36 SOLVED
+- **Current**: 13/36 SOLVED
 
 ---
 
@@ -607,3 +607,67 @@
   (`make_spy`) can be reused to capture `split_node` inputs. Split sequences must use
   `graph_from_mat` and `graph_diff`. `empty_graph` produces `z = -1`, which `combinegraphs`
   already handles.
+
+## Iteration 15 — 2026-09-29 12:45
+### Completed
+- Item 12 **solved** (`[x]`).
+  - `src/formdiscovery/graph.py` gains four functions, each with its source lines in the
+    docstring:
+    - `add_element` (`add_element.m`).
+    - `empty_graph` (`empty_graph.m`).
+    - `split_production`: the pind → production-name table of `split_node.m:9-57`. It
+      returns `None` where MATLAB returns `-inf`.
+    - `split_node` (`split_node.m`). It returns `(graph, c1, c2)`, or `(None, None, None)`
+      when the production does not apply. `disp(structname)` is dropped.
+    
+    Indices are 0-based. `pind` stays a production number (1-3). A negative `compind` keeps
+    MATLAB's "high-level split" meaning. A new `CONVENTIONS.md` bullet covers both.
+  - Replicated quirks:
+    - the marker/stable-sort weight bookkeeping;
+    - `oldps`/`oldchild` are computed *after* the row/column copy;
+    - `treever2`'s `find(origadj(cpar,:))`;
+    - `empty_graph` removes `adj`/`W` rows by object index.
+  - New **KI-17** (replicate) in `split_node.m:66-149`. The old edges are marked 1..nold,
+    then the old weights go to the first `nold` positions of a sort of those markers.
+    `connected` and `domtreeflat` splits duplicate a marker, so later weights shift and raw
+    marker values (small integers) end up as weights. `treever2` deletes a marker, so the
+    weights shift by one and the first new edge gets the last old weight instead of the
+    median. Octave output confirms this: 14 connected and 23 domtreeflat splits in the
+    fixture have stray integer weights. The relational baselines reach it.
+    `test_known_issues.py` now expects KI-1..17 and pins `split_node.m:70,148`.
+  - Fixture `tests/octave/fx_split.m` → `tests/fixtures/split.mat` (Octave 10.3.0,
+    generated this iteration, ~20 s). It has two parts:
+    - **Seeded sequences (`sq_*`)**: 8 steps from `makeemptygraph(12 objects)` for the 26
+      single-component names, plus grid and cylinder with prodtied 0 and 1. Each step:
+      - component W and the graph `Wcluster` get random weights;
+      - a random production, node and partition are chosen and `split_node` is called;
+      - then `empty_graph` and two `add_element` calls, as in `best_split.m:26-32`;
+      - then the `compind = -1` variants of `empty_graph` and `add_element`.
+      
+      This gives 240 split_node, 442 empty_graph and 663 add_element calls.
+    - **Spied baseline runs (`bl_*`)**: spies shadow the three functions while `runmodel`
+      re-runs chain/ring/tree × `demo_chain_feat` and the 18 relational structures ×
+      `demo_ring_rel_bin`, with the settings and seed of `run_baseline.m`. The calls are
+      capped per run. `run_baseline` itself cannot be used, because its `addpath(srcdir)`
+      moves the sources ahead of the spies (the first attempt captured nothing). Each
+      run's final score equals the committed baseline `modellike`, which is tested.
+  - `tests/test_split.py` has 45 fixture tests and 2 live `octave` tests (the fixture
+    regenerates identically; fresh sequences with `seedoffset = 7919`). Every call matches
+    exactly, with weights to rtol 1e-10, and so do `c1`/`c2` and the -inf cases. The tests
+    also check:
+    - coverage of every production: partition, connected, chain, ring (including the
+      first-split 2-cycle), hierarchy pind 1-3 (including rootchain, domtreeflat and both
+      -inf cases), and tree pind 1-2 (including treever2 and its -inf case);
+    - the KI-17 stray weights;
+    - the unknown-production error;
+    - that inputs are not mutated.
+  - Finding: `ordernoself` appears in `split_node`'s pind-2 list, but its `prodcount` is 1,
+    so that branch is unreachable. This is noted in the test.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 316 passed, 22 skipped. The fd
+    env gives 338 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 13 (L2-a3: `simplify_graph (+redundantinds)`, `subtreeattach`). The spy pattern in
+  `fx_split.m` (`make_spies` + `spied_run`, which calls `runmodel` directly) can capture
+  `simplify_graph` inputs from real runs.

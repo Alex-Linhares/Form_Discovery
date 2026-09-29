@@ -45,6 +45,11 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   value to `z - 1`. Component `z` values are always valid nodes.
 - Values that are *labels*, not indices (e.g. the entries of `z` when they are compared as
   cluster ids), are shifted the same way. Otherwise `z` could not index `adj`.
+- `compind` is a 0-based component index; a negative value keeps MATLAB's meaning `-1`
+  (split of the combined graph: `add_element`, `empty_graph`, `best_split.m:12`). A
+  production number `pind` (1-3, `split_node.m`, `structurefit.m`) is a label, not an index,
+  and is **not** shifted. Where MATLAB returns `-inf` as "production does not apply"
+  (`split_node` → `graph = c1 = c2 = -inf`), the port returns `None`s.
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because
   callers only test `p == 0`.
 - Exception: **edge maps** (`graph.get_edgemap`, the `edgemap`/`edgemapsym` fields) keep

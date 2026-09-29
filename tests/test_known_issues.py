@@ -30,6 +30,8 @@ QUIRKS = {
     "KI-14": ("scaledata.m", 51, "[b i j]=unique(datamask', 'rows');"),
     "KI-15": ("find_descendants.m", 24, "queue = [queue, node];"),
     "KI-16": ("structcounts.m", 31, "counts(3, 1:2) = [0,0];"),
+    "KI-17a": ("split_node.m", 70, "origadj(origind)=1:nold;"),
+    "KI-17b": ("split_node.m", 148, "newW(newind(sind(1:nold)))=origW(origind);"),
 }
 
 
@@ -46,7 +48,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 17)}
+    assert ids == {f"KI-{n}" for n in range(1, 18)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

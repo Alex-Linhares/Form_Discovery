@@ -1,10 +1,12 @@
-"""Graph structure (PLAN.md §5; L0-b item 08, L2-a1 item 11).
+"""Graph structure (PLAN.md §5; L0-b item 08, L2-a1 item 11, L2-a2 item 12).
 
 ``expand_graph``, ``get_edgemap`` and ``find_descendants`` work on plain adjacency
 matrices (pinned by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat``,
 ``tests/test_l0b.py``). The ``Graph``/``Component`` dataclasses mirror the MATLAB ``graph``
 struct, and ``combinegraphs``/``makeemptygraph`` build graphs (pinned by
 ``tests/octave/fx_graph.m`` → ``tests/fixtures/graph.mat``, ``tests/test_graph.py``).
+``add_element``, ``empty_graph`` and ``split_node`` grow graphs (pinned by
+``tests/octave/fx_split.m`` → ``tests/fixtures/split.mat``, ``tests/test_split.py``).
 Indices are 0-based (``CONVENTIONS.md``); edge maps keep MATLAB's edge numbers.
 """
 
@@ -14,11 +16,11 @@ from dataclasses import dataclass, field, fields
 import numpy as np
 
 from . import FormDiscoveryError
-from .matlab_compat import find_F, median_matlab, union
+from .matlab_compat import find_F, median_matlab, setdiff, stable_argsort, union
 from .util import subv2ind
 
 __all__ = ["Component", "Graph", "expand_graph", "get_edgemap", "find_descendants",
-           "combinegraphs", "makeemptygraph"]
+           "combinegraphs", "makeemptygraph", "add_element", "empty_graph", "split_node"]
 
 
 @dataclass
@@ -426,3 +428,252 @@ def makeemptygraph(ps):
         c.z = np.zeros(n, dtype=np.int64)
         c.illegal = np.empty(0, dtype=np.int64)
     return combinegraphs(graph, ps)
+
+
+def add_element(g, compind, c, element, ps):
+    """``add_element.m:1-19``: put object ``element`` (0-based) into cluster node ``c``
+    (0-based) of component ``compind`` (0-based), then ``combinegraphs(..., zonly=1)``.
+
+    ``compind < 0`` (MATLAB ``-1``, a split of the combined graph) sets every component's
+    ``z`` from row ``c`` of ``g.compinds``. ``g.z[element]`` is set to ``0`` (MATLAB ``1``:
+    "observed"; combinegraphs overwrites it) and ``objcount`` goes up by one. Returns a new
+    :class:`Graph`.
+    """
+    g = g.copy()
+    if compind < 0:
+        for j in range(int(g.ncomp)):
+            g.components[j].z[element] = g.compinds[c, j]
+    else:
+        g.components[compind].z[element] = c
+    g.z[element] = 0
+    g.objcount = g.objcount + 1
+    # XXX: inefficient
+    return combinegraphs(g, ps, zonly=1)
+
+
+def empty_graph(graph, compind, c1, c2):
+    """``empty_graph.m:1-18``: remove every member of cluster nodes ``c1``/``c2`` (0-based)
+    of component ``compind`` (0-based; ``< 0`` uses the combined ``graph.z``).
+
+    The members get ``z = -1`` (missing) and ``objcount`` drops by their number; component
+    ``z`` is untouched. Replicated quirk: the rows/columns removed from ``graph.adj`` and
+    ``graph.W`` are the members' *object indices*, which are the right rows only when no
+    object was already missing (always the case in ``best_split.m:26``, the only caller).
+    Returns a new :class:`Graph`.
+    """
+    graph = graph.copy()
+    if compind < 0:
+        z = np.asarray(graph.z)
+    else:
+        z = np.asarray(graph.components[compind].z)
+    removeind = np.flatnonzero((z == c1) | (z == c2))
+    graph.z = np.asarray(graph.z).copy()
+    graph.z[removeind] = -1
+    includeind = setdiff(np.arange(graph.adj.shape[0]), removeind).astype(np.int64)
+    ix = np.ix_(includeind, includeind)
+    graph.adj = graph.adj[ix]
+    graph.W = graph.W[ix]
+    graph.objcount = graph.objcount - len(removeind)
+    return graph
+
+
+# split_node.m:9-57: production names by pind
+_PIND1 = {**dict.fromkeys(('dirchain', 'order', 'dirchainnoself', 'ordernoself',
+                           'undirchain', 'undirchainnoself'), 'chain'),
+          **dict.fromkeys(('dirring', 'dirringnoself', 'undirring', 'undirringnoself'), 'ring'),
+          **dict.fromkeys(('dirhierarchy', 'domtree', 'dirhierarchynoself', 'undirhierarchy',
+                           'undirhierarchynoself', 'dirdomtreenoself', 'undirdomtree',
+                           'undirdomtreenoself'), 'hierarchy'),
+          'partitionnoself': 'partition', 'connectednoself': 'connected'}
+_PIND2_CHAIN = ('hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself', 'ordernoself',
+                'undirhierarchy', 'undirhierarchynoself', 'dirdomtreenoself', 'undirdomtree',
+                'undirdomtreenoself')
+_PIND3 = ('hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself', 'undirhierarchy',
+          'undirhierarchynoself', 'dirdomtreenoself', 'undirdomtree', 'undirdomtreenoself')
+
+
+def split_production(graph, compind, c, pind):
+    """``split_node.m:9-57``: the production name used to split node ``c`` (0-based) of
+    component ``compind`` (0-based) with production ``pind`` (1, 2 or 3; a production
+    *number*, not an index), or ``None`` where MATLAB returns ``-inf`` (the production does
+    not apply: pind 2 on a one-node hierarchy or a tree with at most 3 nodes, pind 3 on a
+    hierarchy node without parents)."""
+    comp = graph.components[compind]
+    structname = comp.type
+    if pind == 1:
+        structname = _PIND1.get(structname, structname)
+    if pind == 2:
+        if structname in _PIND2_CHAIN:
+            structname = 'chain'
+            if comp.nodecount == 1:  # all productions the same for a one node graph
+                return None
+            if np.sum(comp.adj[:, c]) == 0 and np.sum(comp.adj[c, :]) >= 2:
+                structname = 'rootchain'
+        elif structname == 'tree':
+            structname = 'treever2'
+            if comp.nodecount <= 3:  # all productions the same
+                return None
+    if pind == 3:
+        if structname in _PIND3:
+            structname = 'domtreeflat'
+            if np.sum(comp.adj[:, c]) == 0:  # c has no parents
+                return None
+    return structname
+
+
+def split_node(graph, compind, c, pind, part1, part2, ps):
+    """``split_node.m:1-191``: split cluster node ``c`` of component ``compind`` with
+    production ``pind`` and put objects ``part1``/``part2`` in the two children.
+
+    Indices are 0-based (``compind``, ``c``, ``part1``, ``part2``, the returned ``c1``,
+    ``c2``); ``pind`` is MATLAB's production number 1-3 (:func:`split_production`).
+    Returns ``(graph, c1, c2)``, or ``(None, None, None)`` where MATLAB returns
+    ``-inf, -inf, -inf`` (the production does not apply). The component gets the new
+    ``adj`` (0/1 float), ``W``, ``Wsym``, ``adjsym``, counts, ``z`` and ``illegal``, and
+    the graph is recombined with ``combinegraphs(..., origgraph=, compind=, imap=)``.
+    ``disp(structname)`` is dropped. An unknown production raises
+    :class:`FormDiscoveryError` (MATLAB ``error('Unknown structure')``).
+
+    Replicated quirks (``KNOWN_ISSUES.md`` KI-17): old edges are marked ``1..nold`` in
+    column-major order, the markers are copied with the row/column of ``c``, and the old
+    weights go to the first ``nold`` positions of a stable sort of the markers. Where the
+    copies leave a marker twice (``connected``, ``domtreeflat``: the new node keeps the
+    parents of ``c``) or ``treever2`` deletes one, later weights shift by one and the left
+    over positions keep their marker value (or the median weight, if an ``inf``) as weight.
+    """
+    comp = graph.components[compind]
+    structname = split_production(graph, compind, c, pind)
+    if structname is None:
+        return None, None, None
+    origgraph = graph
+    graph = graph.copy()
+    comp = graph.components[compind]
+
+    ntot = int(comp.nodecount)
+    origadj = np.atleast_2d(np.asarray(comp.adj, dtype=float)).copy()
+    origW = np.atleast_2d(np.asarray(comp.W, dtype=float))
+    # make markers for original edges
+    origind = find_F(origadj)
+    nold = len(origind)
+    oa = origadj.ravel(order="F")
+    oa[origind] = np.arange(1, nold + 1)
+    origadj = oa.reshape(origadj.shape, order="F")
+    newinternal = np.empty(0, dtype=np.int64)
+
+    if structname in ('partition', 'chain', 'ring', 'hierarchy', 'domtreeflat',
+                      'connected', 'rootchain'):
+        newadj = np.zeros((ntot + 1, ntot + 1))
+        minusnew = setdiff(np.arange(ntot + 1), [c + 1]).astype(np.int64)
+        newadj[np.ix_(minusnew, minusnew)] = origadj
+        # give the new node all the connections of the previous nodes
+        newadj[c + 1, :] = newadj[c, :]
+        newadj[:, c + 1] = newadj[:, c]
+        # c, c+1 are the new clusters
+        c1, c2 = c, c + 1
+        newnodes = [c1, c2]
+        oldps = np.flatnonzero(newadj[:, c])
+        oldchild = np.flatnonzero(newadj[c, :])
+        if structname == 'connected':
+            newadj[c, c + 1] = np.inf
+        elif structname in ('chain', 'ring'):
+            newadj[c, c + 1] = np.inf
+            newadj[c + 1, c] = 0
+            newadj[oldps, c + 1] = 0
+            newadj[c, oldchild] = 0
+            if structname == 'ring' and len(oldps) == 0 and len(oldchild) == 0:
+                newadj[c + 1, c] = np.inf
+        elif structname == 'hierarchy':
+            newadj[c, c + 1] = np.inf
+            newadj[c + 1, c] = 0
+            newadj[oldps, c + 1] = 0
+            newadj[c + 1, oldchild] = 0
+        elif structname == 'domtreeflat':
+            newadj[c, c + 1] = 0
+            newadj[c + 1, c] = 0
+            newadj[c + 1, oldchild] = 0
+        elif structname == 'rootchain':
+            newadj[c, c + 1] = np.inf
+            newadj[c + 1, c] = 0
+            newadj[c + 1, oldchild[0]] = 0
+            newadj[c, oldchild[1:]] = 0
+    elif structname == 'tree':
+        newadj = np.zeros((ntot + 2, ntot + 2))
+        minusnew = setdiff(np.arange(ntot + 2), [c + 1, c + 2]).astype(np.int64)
+        newadj[np.ix_(minusnew, minusnew)] = origadj
+        # c+1, c+2 new leaf nodes
+        c1, c2 = c + 1, c + 2
+        newnodes = [c, c1, c2]
+        newadj[c + 1, c] = 0
+        newadj[c, c + 1] = np.inf
+        newadj[c + 2, c] = 0
+        newadj[c, c + 2] = np.inf
+        newinternal = np.array([c], dtype=np.int64)
+    elif structname == 'treever2':
+        newadj = np.zeros((ntot + 2, ntot + 2))
+        cpar = np.flatnonzero(origadj[:, c])
+        # find(origadj(cpar,:)): linear indices, = column indices for one parent
+        csibs = find_F(origadj[cpar, :])
+        csib = csibs[csibs != c]
+        origadj[np.ix_(cpar, csib)] = 0
+        minusnew = setdiff(np.arange(ntot + 2), [c + 1, c + 2]).astype(np.int64)
+        newadj[np.ix_(minusnew, minusnew)] = origadj
+        # c+1, c+2 new leaf nodes
+        c1, c2 = c + 1, c + 2
+        newnodes = [c, c1, c2]
+        newadj[c, c + 2] = np.inf
+        newadj[c, minusnew[csib]] = np.inf
+        newadj[minusnew[cpar], c + 1] = np.inf
+        newinternal = np.array([c], dtype=np.int64)
+    else:
+        raise FormDiscoveryError("Unknown structure")
+
+    n = newadj.shape[0]
+    newind = find_F(newadj)
+    sind = stable_argsort(newadj.ravel(order="F")[newind])
+    newW = newadj.copy()
+
+    # replace markers with weights
+    if nold > 0:
+        newW[np.isinf(newW)] = median_matlab(origW.ravel(order="F")[origind])
+        nw = newW.ravel(order="F")
+        nw[newind[sind[:nold]]] = origW.ravel(order="F")[origind]
+        newW = nw.reshape(newW.shape, order="F")
+    else:
+        newW[np.isinf(newW)] = 1
+
+    newadj[newadj > 0] = 1
+
+    # map[i]: what node i in old graph is now labelled
+    # imap[j]: what node j in new graph corresponds to
+    brandnew = setdiff(newnodes, [c]).astype(np.int64)
+    oldind = setdiff(np.arange(n), brandnew).astype(np.int64)
+    map_ = np.zeros(n, dtype=np.int64)
+    map_[:len(oldind)] = oldind
+    imap = np.zeros(n, dtype=np.int64)
+    imap[oldind] = np.arange(len(oldind))
+    imap[brandnew] = c
+
+    newz = map_[np.asarray(comp.z, dtype=np.int64)]
+    illegal = np.asarray(comp.illegal if comp.illegal is not None else [],
+                         dtype=np.int64).ravel()
+    comp.illegal = np.concatenate([map_[illegal], newinternal]).astype(np.int64)
+
+    comp.adj = newadj
+    comp.W = newW
+    both = (newadj != 0) & (newadj.T != 0)
+    doubleW = np.zeros(newW.shape)
+    doubleW[both] = newW[both]
+    comp.Wsym = newW + newW.T - doubleW
+    comp.adjsym = newadj + newadj.T - both
+    comp.nodecount = n
+    comp.edgecount = int(np.sum(newadj))
+    ecs = np.sum(comp.adjsym) / 2
+    comp.edgecountsym = int(ecs) if ecs == int(ecs) else float(ecs)
+
+    # new cluster nodes appear in order at the end of newnodes
+    newz[np.asarray(part1, dtype=np.int64)] = newnodes[-2]
+    newz[np.asarray(part2, dtype=np.int64)] = newnodes[-1]
+    comp.z = newz
+
+    graph = combinegraphs(graph, ps, origgraph=origgraph, compind=compind, imap=imap)
+    return graph, c1, c2

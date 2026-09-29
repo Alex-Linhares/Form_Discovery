@@ -109,7 +109,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       without `'zonly'`, with `prodtied` on/off, on product graphs from the baseline growth
       histories. Write `graph_equal()` in `tests/helpers.py` that reports the first differing
       field.
-- [ ] 12. **L2-a2.** `add_element, empty_graph, split_node`. Fixtures: `split_node` for every
+- [x] 12. **L2-a2.** `add_element, empty_graph, split_node`. Fixtures: `split_node` for every
       (structure family, pind) production listed in PLAN §5 / the survey (partition,
       connected, chain, ring incl. first-split 2-cycle, hierarchy pind 1–3 incl. rootchain
       and domtreeflat, tree pind 1–2 incl. treever2), driven by split sequences recorded from
