@@ -34,6 +34,7 @@ QUIRKS = {
     "KI-17b": ("split_node.m", 148, "newW(newind(sind(1:nold)))=origW(origind);"),
     "KI-18a": ("mat2vec.m", 23, "W = graph.components{i}.Wsym;"),
     "KI-18b": ("graph_like_conn.m", 7, "graph.Wsym(graph.adjsym> 0) = log(graph.Wsym(graph.adjsym>0));"),
+    "KI-19": ("inv_covariance.m", 26, "J(holes, holes)=1;"),
 }
 
 
@@ -50,7 +51,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 19)}
+    assert ids == {f"KI-{n}" for n in range(1, 20)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

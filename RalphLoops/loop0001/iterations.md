@@ -126,7 +126,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L3 — likelihoods
 
-- [ ] 16. **L3-a1.** `inv_covariance, gplike, dataprobwsig` (value and gradient, no missing
+- [x] 16. **L3-a1.** `inv_covariance, gplike, dataprobwsig` (value and gradient, no missing
       data) → `likelihood_feat.py`. Port `checkgrad` as a test utility and assert the analytic
       gradient matches finite differences on every fixture graph.
 - [ ] 17. **L3-a2.** `dataprobwsig` missing-data chunk path (recursive call per chunk,

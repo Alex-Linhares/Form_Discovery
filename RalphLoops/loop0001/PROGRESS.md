@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 16/36 SOLVED
+- **Current**: 17/36 SOLVED
 
 ---
 
@@ -822,3 +822,97 @@
   `rm_graphs` in `relinit.mat` (judges graphs with random weights, grid/cylinder included)
   and the split fixtures can be used as round-trip inputs. Remember that edge maps keep
   MATLAB's edge numbers (subtract 1 when indexing `Wvec`).
+
+## Iteration 18 — 2026-09-29 13:34
+### Completed
+- Item 16 **solved** (`[x]`).
+  - `src/formdiscovery/likelihood_feat.py` gains three functions, each with its source
+    lines in the docstring:
+    - `inv_covariance` (`inv_covariance.m:1-26`).
+    - `gplike` (`gplike.m:1-26`).
+    - `dataprobwsig` (`dataprobwsig.m:1-241`). It has both gradient branches: `nmiss == 0`
+      (l.96-154) and `nmiss > 0` (l.155-236). The latter is the one the chunk path's
+      recursive call uses, so item 17 only needs to add the chunk loop (l.24-60).
+      `ps.missingdata` raises `NotImplementedError('... item 17')`.
+    
+    Matrix products keep MATLAB's left-to-right order. `_mm`/`_ew` raise
+    `FormDiscoveryError` on nonconformant shapes where numpy would broadcast. `gplike`
+    raises MATLAB's out-of-bound error when `size(X,1) > size(G,1)`. `inv_covariance`
+    raises when `nobj > size(W,1)`. The NaN-gradient `keyboard` (patched to `error`) raises
+    `FormDiscoveryError`.
+  - Replicated behaviour:
+    - l.179's `U` is computed and then overwritten.
+    - The sigma gradient includes `trace(c3)`/`trace(c5)` only with `zglreg`.
+    - `gplike` uses `nfeat*runps.SS` when `nobj == chunkcount && overrideSS == 0`, while the
+      gradient always takes `SS` from `runps.SS` in that case (so `overrideSS=1` changes
+      only the value; a test checks this).
+    - The holes hack (new **KI-19**, replicate): `J(holes,holes) = 1` fills a block of ones,
+      so two or more holes make `J` singular and `chol` fails. `test_known_issues.py` now
+      expects KI-1..19 and pins `inv_covariance.m:26`.
+  - `tests/helpers.py`: `checkgrad(f, X, e, *args) -> (d, dy, dh)`, a port of
+    `checkgrad.m:18-42`.
+  - `CONVENTIONS.md`: a bullet on the `nargout=` keyword and the log-weight `Wvec` layout.
+  - Fixture `tests/octave/fx_dataprob.m` → `tests/fixtures/dataprob.mat` (Octave 10.3.0,
+    generated this iteration, ~12 s). It has four parts:
+    - **gr**: 29 graphs over 10 objects with random weights: 2 one-cluster graphs, seeded
+      `split_node` sequences for 8 families (every step for partition and hierarchy), and 2
+      graphs with unassigned objects.
+    - **cs**: 609 cases. There are 7 data variants: feat (`d*d'`), featSS (chunkcount path
+      with a random `runps.SS`), sim (`dim = 30`), featz (zglreg), and miss/simmiss/missz
+      (7 of 10 rows, so `nmiss = 3`). All 7 run in mode none, and feat/miss run in the other
+      7 tying modes. Each case records:
+      - the three outputs, and the one-output value;
+      - Octave's `checkgrad` value;
+      - `inv_covariance` of the combined graph, and `gplike`;
+      - or the error message.
+
+      514 cases succeed. 83 fail with chol errors (two-hole partitions and the
+      unassigned-object graphs), 11 are out of bound, and 1 is nonconformant.
+    - **ic**: 24 `inv_covariance` calls on random `W` with holes, zglreg 0 and 1.
+    - **bl**: a spy on `dataprobwsig` during the chain/ring/tree feature baselines (every
+      97th call, 36 calls, 11 with gradients). Each run's final score equals the committed
+      baseline.
+  - `tests/test_dataprob.py` has 52 fixture tests and 2 live `octave` tests:
+    - Every case and every spied call matches to rtol 1e-10: value, gradient, prior
+      gradient, `J`, `L` and `gplike`. Every error case raises.
+    - The Python `checkgrad` passes on every successful case in all 8 tying modes and both
+      branches (worst d = 8e-10 against a tolerance of 1e-6), and Octave's values meet the
+      same tolerance.
+    - On the baseline calls, `d < 1e-6` or `‖dh-dy‖ < 1e-9·|ll|` must hold. Near the
+      optimum, ‖dy‖ < 1 while ll ~ 1e4, and d reaches 2.8e-6 from finite-difference error
+      alone: it shrinks as e² from e = 1e-3 to 1e-5 and grows again at 1e-6. The gradient
+      itself is correct.
+    - Other checks: the `featSS` path uses `runps.SS`; `hessiangrad` accepts
+      `dataprobwsig`; a wrong gradient is detected; inputs are not mutated.
+    - Live: the fixture regenerates identically, and fresh seeds (`seedoffset = 7919`)
+      match and pass checkgrad.
+
+    One live-test finding: graphs whose `objcount` is smaller than the number of data rows
+    give `nmiss < 0`. Their `Y` (l.172) is singular (smallest eigenvalue ~4e-16), so
+    Octave and numpy can fail at different points (a chol error or a nonconformant
+    product). For those inputs only, the test accepts either error. No real caller passes
+    such inputs.
+  - A mutation check confirmed that the tests catch each of these deliberate breaks:
+    dropping `trace(c3)`, skipping the l.180 `U`, the hole block written as its diagonal,
+    the sign of `c2`, holes found by rows, a perturbed `X*X'`, and `trace(c5)` without
+    zglreg.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 468 passed, 31 skipped.
+    The fd env gives 499 passed, live Octave tests included.
+  - Also fixed: item 15's live test `test_weights.py::test_live_fixture_regenerates`
+    failed with `TypeError`. It called `assert_graph_equal` on the `cw = 0` placeholder
+    that the fixture stores when `combineWs` errors. The test now compares `cwerr` and
+    compares the graphs only when there was no error. The regression gate never ran this
+    test, because it is marked `octave`.
+  - `octave-workspace` (an Octave dump committed by accident last iteration) was deleted
+    while this iteration's Octave runs were going. It was restored with `git checkout`,
+    so the tree does not change it.
+### Blockers
+- None.
+### Next
+- Item 17 (L3-a2: the `dataprobwsig` missing-data chunk loop, l.24-60). `_grad_missing`
+  (the `nmiss > 0` branch) is already ported and pinned, and `reordermissing` was done in
+  item 14. What remains is the loop over `ps.runps.chunknum`, `obsind`/`missind` from
+  `objind`, the `sind` gradient reassembly (skipped when `fixedexternal`), and the
+  prior bookkeeping (`llc - wpriors`, `dWveccprior` subtracted for c > 1). Use the
+  `judges` chunks. The spy pattern in `fx_dataprob.m` (`make_spy`) can capture real
+  chunk calls, because the recursive call goes through the spy.

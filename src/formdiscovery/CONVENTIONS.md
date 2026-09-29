@@ -60,6 +60,12 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `FormDiscoveryError` where MATLAB errors. `reordermissing` takes 0-based `obsind`/
   `missind` and a 1-D `Wvec` (entry 0 = sigma, then the leaf weights). `filloutrelgraph`
   returns a float `adjcluster` also where MATLAB's `A | A'` makes it logical.
+- Where a MATLAB function does extra work depending on `nargout`, the port takes a
+  `nargout=` keyword with the MATLAB default. `likelihood_feat.dataprobwsig(Wvec, d,
+  graph, ps, nargout=3)` returns `(ll, dWvec, dWvecprior)`, or just `ll` for
+  `nargout=1`, which skips the gradient. Objective callbacks for `hessiangrad`/`checkgrad`
+  wrap it as `lambda x: dataprobwsig(x, ...)[:2]`. Weight vectors passed to
+  `dataprobwsig` are log weights: entry 0 is `log(sigma)`, then `mat2vec` order.
 - Weight vectors (`weights.mat2vec`, `combineWs`, `extract_weights`; item 15) are 1-D and
   keep MATLAB's entry order, which is column-major: leaf weights in object order, then
   cluster edges on the strict lower triangle of `adjclustersym` (or of each component's

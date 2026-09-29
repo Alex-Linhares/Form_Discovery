@@ -278,3 +278,21 @@ deal with them.
 - **Decision:** replicate. `weights.mat2vec` reads `comp.Wsym` as MATLAB does.
 - **Pin:** `tests/test_weights.py::test_round_trip` (the `prodtied` cases) and every
   `mat2vec` parity test.
+
+## Issues found while porting L3-a1 (item 16)
+
+### KI-19 `inv_covariance.m:24-26`: the 'holes' hack makes `J` singular when there are two or more holes
+- **Code:** nodes whose column of `W` has no nonzero entry ("orphaned cluster nodes") get
+  `J(holes, holes) = 1`. This sets the whole `holes × holes` block to 1, not just its
+  diagonal. With one hole, `J` stays positive definite. With two or more, the block is a
+  rank-1 matrix of ones, so `J` is singular, and `inv_posdef(J)` in `dataprobwsig.m:83`
+  fails in `chol` ('input matrix must be positive definite').
+- **Reachable:** only when a scored graph has two or more cluster nodes that have no
+  members and no cluster edges. A partition split with an empty part creates such a node:
+  `tests/fixtures/dataprob.mat` has `partition:4-6`, all 63 of whose cases error, while
+  `partition:3` (one hole) scores normally. None of the 36 `dataprobwsig` calls spied from
+  the chain, ring and tree feature baselines has a hole.
+- **Decision:** replicate. `likelihood_feat.inv_covariance` sets the same block, and
+  `dataprobwsig` raises `FormDiscoveryError`.
+- **Pin:** `tests/test_dataprob.py::test_hole_hack_is_exercised`,
+  `::test_inv_covariance_holes_block` and the `chol` error cases in `::test_cases`.

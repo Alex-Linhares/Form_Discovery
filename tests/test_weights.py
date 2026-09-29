@@ -298,7 +298,9 @@ def test_live_fixture_regenerates(octave, tmp_path):
     for a, b in zip(new["rt"], FX["rt"]):
         np.testing.assert_array_equal(_vec(a["v0"]), _vec(b["v0"]))
         np.testing.assert_array_equal(_vec(a["dW"]), _vec(b["dW"]))
-        assert_graph_equal(a["cw"], b["cw"], rtol=0, atol=0)
+        assert _err(a["cwerr"]) == _err(b["cwerr"])
+        if not _err(b["cwerr"]):  # cw stays the placeholder 0 when combineWs errored
+            assert_graph_equal(a["cw"], b["cw"], rtol=0, atol=0)
     np.testing.assert_allclose(new["bl_ll"], FX["bl_ll"], rtol=1e-12)
 
 

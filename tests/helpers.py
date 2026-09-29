@@ -78,3 +78,28 @@ def assert_graph_equal(a, b, msg="", **kw):
     d = graph_diff(a, b, **kw)
     if d:
         raise AssertionError(f"{msg}: {d}" if msg else d)
+
+
+def checkgrad(f, X, e, *args):
+    """``checkgrad.m:18-42`` (Carl Edward Rasmussen): compare the analytic gradient of
+    ``f`` with central finite differences.
+
+    ``f(X, *args)`` returns ``(value, gradient)``; only its value is used at the perturbed
+    points (MATLAB's ``y2 = eval(argstrd)`` takes the first output). Returns
+    ``(d, dy, dh)``: ``d = norm(dh - dy) / norm(dh + dy)``, the analytic gradient ``dy``
+    and the finite-difference one ``dh``, both 1-D. MATLAB prints ``[dy dh]``; here the
+    caller can.
+    """
+    X = np.asarray(X, dtype=float).ravel()
+    y, dy = f(X, *args)  # get the partial derivatives dy
+    dy = np.asarray(dy, dtype=float).ravel()
+    dh = np.zeros(len(X))
+    for j in range(len(X)):
+        dx = np.zeros(len(X))
+        dx[j] = dx[j] + e  # perturb a single dimension
+        y2 = f(X + dx, *args)[0]
+        dx = -dx
+        y1 = f(X + dx, *args)[0]
+        dh[j] = (y2 - y1) / (2 * e)
+    d = np.linalg.norm(dh - dy) / np.linalg.norm(dh + dy)  # norm of diff over norm of sum
+    return float(d), dy, dh
