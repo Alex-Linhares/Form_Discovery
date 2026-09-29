@@ -10,6 +10,11 @@ running Python (the ``fd`` env); ``octave-cli``/``octave`` on ``PATH``; the cond
 ``fd`` under ``~/anaconda3``/``~/miniconda3``/``~/miniforge3``. conda-forge Octave
 needs ``OCTAVE_HOME`` pointing at its prefix when the env is not activated, so it is
 set from the executable's location if missing.
+
+The ``replay`` fixture (item 22, PLAN §4.2) puts the ``randperm`` shim
+(``matlab/octave_shims``) in front of the session's path and returns a
+:class:`ReplayControl`. Its methods set the Octave and Python sides up to draw the same
+permutations.
 """
 
 import os
@@ -23,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MATLAB_DIR = REPO_ROOT / "matlab" / "formdiscovery1.0"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 OCTAVE_TESTS_DIR = REPO_ROOT / "tests" / "octave"
+SHIM_DIR = REPO_ROOT / "matlab" / "octave_shims"
 
 
 def find_octave():
@@ -90,3 +96,74 @@ def octave():
     oc.addpath(str(OCTAVE_TESTS_DIR))
     yield oc
     oc.exit()
+
+
+def _octq(s):
+    return "'" + str(s).replace("'", "''") + "'"
+
+
+class ReplayControl:
+    """Drive the Octave ``randperm`` shim and build the matching Python provider.
+
+    Each mode call reconfigures the shim with ``randperm_config`` (which rewinds it) and
+    truncates the Octave log ``self.log``:
+
+    - ``queue(perms)``: Octave replays the given 0-based permutations, and so does the
+      returned :class:`~formdiscovery.rng.ReplayPermutations`.
+    - ``identity()``: both sides return ``range(n)``.
+    - ``record(seed)``: Octave runs its built-in ``randperm`` after
+      ``rand('state', seed)`` (``masterrun.m:63``). Afterwards, ``from_log()`` replays
+      what Octave drew.
+
+    ``octave_log()`` returns the permutations Octave has drawn so far, 0-based.
+    """
+
+    def __init__(self, octave, tmp_path):
+        self.octave = octave
+        self.dir = tmp_path
+        self.log = tmp_path / "randperm_log.txt"
+        self.queue_file = tmp_path / "randperm_queue.txt"
+
+    def _config(self, source):
+        self.octave.eval(f"randperm_config({_octq(source)}, {_octq(self.log)});", nout=0)
+
+    def queue(self, perms):
+        from formdiscovery.rng import ReplayPermutations, write_queue
+        write_queue(self.queue_file, perms)
+        self._config(self.queue_file)
+        return ReplayPermutations.from_file(self.queue_file)
+
+    def identity(self):
+        from formdiscovery.rng import IdentityPermutations
+        self._config("identity")
+        return IdentityPermutations()
+
+    def record(self, seed=None):
+        self._config("")
+        if seed is not None:
+            self.octave.eval(f"rand('state', {int(seed)});", nout=0)
+
+    def octave_log(self):
+        from formdiscovery.rng import read_queue
+        return read_queue(self.log)
+
+    def from_log(self):
+        from formdiscovery.rng import ReplayPermutations
+        return ReplayPermutations(self.octave_log())
+
+
+@pytest.fixture
+def replay(octave, tmp_path):
+    """Put the ``randperm`` shim first on the Octave path for one test.
+
+    Yields a :class:`ReplayControl`. On teardown it restores the built-in (pass-through
+    and no log) and removes the shim from the path.
+    """
+    octave.eval("warning('off', 'Octave:shadowed-function');", nout=0)
+    octave.addpath(str(SHIM_DIR))
+    try:
+        yield ReplayControl(octave, tmp_path)
+    finally:
+        octave.eval("randperm_config();", nout=0)
+        octave.rmpath(str(SHIM_DIR))
+        octave.eval("clear('randperm');", nout=0)

@@ -148,7 +148,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## L4 — search heuristics (PLAN §4.2 for randomness)
 
-- [ ] 22. **Permutation replay.** `rng.py` with a `PermutationProvider` protocol (numpy default,
+- [x] 22. **Permutation replay.** `rng.py` with a `PermutationProvider` protocol (numpy default,
       identity, and queue-replay implementations) and `matlab/octave_shims/randperm.m` that
       shadows Octave's `randperm` by reading permutations from a file set via an env var (or
       returning identity). conftest fixture `replay` that produces matching Octave/Python

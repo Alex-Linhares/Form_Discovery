@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 22/36 SOLVED
+- **Current**: 23/36 SOLVED
 
 ---
 
@@ -1327,3 +1327,84 @@
 - Item 22 (permutation replay: `rng.py` plus the `matlab/octave_shims/randperm.m` shim).
   L0–L3 are now all verified against Octave. M3 holds: every fast score is exact and every
   slow score is within tolerance.
+
+## Iteration 25 — 2026-09-29 16:06
+### Completed
+- Item 22 **solved** (`[x]`).
+  - New `src/formdiscovery/rng.py`. Each provider's `randperm(n)` returns a 0-based
+    int64 permutation:
+    - `PermutationProvider`, a runtime-checkable Protocol;
+    - `NumpyPermutations(seed)`, the default;
+    - `IdentityPermutations`;
+    - `ReplayPermutations`, a queue. It raises `ReplayError` when the queue is exhausted
+      or a length does not match, and `consumed`, `remaining()` and `assert_exhausted()`
+      count the draws;
+    - `RecordingPermutations`, a wrapper that logs what it returns;
+    - helpers: `as_provider` (`None`/int/Generator → numpy), `check_perm`, and
+      `write_queue`/`read_queue`/`parse_queue`. Files are 1-based, one `n p1 ... pn`
+      line per draw, and `0` is the empty permutation.
+  - New `matlab/octave_shims/randperm.m`. It shadows the built-in once the directory is
+    first on the path, and `FD_RANDPERM` picks the source:
+    - unset: `builtin('randperm', ...)`, so the stream is unchanged;
+    - `identity`;
+    - `<queue file>`: replay. It errors when the queue runs out, on a wrong length, on
+      an entry that is not a permutation, and on a bad header.
+
+    `FD_RANDPERM_LOG` appends every draw in the queue format, so an Octave log replays
+    directly in Python. The queue is reloaded when the file name changes.
+    `randperm_config(source, log)` sets the variables, truncates the log and rewinds.
+    `randperm(n, m)` is passed through to the built-in, and is an error in the replay
+    modes (the sources never call it).
+  - `tests/conftest.py` has `SHIM_DIR` and a `replay` fixture, which returns a
+    `ReplayControl`:
+    - `queue(perms)` sets up the same queue on both sides;
+    - `identity()`;
+    - `record(seed)`, then `from_log()`: Octave's own seeded draws, replayed in Python;
+    - `octave_log()`.
+
+    On teardown the fixture restores the pass-through and removes the shim from the
+    path. Checked: `which randperm` is the built-in again afterwards, and other live
+    tests in the same session still pass.
+  - Fixture `tests/octave/fx_rng.m` → `tests/fixtures/rng.mat` (Octave 10.3.0,
+    regenerated this iteration, 0.1 s). It has these parts:
+    - **bi**: pass-through equals the built-in for seeds 1–3;
+    - **id**: identity;
+    - **qu**: queue replay, rewind and reload on a new file;
+    - **er**: all error messages;
+    - **cs**: the real call site `choose_seedpairs.m:24`, with 7 draws of
+      `randperm(6)`, under identity, recorded, and replayed from the log.
+  - `tests/test_rng.py` has 19 gate tests and 5 live `octave` tests:
+    - Every fixture part matches the Python providers exactly. The shim's log, its queue
+      file and `write_queue` are byte-identical. The Python error messages match the
+      shim's once file names are stripped.
+    - A test-only mirror of the `choose_seedpairs` top-level branch (the port itself is
+      item 23) gets Octave's seed pairs from the replayed log and uses up the queue
+      exactly.
+    - Live: the fixture regenerates identically. A fresh 40-entry numpy queue is
+      consumed identically by Octave (read from its log) and by Python, and Octave then
+      raises 'queue exhausted'. For seeds 1, 5 and 7919, Octave's seeded draws at
+      `choose_seedpairs` are recorded and replayed to the same seed pairs; identity
+      mode also agrees.
+  - A mutation check confirmed that the tests catch each of these deliberate breaks:
+    - `write_queue` writes 0-based values;
+    - replay never advances;
+    - the shim's cursor sticks at entry 1 (live);
+    - pass-through consumes an extra `rand` (the fixture's `bi` then differs from the
+      built-in).
+  - Docs: `CONVENTIONS.md` (Randomness) describes the provider API, the `rng=None`
+    argument for the L4 ports and the shim; `matlab/PATCHES.md` has a "Test shims"
+    section, since the shims are not a source patch. No new KI.
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 1271 passed, 46 skipped (79 s);
+    - fd env `-m octave tests/test_rng.py tests/test_split.py tests/test_patches.py`:
+      10 passed.
+### Blockers
+- None.
+### Next
+- Item 23 (L4-a: `addnearmiss, choose_seedpairs, best_split, choose_node_split` →
+  `search.py`). Give the functions an `rng=None` argument and draw with
+  `as_provider(rng).randperm(n)`. For fixtures, have `fx_*.m` add `matlab/octave_shims`,
+  record Octave's draws with `randperm_config('', logfile)` after `rand('state', s)`, and
+  store the log text so Python can replay it with `parse_queue`. `test_rng.seedpairs_top`
+  already mirrors the >5-members branch of `choose_seedpairs`; replace it with the real
+  port.

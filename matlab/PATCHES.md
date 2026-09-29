@@ -119,6 +119,20 @@ tree / `undirhierarchy` entries in `tests/test_baseline.py` and `tests/test_base
 first on `PATH` (or activate the env) before running any display code. Display is off
 (`ps.show*=0`) in all baseline runs.
 
+## Test shims (not a source patch)
+
+`matlab/octave_shims/` (item 22) holds `randperm.m` and `randperm_config.m`. They leave
+`formdiscovery1.0/` untouched. When a test puts that directory first on the path,
+`randperm.m` shadows Octave's built-in. `FD_RANDPERM` then picks one of three sources:
+
+- unset: pass-through, the same stream as the built-in;
+- `identity`: `randperm(n)` returns `1:n`;
+- a queue file: replay its permutations.
+
+`FD_RANDPERM_LOG` logs every draw. Only tests and fixture scripts add the directory
+(`tests/conftest.py::replay`, `tests/octave/fx_rng.m`); the baselines run without it.
+See `src/formdiscovery/rng.py` and `CONVENTIONS.md` (Randomness).
+
 ## Full diff (CR characters stripped)
 
 ```diff

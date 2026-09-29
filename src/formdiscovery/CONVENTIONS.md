@@ -124,6 +124,23 @@ that a line of Python can be matched to its `.m` source and compared with Octave
 - Randomness enters only through `randperm` (PLAN §4.2). Python code takes an injectable
   permutation provider (`rng.py`, item 22). Parity tests replay the same permutations on both
   sides.
+- Where the MATLAB code calls `randperm(n)`, the Python code calls `rng.randperm(n)` on a
+  `PermutationProvider`, which returns a 0-based int64 permutation. A search function
+  takes an `rng=None` argument and normalises it with `as_provider`. `None` or an int
+  seed gives `NumpyPermutations`; `IdentityPermutations` and `ReplayPermutations` serve
+  tests. Draw exactly as often, and in the same order, as the MATLAB code, including
+  `randperm(0)`. Replay counts the draws, and `assert_exhausted()` checks them.
+- The Octave side is `matlab/octave_shims/randperm.m`. It takes these settings:
+  - `FD_RANDPERM` unset: the built-in;
+  - `FD_RANDPERM=identity`: `1:n`;
+  - `FD_RANDPERM=<file>`: replay the file;
+  - `FD_RANDPERM_LOG=<file>`: log every draw.
+
+  `randperm_config(source, log)` sets these and rewinds the queue. Queue and log files
+  share one format: a 1-based `n p1 ... pn` line per draw (`write_queue`/`read_queue`).
+  In live tests, the `replay` fixture offers `queue(perms)`, `identity()` and
+  `record(seed)` + `from_log()`. Fixture scripts `addpath` the shim directory themselves
+  and call `randperm_config()` before they save.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
