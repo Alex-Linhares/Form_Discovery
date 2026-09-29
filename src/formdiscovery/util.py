@@ -3,7 +3,8 @@
 Faithful ports of the small helper files of formdiscovery1.0 (several from Tom Minka's
 lightspeed toolbox and Kevin Murphy's BNT). Indices are 0-based (``CONVENTIONS.md``);
 vectors are 1-D arrays. Pinned against Octave by ``tests/octave/fx_util.m`` →
-``tests/fixtures/util.mat`` (``tests/test_util.py``). ``weightprior`` lives in
+``tests/fixtures/util.mat`` (``tests/test_util.py``); ``stirling2`` and ``dijkstra`` (item 08)
+by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``). ``weightprior`` lives in
 :mod:`formdiscovery.weights`.
 """
 
@@ -16,6 +17,7 @@ from .matlab_compat import chol_upper, mysetdiff  # noqa: F401  (mysetdiff.m liv
 __all__ = [
     "vec", "inv_triu", "inv_posdef", "logdet", "mylogdet", "sumlogs", "meanlogs",
     "mysetdiff", "subv2ind", "trans2orig", "matrixpartition", "triplepartition",
+    "stirling2", "dijkstra",
 ]
 
 
@@ -175,3 +177,114 @@ def triplepartition(J, nobs, nmiss):
     B2 = J[nobs:nobj, nobj:].copy()
     D = J[nobj:, nobj:].copy()
     return A1, A2, B1, B2, D
+
+
+def stirling2(n, m):
+    """``stirling2.m:87-106`` (John Burkardt): the ``n x m`` table of Stirling numbers of
+    the second kind, ``s2[i-1, j-1] = S2(i, j)``, as float64.
+
+    Built with the same recursion in the same floating-point order as MATLAB
+    (``s2(i,j) = j*s2(i-1,j) + s2(i-1,j-1)``), so entries above ``2**53`` round exactly as
+    they do in MATLAB; ``stirling2(40, 40)`` feeds the structure priors
+    (``structcounts.m:12``). ``n <= 0`` or ``m <= 0`` gives an empty ``(0, 0)`` array.
+    """
+    n = int(n)
+    m = int(m)
+    if n <= 0 or m <= 0:
+        return np.zeros((0, 0))
+    s2 = np.zeros((n, m))
+    s2[0, 0] = 1.0
+    for i in range(1, n):
+        s2[i, 0] = 1.0
+        # row i depends only on row i-1, so the vectorised form does the same operations
+        j = np.arange(2, m + 1, dtype=float)
+        s2[i, 1:] = j * s2[i - 1, 1:] + s2[i - 1, :-1]
+    return s2
+
+
+def dijkstra(A, s=None, t=None, paths=False):
+    """``dijkstra.m:33-113`` (Michael G. Kay, the file declares ``function [D,P] = dijk``):
+    shortest-path distances from the nodes ``s`` to the nodes ``t``.
+
+    ``A`` is an ``n x n`` weighted adjacency matrix of arc lengths: ``A[i, j] == 0`` means
+    no arc, ``NaN`` means an arc of length 0. ``s`` and ``t`` are 0-based node indices;
+    ``None`` or empty means all nodes. Returns the ``len(s) x len(t)`` distance matrix
+    (``inf`` where unreachable). As in MATLAB, a matrix with an all-zero lower (upper)
+    triangle, diagonal included, is treated as acyclic and scanned in index order
+    (``dijkstra.m:40-45``); negative lengths are then allowed. Otherwise the usual
+    node-selection loop runs, taking the first minimum on ties.
+
+    Only the distance output is ported (KI-6): the MATLAB second output calls the missing
+    ``pred2path``, and every caller (``swapobjclust.m:79,105,144``, ``collapsedims.m:24``)
+    uses one output, so ``paths=True`` raises ``NotImplementedError``. MATLAB ``error``
+    calls raise :class:`FormDiscoveryError`.
+    """
+    if paths:
+        raise NotImplementedError("dijkstra: predecessor output needs pred2path (KI-6)")
+    A = np.asarray(A, dtype=float)
+    if A.ndim != 2:
+        A = np.atleast_2d(A)
+    n, cA = A.shape
+    s = np.arange(n) if s is None or np.size(s) == 0 else np.asarray(s, dtype=np.int64).ravel()
+    t = np.arange(n) if t is None or np.size(t) == 0 else np.asarray(t, dtype=np.int64).ravel()
+
+    if not np.any(np.tril(A) != 0):  # A is upper triangular
+        isAcyclic = 1
+    elif not np.any(np.triu(A) != 0):  # A is lower triangular
+        isAcyclic = 2
+    else:  # graph may not be acyclic
+        isAcyclic = 0
+
+    if n != cA:
+        raise FormDiscoveryError("A must be a square matrix")
+    elif not isAcyclic and np.any(A < 0):
+        raise FormDiscoveryError("A must be non-negative")
+    elif np.any((s < 0) | (s > n - 1)):
+        raise FormDiscoveryError(f"'s' must be an integer between 1 and {n}")
+    elif np.any((t < 0) | (t > n - 1)):
+        raise FormDiscoveryError(f"'t' must be an integer between 1 and {n}")
+
+    A = A.T  # column j of A.T lists the arcs leaving node j
+    D = np.zeros((len(s), len(t)))
+    for i in range(len(s)):
+        j = int(s[i])
+        Di = np.full(n, np.inf)
+        Di[j] = 0.0
+        isLab = np.zeros(len(t), dtype=bool)
+        if isAcyclic == 1:
+            nLab = j  # MATLAB j - 1 with 1-based j
+        elif isAcyclic == 2:
+            nLab = n - 1 - j  # MATLAB n - j
+        else:
+            nLab = 0
+            UnLab = list(range(n))
+            isUnLab = np.ones(n, dtype=bool)
+
+        while nLab < n and not np.all(isLab):
+            if isAcyclic:
+                Dj = Di[j]
+            else:  # node selection; MATLAB min skips NaN and takes the first minimum
+                cand = Di[isUnLab]
+                jj = int(np.argmin(np.where(np.isnan(cand), np.inf, cand)))
+                Dj = cand[jj]
+                j = UnLab.pop(jj)
+                isUnLab[j] = False
+
+            nLab += 1
+            if len(t) < n:
+                isLab = isLab | (j == t)
+
+            col = A[:, j]
+            jA = np.flatnonzero(col)
+            Aj = col[jA].copy()
+            Aj[np.isnan(Aj)] = 0.0
+
+            Dk = np.inf if Aj.size == 0 else Dj + Aj
+            Di[jA] = np.fmin(Di[jA], Dk)  # MATLAB min(a, b) ignores NaN
+
+            if isAcyclic == 1:  # increment node index for upper triangular A
+                j += 1
+            elif isAcyclic == 2:  # decrement node index for lower triangular A
+                j -= 1
+        D[i, :] = Di[t]
+    return D

@@ -90,7 +90,7 @@ deal with them.
   (`swapobjclust.m:79,105,144` and `collapsedims.m:24`).
 - **Decision:** replicate the single-output behaviour. The Python `dijkstra` returns only the
   distance matrix and raises `NotImplementedError` when paths are requested.
-- **Pin:** `tests/test_util.py::test_dijkstra_matches_octave` *(item 08)* and
+- **Pin:** `tests/test_l0b.py::test_dijkstra_matches_octave`, `::test_dijkstra_errors_and_paths` and
   `tests/test_known_issues.py::test_dijkstra_called_with_one_output` (exists).
 
 ## Other issues found during Phase 0
@@ -197,3 +197,20 @@ deal with them.
 - **Decision:** `matlab_compat.unique_rows` / `unique_matlab` default to `'first'` and take
   `occurrence='last'`. Both are tested against Octave's explicit `'first'`/`'last'`.
 - **Pin:** `tests/test_matlab_compat.py::test_unique_rows`, `::test_unique_matlab`.
+
+## Issues found while porting L0-b (item 08)
+
+### KI-15 `find_descendants.m:22-25`: endless loop on a cycle above a queued node
+- **Code:** a node whose children are not all processed goes to the back of the queue
+  (`queue = [queue, node]; continue;`). If a queued node lies on or above a directed cycle,
+  its children are never processed and the `while` loop never ends. Nodes never reached from
+  a leaf keep no entry: they are `[]`, or outside the cell if their index is past the last
+  assigned one.
+- **Reachable:** no. The callers pass trees and DAGs: the tree/hierarchy component `adj` in
+  `spr.m:86` and the transitive-backbone `adjcluster` in `filloutrelgraph.m:10`. Every such
+  graph in the Octave baselines ends (72 inputs in `tests/fixtures/l0b.mat`).
+- **Decision:** fix (the only way out of the endless loop). `graph.find_descendants` raises
+  `FormDiscoveryError` once `len(queue)` consecutive requeues make no progress, which is the
+  point at which the MATLAB queue repeats itself. It always returns `n` entries, with empty
+  arrays for unreached nodes. Every input where MATLAB ends gives the same result.
+- **Pin:** `tests/test_l0b.py::test_find_descendants_repro_and_cycle`, `::test_find_descendants`.

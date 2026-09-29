@@ -18,13 +18,17 @@ that a line of Python can be matched to its `.m` source and compared with Octave
 
 ## Indices
 - Python indices are **0-based** everywhere inside the package. That covers `z`, `nodemap`,
-  `edgemap` entries, `illegal`, `objind`/`featind` chunk lists and permutations.
+  `illegal`, `objind`/`featind` chunk lists and permutations (edge maps: see below).
 - Conversion happens only at the boundary: `formdiscovery.io.to0` / `to1` (fixtures, `.mat`
   results) and the parity helpers in `tests/`. Fixtures keep Octave's 1-based values.
 - Values that are *labels*, not indices (e.g. the entries of `z` when they are compared as
   cluster ids), are shifted the same way. Otherwise `z` could not index `adj`.
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because
   callers only test `p == 0`.
+- Exception: **edge maps** (`graph.get_edgemap`, the `edgemap`/`edgemapsym` fields) keep
+  MATLAB's edge *numbers* `1..k` with `0` = no edge. Callers test `emap != 0` and `kron` the
+  map with an identity (`combinegraphs.m:52,69`), which needs 0 as the empty value. Subtract 1
+  where an edge number indexes a weight vector (`combineWs.m:44`, `extract_weights.m:64`).
 
 ## Data types
 - `.mat` data are uint8/uint16 on disk but double in MATLAB: read them with

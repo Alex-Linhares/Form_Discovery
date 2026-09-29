@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 8/36 SOLVED
+- **Current**: 9/36 SOLVED
 
 ---
 
@@ -407,3 +407,47 @@
 - Item 08 (L0-b: `stirling2`, `hessiangrad`, `dijkstra`, `get_edgemap`, `find_descendants`,
   `expand_graph`, `makehyps`, `bbloglike`, `bblikesumhyps`, `dirmultloglike`). `makehyps` can use
   `util.trans2orig`.
+
+## Iteration 11 — 2026-09-29 12:18
+### Completed
+- Item 08 **solved** (`[x]`).
+  - `util.py`: `stirling2`, which uses the same float recursion as MATLAB. `stirling2(40,40)` matches Octave
+    **bit for bit**, including the entries above 2^53. Also `dijkstra` (distance output only, per KI-6; `paths=True` →
+    `NotImplementedError`). `dijkstra` keeps the upper/lower-triangular "acyclic" scan (negative
+    lengths allowed), NaN = zero-length arc, MATLAB `min` first-tie/NaN-skipping, the early stop
+    when `len(t) < n`, and the four `error` branches → `FormDiscoveryError`.
+  - New `graph.py`: `expand_graph`, `get_edgemap` (column-major; `sym=1` numbers the strict
+    lower triangle and symmetrises), and `find_descendants` (the MATLAB queue order, sorted
+    0-based rows, patch 16 semantics).
+  - New `likelihood_feat.py`: `hessiangrad`. Rows come from `length(dY)` as in MATLAB, so a
+    matrix-shaped gradient errors in both languages; this is pinned. New `likelihood_rel.py`:
+    `makehyps`, `bbloglike` (`sum(...,1)`: a 1-row matrix is not reduced), `bblikesumhyps`,
+    `dirmultloglike` (an all-zero row gives NaN, as in MATLAB).
+  - Deviation **KI-15** (find_descendants loops forever on a cycle above a queued node): the port
+    raises instead, once the queue makes a full pass with no progress, and always returns `n`
+    entries. No caller can reach it. Added to `KNOWN_ISSUES.md`; `test_known_issues.py`
+    now expects KI-1..15. KI-6 pin updated (it now exists).
+  - `CONVENTIONS.md`: edge maps are an exception to 0-based indexing. They keep MATLAB's edge
+    numbers 1..k with 0 = no edge, because `kron` in `combinegraphs` and `find(emap)` need 0 as the
+    empty value. Callers subtract 1 when indexing weights.
+  - Fixture `tests/octave/fx_l0b.m` (+ helper `l0b_hessfun.m`) → `tests/fixtures/l0b.mat`,
+    generated this iteration with Octave 10.3.0. `dijkstra` and `get_edgemap` (both modes) run on
+    212 matrices: every demo `adj`/`W`/`graph.adjcluster`, the `adjcluster`/`adjclustersym`/
+    `Wclustersym` of all 63 final baseline graphs (feat + rel), and six constructed cases
+    (triangular with negative lengths, NaN arcs, disconnected, 1×1). The fixture also covers
+    `s`/`t` subsets and the error branches. `find_descendants` runs on 72 inputs: the 03b repro,
+    a tree, a diamond DAG, a lower-triangular DAG, all leaves, every tree/chain/order/hierarchy
+    baseline component `adj` and `adjcluster`, and a 25-node random DAG. `expand_graph` covers
+    empty clusters. `makehyps` uses the `graph_like_rel` grids. `bblikesumhyps` covers ns=0,
+    all-zero and empty input.
+  - `tests/test_l0b.py`: 15 fixture tests (exact for stirling2, maps, descendants and
+    adjacency; rtol 1e-10 otherwise; 1e-9 for the finite-difference Hessian) and 2 live
+    `octave` tests: the fixture regenerates identically, and fresh random dijkstra, edgemap,
+    find_descendants, makehyps, bblikesumhyps, dirmultloglike and stirling2 match.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 126 passed, 13 skipped. The fd env
+    gives 139 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 09 (L1 params: `setps, defaultps, setrunps, gridpriors, structcounts, graph_prior`).
+  `structcounts` can use `util.stirling2`.

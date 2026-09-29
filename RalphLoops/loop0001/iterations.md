@@ -85,7 +85,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       subv2ind, trans2orig, matrixpartition, triplepartition, weightprior` → `util.py` /
       `weights.py`. Fixtures: random SPD matrices, log-space vectors, a non-PD matrix for the
       `mylogdet` fallback (note MATLAB returns complex; decide and document).
-- [ ] 08. **L0-b.** `stirling2, hessiangrad, dijkstra, get_edgemap, find_descendants,
+- [x] 08. **L0-b.** `stirling2, hessiangrad, dijkstra, get_edgemap, find_descendants,
       expand_graph, makehyps, bbloglike, bblikesumhyps, dirmultloglike`. `stirling2(40,40)` must
       match exactly (it feeds the priors). `dijkstra` on every demo `adj`. `get_edgemap` in both
       normal and `'sym'` modes.
