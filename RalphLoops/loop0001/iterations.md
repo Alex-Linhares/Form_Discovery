@@ -133,7 +133,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       gradient reassembly via `sind`). Fixtures from `judges`.
 - [x] 18. **L3-b1.** `graph_like_conn` fast mode (`ps.fast=1`) and `graph_like` dispatcher →
       exact parity on all baseline graphs.
-- [ ] 19. **L3-b2.** `graph_like_conn` slow mode: optimizer + Laplace (PLAN §4.1). Implement
+- [x] 19. **L3-b2.** `graph_like_conn` slow mode: optimizer + Laplace (PLAN §4.1). Implement
       with `scipy.optimize.minimize` (method parameterised; start with `trust-exact` using the
       analytic gradient), replicate `includeind` truncation and the `isreal` fallback. Tests:
       objective at Python optimum ≤ Octave's + 1e-6, gradient norm ≤ Octave's, `logI` within

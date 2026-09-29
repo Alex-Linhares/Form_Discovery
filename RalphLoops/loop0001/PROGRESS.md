@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 19/36 SOLVED
+- **Current**: 20/36 SOLVED
 
 ---
 
@@ -1056,7 +1056,7 @@
     `exp` of sigma on return, no `exp` of `Wsym` on return, a perturbed `Xinit` sigma, and
     `z > 0` instead of `z >= 0` in `graph_like`.
   - Gate: base python `python -m pytest -q -m "not slow"` gives 869 passed, 35 skipped.
-    FDGATE
+    (The fd-env gate result was never filled in here; iteration 22 ran it with item 19.)
 ### Blockers
 - None.
 ### Next
@@ -1065,3 +1065,70 @@
   to record slow calls and get `fminunc` optima and `logI` for the tolerance tests. The
   speed-4 noinit growth-history graphs are slow-mode inputs with known scores
   (`bestgraphlls`, which include `graph_prior`).
+
+## Iteration 22 — 2026-09-29 15:36
+### Completed
+- Item 19 **solved** (`[x]`). The code, fixture and tests were written by an earlier session
+  and committed by loop.py as `f07a438` ("iteration 22: item 19"). That session did not
+  tick the checkbox or write this entry. This iteration checked the work, reran everything
+  and recorded it.
+  - `src/formdiscovery/likelihood_feat.py`: slow mode of `graph_like_conn`
+    (`graph_like_conn.m:35-110`). It has three parts:
+    - `_slow_minimize` replaces `fminunc` with `scipy.optimize.minimize`.
+      `SLOW_METHOD = 'trust-exact'` uses the analytic gradient and a symmetrised
+      finite-difference Hessian, with `gtol` 1e-8. Pass `method=` to choose another method.
+    - `laplace_logI` (l.76-93) is an exact port. It uses the unsymmetrised `hessiangrad`
+      H, truncates to `includeind` (`X < 195`), and warns 'sigma blows up'. It raises
+      `FormDiscoveryError` when `includeind` is empty. When `logI` is complex it falls back
+      to the `~isreal` formula from the positive eigenvalues.
+    - `slow_graph` (l.95-101) builds the returned graph.
+
+    The `'XXXHIDDENtree'` case can never match and is not ported. `info=` exposes the
+    intermediate values. MATLAB's `disp('WARNING...')` lines become `warnings.warn`.
+  - Fixture `tests/octave/fx_glslow.m` (+ `glc_quad.m`) → `tests/fixtures/glslow.mat`
+    (Octave 10.3.0). It runs an instrumented shadow copy of `graph_like_conn.m` that
+    records `Xinit`, X/fX, g, the full H, `includeind`, ll, `logI0` and `logI`. It has
+    these parts:
+    - **gh**: 82 growth-history records.
+    - **sy**: 116 synthetic records (12 chol errors).
+    - **jd**: 9 judges records (the chunk path).
+    - **bl**: 75 slow calls spied in the chain and tree baseline runs. Their final scores
+      equal the baseline.
+    - **lp**: 80 Laplace-only records at non-optimal points (the fallback runs in 25).
+    - **qd**: quadratic-objective records covering truncation, 'sigma blows up', the
+      fallback and the empty-`includeind` error.
+
+    **Regenerated this iteration** (38 s). The contents are identical to the committed
+    copy; only the `.mat` header changed.
+  - `tests/test_glslow.py` has 276 gate tests, 11 `slow` tests and 2 live `octave` tests:
+    - At Octave's X, the Laplace step and the returned graph match to rtol 1e-10. H uses a
+      documented FD tolerance.
+    - On every record, Python's objective is ≤ Octave's fX + 1e-6 and its gradient norm is
+      ≤ Octave's.
+    - `logI` matches to rel **2e-4**, not the 1e-4 PLAN §4.1 started with. The worst gaps
+      are 1.6e-4 (a tree-run call) and 1.06e-4 (gh 64). Octave causes the gap: `fminunc`
+      (TolFun = TolX = 1e-6) stops early, with gradient norms up to ~15 and fX up to 0.08
+      above the optimum. `test_worst_logI_gap_is_octaves` pins this. `KNOWN_ISSUES.md`
+      KI-10 now points to this test file.
+  - **Which scipy method tracks Octave best**: none follows `fminunc`'s early stop.
+    `trust-exact`, `trust-ncg`, `BFGS` and `L-BFGS-B` all reach the same optimum
+    (objectives within 1e-8), so they are all the same distance from Octave's `logI`.
+    `L-BFGS-B` is ~3x faster on judges. `BFGS` fails on bl 43, where its line search
+    probes a point that makes `chol` fail. `trust-exact` stays the default.
+    `test_methods_agree` (slow) pins this.
+  - `test_graphlike.py::test_slow_mode_not_ported` was removed; slow mode now dispatches
+    (`test_graph_like_slow_dispatch`). `CONVENTIONS.md` describes slow mode.
+  - This iteration: fixed the `fx_glslow.m` header comment ('8' → '9 (every 3rd)' judges
+    graphs; comment only). Filled in the `FDGATE` placeholder that iteration 21 left.
+  - Verified:
+    - base `python -m pytest -q -m "not slow"`: 1142 passed, 37 skipped (68 s);
+    - `-m slow tests/test_glslow.py`: 11 passed (2 min 46 s);
+    - fd env `-m octave tests/test_glslow.py`: 2 passed (84 s; fixture regenerates
+      identically, fresh seeds 7919 pass).
+### Blockers
+- None.
+### Next
+- Item 20 (L3-c: `countmatrix, rellikebin, rellikefreqs, graph_like_rel` →
+  `likelihood_rel.py`). `graph_like` currently raises `NotImplementedError('... item 20')`
+  for `runps.type == 'rel'`. `bbloglike`, `bblikesumhyps`, `dirmultloglike` and `makehyps`
+  are already ported (item 08). `relgraphinit`/`filloutrelgraph` are done (item 14).

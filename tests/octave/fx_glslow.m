@@ -14,7 +14,7 @@ function fx_glslow(outfile, seedoffset)
 %       graph_like with ps.fast = 0 in the file's tying mode and, for tied files, untied.
 % sy    the 29 dataprob.mat graphs (10 objects, some unassigned) with random feature and
 %       similarity data (runps.dim = 30) in tying modes none and fixedexternal.
-% jd    8 of the dpmiss.mat graphs with judges (missing-data chunk path), mode none.
+% jd    9 of the dpmiss.mat graphs (every 3rd) with judges (missing-data chunk path), mode none.
 % lp    the Laplace part alone (graph_like_conn.m:76-93, extracted from the source into
 %       glc_laplace) at points that are not optima (Xinit of gh/sy records and a random
 %       perturbation of it), so the ~isreal fallback runs.
