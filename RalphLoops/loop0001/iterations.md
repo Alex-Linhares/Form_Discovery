@@ -159,7 +159,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `choose_seedpairs`.
 - [x] 24. **L4-b1.** `swapobjclust (+chooseswaps, doswap, sourceobjs, sourcecls, cltypes)`.
       Replayed permutations; all five swap types; single and product graphs.
-- [ ] 25. **L4-b2.** `spr (+makerp, makers), collapsedims (+getocc, get_occnodescomp, zassign)`.
+- [x] 25. **L4-b2.** `spr (+makerp, makers), collapsedims (+getocc, get_occnodescomp, zassign)`.
       Tree/hierarchy graphs for `spr`; grid/cylinder graphs for `collapsedims`.
 - [ ] 26. **L4-c1.** `gibbs_clean (+nearmissopts)` incl. near-miss list as a Python list
       (MATLAB `cat(2, graph, nearmgraphs{:})` drops empties). `graphsig` stubbed to raise

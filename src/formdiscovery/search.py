@@ -1,29 +1,33 @@
 """Search heuristics (PLAN.md §5). Part a (item 23, L4-a): ``addnearmiss``,
 ``choose_seedpairs``, ``best_split`` and ``choose_node_split``. Part b1 (item 24, L4-b1):
 ``swapobjclust`` and its subfunctions ``chooseswaps``, ``doswap``, ``sourceobjs``,
-``sourcecls`` and ``cltypes``.
+``sourcecls`` and ``cltypes``. Part b2 (item 25, L4-b2): ``spr`` (with ``makerp`` and
+``makers``) and ``collapsedims`` (with ``getocc``, ``get_occnodescomp`` and ``zassign``).
 
 Randomness enters through ``randperm`` at ``choose_seedpairs.m:24``,
-``best_split.m:35`` and ``swapobjclust.m:33``. The ports take ``rng=None`` and draw with
+``best_split.m:35``, ``swapobjclust.m:33``, ``spr.m:57/59`` and ``collapsedims.m:35``. The ports take ``rng=None`` and draw with
 ``as_provider(rng).randperm(n)`` exactly as often, and in the same order, as the MATLAB
 code (``rng.py``, item 22).
 
 Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
 (``tests/test_search.py``) and ``tests/octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
-(``tests/test_swap.py``), which replay Octave's recorded draws.
+(``tests/test_swap.py``) and ``tests/octave/fx_spr.m`` → ``tests/fixtures/spr.mat``
+(``tests/test_spr.py``), which replay Octave's recorded draws.
 """
 
 import numpy as np
 
 from . import FormDiscoveryError, likelihood
-from .graph import add_element, combinegraphs, empty_graph, simplify_graph, split_node
+from .graph import (add_element, combinegraphs, empty_graph, find_descendants, simplify_graph,
+                    split_node, subtreeattach)
 from .matlab_compat import intersect, max_first, setdiff, stable_argsort, unique_matlab
 from .util import dijkstra
 from .params import graph_prior
 from .rng import as_provider
 
 __all__ = ["addnearmiss", "choose_seedpairs", "best_split", "choose_node_split",
-           "swapobjclust", "chooseswaps", "doswap", "sourceobjs", "sourcecls", "cltypes"]
+           "swapobjclust", "chooseswaps", "doswap", "sourceobjs", "sourcecls", "cltypes",
+           "spr", "makerp", "makers", "collapsedims", "getocc", "get_occnodescomp", "zassign"]
 
 _EMPTY = np.empty(0, dtype=np.int64)
 
@@ -596,4 +600,236 @@ def swapobjclust(graph, data, ps, comp, epsilon, currscore, overallchange, loopm
                     nearmscores, nearmgraphs = addnearmiss(
                         nearmscores, nearmgraphs, testgraph, testscore, graph, currscore,
                         epsilon)
+    return graph, currscore, overallchange, nearmscores, nearmgraphs
+
+
+# --- spr (item 25, L4-b2) ---------------------------------------------------------------
+
+_SPR_HIER = ('hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself',
+             'undirhierarchy', 'undirhierarchynoself')
+
+
+def makerp(graph, i, objflag, rng=None):
+    """``spr.m:53-60`` (``makerp``): one ``randperm`` over the cluster nodes of component
+    ``i`` (``objflag`` 0) or over the objects (``objflag`` 1). 0-based."""
+    rng = as_provider(rng)
+    if objflag == 0:
+        return rng.randperm(int(graph.components[i].nodecount))
+    return rng.randperm(int(graph.objcount))
+
+
+def makers(graph, j, i, objflag):
+    """``spr.m:63-99`` (``makers``): where node (or object, with ``objflag``) ``j`` of
+    component ``i`` can be regrafted. Returns 0-based int arrays ``(rs, cs)``.
+
+    - ``tree``: the edges ``rs[k] -> cs[k]`` of ``adj`` in column-major ``find`` order.
+      For a cluster node, edges inside ``j``'s subtree (``j`` and its
+      ``find_descendants``) are removed, and so is every edge touching ``j``'s parent.
+    - hierarchy family: ``rs == cs``, the sorted nodes other than object ``j``'s own
+      node, or other than ``j``, its descendants and its parent.
+
+    A parentless cluster node gives empty arrays (l.83-85), before the type check. Other
+    types (``domtreenoself``, which ``gibbs_clean.m:88-90`` sends to ``spr``) leave ``rs``
+    undefined in MATLAB; the port raises :class:`FormDiscoveryError` (KI-27).
+    """
+    c = graph.components[i]
+    adj = np.atleast_2d(np.asarray(c.adj))
+    n = int(c.nodecount)
+    if objflag:
+        if c.type == 'tree':
+            rs, cs = _find_rc(adj)
+        elif c.type in _SPR_HIER:
+            rs = setdiff(np.arange(n), [int(np.asarray(c.z).ravel()[j])]).astype(np.int64)
+            cs = rs.copy()
+        else:
+            raise FormDiscoveryError(f"spr>makers: 'rs' undefined for type {c.type} (KI-27)")
+        return rs, cs
+    jparent = np.flatnonzero(adj[:, j])
+    if jparent.size == 0:
+        return _EMPTY.copy(), _EMPTY.copy()
+    descendants = find_descendants(adj)
+    jds = np.concatenate([[j], np.asarray(descendants[j], dtype=np.int64)]).astype(np.int64)
+    if c.type == 'tree':
+        edges = adj.copy()
+        edges[np.ix_(jds, jds)] = 0
+        rs, cs = _find_rc(edges)
+        # if j's parent is one of the edge nodes the swap changes nothing
+        if jparent.size != 1:
+            raise FormDiscoveryError(f"spr>makers: node {j} has {jparent.size} parents")
+        keep = (rs != jparent[0]) & (cs != jparent[0])
+        return rs[keep], cs[keep]
+    if c.type in _SPR_HIER:
+        rs = setdiff(np.arange(n), np.concatenate([jds, jparent])).astype(np.int64)
+        return rs, rs.copy()
+    raise FormDiscoveryError(f"spr>makers: 'rs' undefined for type {c.type} (KI-27)")
+
+
+def _find_rc(a):
+    """MATLAB ``[r, c] = find(a)``: column-major row and column indices (0-based)."""
+    c, r = np.nonzero(np.asarray(a).T)
+    return r.astype(np.int64), c.astype(np.int64)
+
+
+def spr(graph, data, ps, i, epsilon, currscore, overallchange, debug, nearmscores,
+        nearmgraphs, rng=None):
+    """``spr.m:1-50``: subtree pruning and regrafting in component ``i`` (0-based).
+
+    For ``tree`` components cluster nodes (``objflag`` 0) and then objects (``objflag``
+    1) are pruned; other types only cluster nodes. For each ``objflag`` one
+    :func:`makerp` permutation is drawn, and for each node ``j`` in that order every
+    target from :func:`makers` is tried: ``subtreeattach``, ``simplify_graph``, then
+    ``graph_like + graph_prior``. A gain above ``epsilon`` is accepted; then ``rp`` is
+    **drawn again** (a new ``randperm``), ``j = rp[jind]`` and the targets are listed
+    again, but both loops go on with their old lengths: past the end of the new ``rp``
+    the inner loop breaks, and targets past the new list are skipped (l.20-44). This is
+    replicated. Otherwise, with a near-miss list and a score above its last entry, the
+    candidate goes to :func:`addnearmiss`. Returns ``(graph, currscore, overallchange,
+    nearmscores, nearmgraphs)``; the inputs are not modified.
+
+    ``debug`` raises :class:`FormDiscoveryError` on an accepted change (MATLAB's
+    ``keyboard``, patched to ``error``).
+    """
+    rng = as_provider(rng)
+    nearmscores = np.asarray(nearmscores, dtype=float).ravel().copy()
+    nearmgraphs = list(nearmgraphs)
+    nmissflag = nearmscores.size > 0
+    oflags = (0, 1) if graph.components[i].type == 'tree' else (0,)
+
+    for objflag in oflags:  # snip off an object or a cluster node?
+        rp = makerp(graph, i, objflag, rng)
+        for jind in range(len(rp)):
+            if jind >= len(rp):
+                continue
+            j = int(rp[jind])
+            rs, cs = makers(graph, j, i, objflag)
+            if rs.size == 0:
+                continue
+            for eind in range(rs.size):
+                if eind >= rs.size:
+                    continue
+                testgraph = subtreeattach(graph, j, int(rs[eind]), int(cs[eind]), i, ps,
+                                          objflag=objflag)
+                testgraph = simplify_graph(testgraph, ps)
+                testscore, _ = likelihood.graph_like(data, testgraph, ps)
+                testscore = testscore + graph_prior(testgraph, ps)
+                if testscore - currscore > epsilon:
+                    if debug:
+                        raise FormDiscoveryError("spr: debug stop (was keyboard)")
+                    overallchange = 1
+                    graph = testgraph
+                    currscore = testscore
+                    rp = makerp(graph, i, objflag, rng)
+                    if jind >= len(rp):
+                        break
+                    j = int(rp[jind])
+                    rs, cs = makers(graph, j, i, objflag)
+                elif nmissflag:  # add graph to list of nearmisses
+                    if testscore > nearmscores[-1]:
+                        nearmscores, nearmgraphs = addnearmiss(
+                            nearmscores, nearmgraphs, testgraph, testscore, graph,
+                            currscore, epsilon)
+    return graph, currscore, overallchange, nearmscores, nearmgraphs
+
+
+# --- collapsedims (item 25, L4-b2) ------------------------------------------------------
+
+def getocc(graph, compind, j):
+    """``collapsedims.m:63-69`` (``getocc``): the occupied combined clusters ``occ``
+    (sorted ``unique(graph.z)``) and the unoccupied ones ``unocc``, without those whose
+    node on component ``compind`` is ``j``. 0-based int arrays."""
+    occ = np.unique(np.asarray(graph.z, dtype=np.int64).ravel())
+    unocc = setdiff(np.arange(np.atleast_2d(graph.Wcluster).shape[0]), occ)
+    compinds = np.atleast_2d(np.asarray(graph.compinds, dtype=np.int64))
+    unocc = setdiff(unocc, np.flatnonzero(compinds[:, compind] == j))
+    return occ, unocc.astype(np.int64)
+
+
+def get_occnodescomp(graph, i):
+    """``collapsedims.m:74-75``: the sorted occupied nodes of component ``i``."""
+    return np.unique(np.asarray(graph.components[i].z, dtype=np.int64).ravel())
+
+
+def zassign(zjinst, newnode, graph, compind=None, j=None, ps=None):
+    """``collapsedims.m:80-85`` (``zassign``): the objects of combined cluster ``zjinst``
+    (read from ``graph.z``, which is not updated) go to the component nodes of combined
+    cluster ``newnode`` on every component. ``compind``, ``j`` and ``ps`` are unused, as
+    in MATLAB. Returns a new graph."""
+    g = graph.copy()
+    objind = np.flatnonzero(np.asarray(g.z).ravel() == zjinst)
+    compinds = np.atleast_2d(np.asarray(g.compinds, dtype=np.int64))
+    for i in range(int(g.ncomp)):
+        z = np.asarray(g.components[i].z).copy()
+        z[objind] = compinds[newnode, i]
+        g.components[i].z = z
+    return g
+
+
+def collapsedims(graph, data, ps, epsilon, currscore, overallchange, loopmax, nearmscores,
+                 nearmgraphs, debug=0, rng=None):
+    """``collapsedims.m:1-58``: squeeze dimensions out of a product graph by moving the
+    objects of a slice to the nearest vacant clusters.
+
+    Each pass of the ``while`` loop (at most ``loopmax``) computes
+    ``dijkstra(graph.Wclustersym)`` once (it is **not** recomputed after an accepted
+    change). For every component ``i`` (the count taken at the start of the pass) and
+    every occupied node ``j`` of it (:func:`get_occnodescomp`; after an accept the list
+    is recomputed but the loop keeps its old length, skipping indices past the end): the
+    occupied combined clusters ``zj`` whose node on ``i`` is ``j`` are listed
+    (:func:`getocc`). If there are no more of them than candidate vacant clusters, one
+    ``randperm(len(zj))`` orders them and each goes, in turn, to the nearest remaining
+    vacant cluster (first minimum; :func:`zassign`). The candidate is recombined
+    (``combinegraphs(zonly=1)``), simplified and scored (``graph_like + graph_prior``);
+    a gain above ``epsilon`` is accepted, otherwise it may enter the near-miss list
+    (:func:`addnearmiss`). Returns ``(graph, currscore, overallchange, nearmscores,
+    nearmgraphs)``; the inputs are not modified.
+
+    ``debug`` raises :class:`FormDiscoveryError` on an accepted change (MATLAB's
+    ``keyboard``, patched to ``error``). The ``disp`` when ``loopcount == loopmax`` is
+    dropped.
+    """
+    rng = as_provider(rng)
+    nearmscores = np.asarray(nearmscores, dtype=float).ravel().copy()
+    nearmgraphs = list(nearmgraphs)
+    nmissflag = nearmscores.size > 0
+
+    change = 1
+    loopcount = 0
+    while change and loopcount < loopmax:
+        change = 0
+        loopcount += 1
+        ds = dijkstra(graph.Wclustersym)
+        for i in range(int(graph.ncomp)):
+            # occupied nodes for this component
+            occnodescomp = get_occnodescomp(graph, i)
+            for jind in range(occnodescomp.size):
+                if jind >= occnodescomp.size:
+                    continue
+                j = int(occnodescomp[jind])
+                testgraph = graph
+                occ, unocc = getocc(testgraph, i, j)
+                compinds = np.atleast_2d(np.asarray(testgraph.compinds, dtype=np.int64))
+                zj = occ[compinds[occ, i] == j]
+                if zj.size <= unocc.size:
+                    zj = zj[rng.randperm(zj.size)]
+                    for zjinst in zj:
+                        mind = int(np.argmin(ds[zjinst, unocc]))  # first minimum
+                        testgraph = zassign(int(zjinst), int(unocc[mind]), testgraph, i, j)
+                        unocc = setdiff(unocc, [unocc[mind]]).astype(np.int64)
+                    testgraph = combinegraphs(testgraph, ps, zonly=1)
+                    testgraph = simplify_graph(testgraph, ps)
+                    testscore, _ = likelihood.graph_like(data, testgraph, ps)
+                    testscore = testscore + graph_prior(testgraph, ps)
+                    if testscore - currscore > epsilon:
+                        if debug:
+                            raise FormDiscoveryError("collapsedims: debug stop (was keyboard)")
+                        change = 1
+                        overallchange = 1
+                        graph = testgraph
+                        currscore = testscore
+                        occnodescomp = get_occnodescomp(graph, i)
+                    elif nmissflag:  # add graph to list of nearmisses
+                        if testscore > nearmscores[-1]:
+                            nearmscores, nearmgraphs = addnearmiss(
+                                nearmscores, nearmgraphs, testgraph, testscore, graph,
+                                currscore, epsilon)
     return graph, currscore, overallchange, nearmscores, nearmgraphs

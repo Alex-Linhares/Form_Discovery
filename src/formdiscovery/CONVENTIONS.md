@@ -166,10 +166,18 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   and when more of them tie than fit, a different subset can be kept.
   `tests/test_swap.py::check_nearmisses` accepts both, but only among entries that tie
   to rtol 1e-10.
-- Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`) copy the
+- `search.spr` and `search.collapsedims` (item 25) have the same return tuple and
+  near-miss handling. `spr` takes a 0-based component `i`; `makers` returns 0-based
+  `(rs, cs)` int arrays (`tree` edges in column-major `find` order). Replicated quirks:
+  after an accept, `spr` draws a **new** permutation and keeps the loops' old lengths,
+  and `collapsedims` keeps the pass's `dijkstra` distances. `collapsedims` makes one draw
+  per slice that fits into the vacant clusters, and none for the others.
+- Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`,
+  `fx_spr.m`) copy the
   original to `<name>_orig.m` in a temporary directory placed first on the path. A
   forwarding `<name>.m` records the calls. `fx_swap.m` also copies the subfunctions into
-  `swsub.m` behind a dispatcher so they can be called directly.
+  `swsub.m` behind a dispatcher so they can be called directly; `fx_spr.m` does the same
+  for `spr` and `collapsedims` (`sprsub.m`, `cdsub.m`, one spy `l4b2_spy.m`).
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

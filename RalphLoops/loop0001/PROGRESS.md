@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 25/36 SOLVED
+- **Current**: 26/36 SOLVED
 
 ---
 
@@ -1622,3 +1622,93 @@
   grid run on demo_chain_feat never grew in two dimensions), so for `collapsedims`
   consider cylinder on demo_ring_feat, grid on a larger data set, or crafted product
   graphs. Near-miss lists can hold tied candidates, so reuse `check_nearmisses`.
+
+## Iteration 28 — 2026-09-29 17:20
+### Completed
+- Item 25 **solved** (`[x]`).
+  - `src/formdiscovery/search.py` gains these functions, each citing its source lines.
+    All take `rng=None` and draw with `as_provider(rng).randperm(n)`:
+    - `spr` (`spr.m:1-50`), with `makerp` (l.53-60) and `makers` (l.63-99).
+      - `makers` returns 0-based `(rs, cs)`: tree edges in column-major `find` order,
+        with edges inside the subtree and edges touching the parent removed; for the
+        hierarchy family, the sorted nodes.
+      - Replicated quirk: after an accepted change `spr` draws a **new** permutation,
+        re-reads `j` and the targets, but both loops keep their old lengths
+        (break / skip past the end).
+    - `collapsedims` (`collapsedims.m:1-58`), with `getocc` (l.63-69),
+      `get_occnodescomp` (l.74-75) and `zassign` (l.80-85).
+      - Replicated quirk: `dijkstra(Wclustersym)` is computed once per pass and is not
+        recomputed after an accept.
+      - One draw per slice that fits into the vacant clusters, none for the others.
+      - The `disp` is dropped. `debug` raises in both functions.
+  - New **KI-27** (fix, unreachable): `makers` has no case for `domtreenoself`, which
+    `gibbs_clean.m:88-91` sends to `spr` ('rs' undefined). The port raises.
+    `test_known_issues.py` expects KI-1..27 and pins `spr.m:75`.
+  - Fixture `tests/octave/fx_spr.m` → `tests/fixtures/spr.mat` (Octave 10.3.0,
+    generated this iteration, 203 s, 1.2 MB). New spy `tests/octave/l4b2_spy.m`.
+    `fx_spr.m`'s `make_spy` generalises fx_swap's: `<name>_orig.m`, a forwarding stub,
+    and subfunction dispatchers `sprsub.m`, `cdsub.m` and `swsub.m`.
+    - 11 spied runs with run_baseline.m's settings:
+      - for `spr`: tree and hierarchy × demo_tree_feat, tree × demo_chain_feat, and
+        dir/undir hierarchy (self and noself) × demo_hierarchy_rel_bin;
+      - for `collapsedims`: cylinder × demo_ring_feat, grid × demo_ring_feat,
+        cylinder × demo_chain_feat and grid × synthgrid.
+
+      The 6 runs that have a baseline reproduce it exactly.
+    - **calls** (70 records, 317 draws in total):
+      - `spr`: 16 `bl` (2 with an accepted change) and 16 `pt`. The `pt` records use a
+        perturbed graph: random object moves plus one random regraft. All 16 accept a
+        change.
+      - `collapsedims`: 11 `bl` and 11 `pt`. None of them accepts: the real product
+        graphs have little or no vacant room.
+      - So 16 **crafted** `cr` calls were added: 2 × n zigzag (in order and in random
+        order), 2 × n block, and random 3 × m placements, on each grid/cylinder context.
+        Cases 2 and 4 get random edge weights so that the `dijkstra` distances do not
+        tie. All 16 accept a change, with loopmax 1-3 and near-miss lists that fill.
+    - **sub** (17 records): `makers` for every node and every object, and
+      `getocc`/`get_occnodescomp` for every component and node. `zassign` is run on a
+      random (occupied, vacant) pair.
+  - `tests/test_spr.py` has 84 gate tests and 2 live `octave` tests:
+    - Every call replays Octave's draws, and the queue is used up exactly.
+      `currscore` matches to rtol 1e-10. The graph and `overallchange` match exactly
+      (weights to 1e-10). Near-miss lists are checked with `test_swap.check_nearmisses`.
+    - The subfunctions match exactly, and all `makers` branches are covered.
+    - Other checks:
+      - redraw-after-accept (draw count);
+      - collapsedims draws only when there is room;
+      - accepted graph = scored candidate;
+      - inputs not mutated;
+      - `debug` raises;
+      - default rng;
+      - `makerp` sizes;
+      - KI-27 pin.
+    - Live (fd env): the fixture regenerates identically, and fresh seeds
+      (`seedoffset = 7918`) replay (2 passed, 8 min).
+  - A mutation check confirmed that the tests catch 11 of 11 deliberate breaks:
+    - no redraw after an accept;
+    - no parent-edge filter;
+    - the hierarchy parent kept as a target;
+    - `unocc` not shrunk;
+    - `<` instead of `<=` for room;
+    - `getocc` keeping the own slice;
+    - full `combinegraphs` instead of `zonly`;
+    - no object pruning on trees;
+    - last instead of first minimum;
+    - `ds` recomputed after an accept. The first fixture missed this one: with equal
+      weights the distances tie, which is why cases 2 and 4 now get random weights.
+  - Docs: `CONVENTIONS.md` (Randomness: spr/collapsedims conventions, spy fixtures).
+  - Gate:
+    - base `python -m pytest -q -m "not slow"`: 1915 passed, 52 skipped (106 s);
+    - fd env non-live `test_spr`/`test_known_issues`: 116 passed.
+### Blockers
+- None.
+### Next
+- Item 26 (L4-c1: `gibbs_clean (+nearmissopts)`). All its callees are now ported:
+  `swapobjclust`, `spr`, `collapsedims` and `addnearmiss`.
+  - Use the same spy pattern on `gibbs_clean`, recording the draws per call.
+  - The draw order across the callees must match exactly. Note that `spr` makes a
+    variable number of draws, one extra per accepted change.
+  - Real `collapsedims` calls rarely accept a change. For product-graph coverage of
+    `gibbs_clean`, consider the crafted zigzag/block graphs of `fx_spr.m` as inputs.
+  - Near-miss ties: reuse `check_nearmisses`. For `nearmissopts`, note that
+    `cat(2, graph, nearmgraphs{:})` drops empty cells.

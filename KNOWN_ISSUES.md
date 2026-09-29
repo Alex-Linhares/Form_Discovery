@@ -388,3 +388,17 @@ deal with them.
   empty candidate list instead of replicating Octave's concatenation error.
 - **Pin:** `tests/test_swap.py::test_ki26_single_source_cluster` and
   `::test_chooseswaps_and_doswap` (the Octave errors in the sub records).
+
+### KI-27 `spr.m:72-98`: `makers` has no case for `domtreenoself`
+- **Code:** `gibbs_clean.m:88-91` sends `tree`, the hierarchy family, `domtree` and
+  `domtreenoself` components to `spr`. The two `switch` statements in `spr>makers`
+  (l.72-77 for objects, l.90-98 for cluster nodes) list `tree`, `hierarchy`,
+  `dirhierarchy`, `domtree`, `dirhierarchynoself`, `undirhierarchy` and
+  `undirhierarchynoself`, but not `domtreenoself`. For that type `rs` is never assigned,
+  and `isempty(rs)` at `spr.m:25` fails with "'rs' undefined". A parentless cluster node
+  returns early (l.83-85), before the switch, so it does not fail.
+- **Reachable:** no. `domtreenoself` is not in `setps.m`'s structure list, and
+  `relgraphinit.m:126-128` refuses to initialise any domtree.
+- **Decision:** fix (deviation). `search.makers` raises `FormDiscoveryError` (message
+  mentions KI-27) for any type outside the two lists, instead of failing later.
+- **Pin:** `tests/test_spr.py::test_ki27_makers_unknown_type`.
