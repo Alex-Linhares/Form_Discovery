@@ -15,6 +15,9 @@ dependencies = [
     "matplotlib>=3.8",
 ]
 
+[project.scripts]
+formdiscovery = "formdiscovery.cli:main"
+
 [project.optional-dependencies]
 test = ["pytest>=7", "hypothesis>=6"]
 octave = ["oct2py>=5.6"]

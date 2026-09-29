@@ -103,3 +103,25 @@ def checkgrad(f, X, e, *args):
         dh[j] = (y2 - y1) / (2 * e)
     d = np.linalg.norm(dh - dy) / np.linalg.norm(dh + dy)  # norm of diff over norm of sum
     return float(d), dy, dh
+
+
+def adjusted_rand_index(a, b):
+    """Adjusted Rand index (Hubert & Arabie 1985) of two labellings of the same objects,
+    used for the end-to-end partition comparison (PLAN.md §7.1). 1 when the partitions
+    are equal up to relabelling."""
+    from math import comb
+    a, b = np.asarray(a).ravel(), np.asarray(b).ravel()
+    if a.shape != b.shape:
+        raise ValueError("labellings differ in length")
+    _, ia = np.unique(a, return_inverse=True)
+    _, ib = np.unique(b, return_inverse=True)
+    table = np.zeros((ia.max() + 1, ib.max() + 1), dtype=np.int64)
+    np.add.at(table, (ia, ib), 1)
+    sum_ij = sum(comb(int(x), 2) for x in table.ravel())
+    sum_a = sum(comb(int(x), 2) for x in table.sum(axis=1))
+    sum_b = sum(comb(int(x), 2) for x in table.sum(axis=0))
+    expected = sum_a * sum_b / comb(a.size, 2)
+    top = (sum_a + sum_b) / 2
+    if top == expected:  # both trivial (one cluster each, or all singletons)
+        return 1.0
+    return (sum_ij - expected) / (top - expected)

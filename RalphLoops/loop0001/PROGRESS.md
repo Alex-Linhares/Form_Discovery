@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 29/36 SOLVED
+- **Current**: 30/36 SOLVED
 
 ---
 
@@ -2053,3 +2053,80 @@
   - End-to-end: without the oracle, compare by score, cluster count and ARI (PLAN §7.1).
     With replay, `tests/fixtures/runmodel.mat` already holds all 9 feature baseline
     runs with their draws.
+
+## Iteration 32 — 2026-09-29 19:16
+### Completed
+- Item 29 **solved** (`[x]`).
+  - `src/formdiscovery/run.py` gains the following, each citing its source lines:
+    - `masterrun` (`masterrun.m:1-81`):
+      `masterrun(ps=None, thisstruct=(1, 3, 5), thisdata=(0, 1, 2), repeats=1,
+      extraspairs=(), extradpairs=(), outdir=None, masterfile='resultsdemo', rng=None,
+      seed=1, log=None)` returns a `MasterResults`.
+      - `modellike`, `structure`, `pss` and `llhistory` are 3-D `[sind, dind, rind - 1]`
+        and grow as MATLAB grows them (0 fill / `None`). `names` is `1 x D`.
+      - `pss` holds masterrun's own `ps`, not runmodel's.
+    - `masterrun_ps` (l.12-25: `reloutsideinit = 'overd'`; the neato probe and the figures
+      are dropped).
+    - `masterrun_pairs` (l.52-56: the structures vary fastest, the extra pairs come first).
+    - `graph_summary`: `nclusters` = distinct `z`, `nnodes`, `z`.
+    - `save_results`/`load_results`: `<masterfile>.npz` holds `modellike` and, per run,
+      `z`, `adj`, `W` and the history cells. `<masterfile>.json` holds the per-run summary
+      (names, 0-based `sind`/`dind`, `rind`, `seed`, `ll`, cluster counts, `z`, `ps`
+      scalars).
+    - Seeding: `rand('state', rind)` becomes `NumpyPermutations(seed + rind - 1)`. A
+      provider (or an int) passed as `rng` is one stream shared by all runs, which is what
+      replay uses. A callable gets `rind`.
+    - Replicated behaviour (l.62-65): an existing masterfile is loaded and merged before
+      each store. The retry/`pause` loop and the `disp` are dropped (`log=` gets the text).
+  - New CLI `src/formdiscovery/cli.py` + `__main__.py`, and `[project.scripts]
+    formdiscovery` in `pyproject.toml`:
+    `formdiscovery run --structures chain,ring,tree --datasets 1,2,3 --seed 1 --out results/`
+    (plus `--repeats`, `--speed`, `--masterfile`, `-q`). The lists take names or MATLAB's
+    1-based indices. It writes the `.npz` + `.json` pair and runmodel's growth histories
+    under `<out>/results/`.
+  - Fixture `tests/octave/fx_masterrun.m` → `tests/fixtures/masterrun.mat` (Octave 10.3.0,
+    generated this iteration, 26 s, 556 KB). It runs the **unmodified** `masterrun.m` script
+    in a temporary directory:
+    - a verbatim copy is called by name. A first attempt with Octave's `run()` `cd`'d into
+      the source directory and wrote `results/` and `resultsdemo.mat` there; both were
+      deleted, and the source tree is clean;
+    - a `system.m` shim answers `which neato` with "not found", which keeps it headless;
+    - a `data` symlink serves setps's pwd-relative `dlocs`;
+    - `glc_spy`/`cns_spy` and the randperm log run for the whole script (645 slow calls,
+      400 splits).
+
+    The 9 scores reproduce the feature baseline exactly. The fixture keeps the contents of
+    masterrun's own `resultsdemo.mat` and the growth-history file list.
+  - `tests/test_masterrun.py` has 19 gate tests, 1 `slow` test and 1 live `octave` test:
+    - **Replay** (whole script, 6 s): one `ReplayPermutations` for all 9 runs, used up
+      exactly, plus `SplitOracle`/`TieOracle` (4 ties) and Octave's scaled data. The
+      following match: `modellike` (rtol 1e-10), every final graph, `names`, every
+      `llhistory` cell, the empty cells, `pss` (masterrun's ps, input not mutated), and the
+      growth-history file set. The §7.1 criteria (1e-3 rel, cluster count, ARI = 1) pass,
+      and the saved `.npz`/`.json` read back identically.
+    - Other checks: pair order and extras, per-run seeds (and shared/callable/int `rng`),
+      the masterfile merge (including replacing a pair), no `outdir` → no files,
+      `graph_summary`, empty results, ARI (vs sklearn), and the CLI (list parsing, a
+      relational run with seed 3 equal to the API, errors, `python -m formdiscovery run
+      --help`).
+    - **Slow, no replay** (scipy optimizer, numpy permutations, seeds 1-3; 2.0 min): every
+      pair and seed has Octave's cluster count and ARI = 1. The score is within 7.4e-6 rel
+      of Octave's (worst: tree × demo_chain_feat), against the 1e-3 criterion.
+    - Live (fd env, 28 s): the fixture regenerates identically (draws, `modellike`,
+      graphs).
+  - A mutation check confirmed that the tests catch 7 of 7 deliberate breaks: pair order,
+    per-run seed, no merge, `pss` not copied, extras dropped, names not stored, and an int
+    `rng` not shared. The first run missed the last one, and a check was added for it.
+  - Docs: `CONVENTIONS.md` (the masterrun conventions, `fx_masterrun.m` in the spy list).
+    No new KI.
+  - Gate: base `python -m pytest -q -m "not slow"`: 2136 passed, 59 skipped (185 s).
+### Blockers
+- None.
+### Next
+- Item 30 (paper-level checks and property tests, all `slow`). `run.masterrun(ps,
+  thisstruct, thisdata)` is the driver:
+  - synthetic sets: structures `[0, 1, 3, 5, 6]` × data `7..11` (1-based; 0-based
+    `6..10`);
+  - animals/colors: data 12 and 14 (1-based).
+  - Each Python feature run takes about 2-3 s on the demos; the synthetic sets
+    (40 × 2000) will be much slower, so time one first.

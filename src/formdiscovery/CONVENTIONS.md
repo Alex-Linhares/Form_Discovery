@@ -185,7 +185,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   within `LOGI_RTOL`, and most graphs must match; an accept decision can flip, and then
   the draws differ.
 - Fixtures that spy on a function during real runs (`fx_search.m`, `fx_swap.m`,
-  `fx_spr.m`, `fx_gibbs.m`, `fx_structurefit.m`, `fx_runmodel.m`) copy the
+  `fx_spr.m`, `fx_gibbs.m`, `fx_structurefit.m`, `fx_runmodel.m`, `fx_masterrun.m`) copy the
   original to `<name>_orig.m` in a temporary directory placed first on the path. A
   forwarding `<name>.m` records the calls. `fx_swap.m` also copies the subfunctions into
   `swsub.m` behind a dispatcher so they can be called directly; `fx_spr.m` does the same
@@ -229,6 +229,22 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `choose_node_split` (`cns_spy.m`) for the whole run. It uses the `SplitOracle`/`TieOracle`
   rules above and substitutes Octave's scaled feature data for Python's `scaledata` output
   (they agree to about 1 ulp, which can flip ties).
+- `run.masterrun(ps=None, thisstruct=(1, 3, 5), thisdata=(0, 1, 2), repeats=1, ...,
+  outdir=None, masterfile='resultsdemo', rng=None, seed=1)` (item 29) returns a
+  `run.MasterResults`. Its `modellike`/`structure`/`pss`/`llhistory` are 3-D
+  (`[sind, dind, rind - 1]`, 0-based, `rind` from 1; MATLAB drops the trailing singleton
+  when `repeats = 1`) and `names` is `1 x D`. Seeding: MATLAB's `rand('state', rind)`
+  before each run becomes `NumpyPermutations(seed + rind - 1)`. A provider passed as `rng`
+  is shared by every run in order (whole-script replay); a callable gets `rind`. With
+  `outdir`, `<outdir>/<masterfile>.npz` (arrays) and `.json` (summary) replace
+  `resultsdemo.mat`, and an existing pair is merged in before each store, as
+  masterrun's `load(masterfile)` does. The CLI `formdiscovery run` (`cli.py`,
+  `python -m formdiscovery`) takes names or MATLAB's 1-based indices. `fx_masterrun.m`
+  runs the unmodified `masterrun.m` script. A verbatim copy is called by name, because
+  Octave's `run()` would `cd` into the source directory. A `system.m` shim answers the
+  `which neato` probe with "not found", and a `data` symlink serves `setps`'s pwd-relative
+  `dlocs`. `tests/test_masterrun.py` replays the whole script with one provider and the
+  oracles above.
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.

@@ -175,7 +175,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 - [x] 28. **L5-a.** `runmodel (+brlencases)` → `run.py`; explicit `outdir` instead of
       `mkdir/cd`; the `griddimsearch`/`cyldimsearch*` branches ported but marked untested
       unless the baseline covered them. Parity vs baseline for the three feature demos.
-- [ ] 29. **L5-b.** `masterrun` → CLI `formdiscovery run --structures chain,ring,tree
+- [x] 29. **L5-b.** `masterrun` → CLI `formdiscovery run --structures chain,ring,tree
       --datasets 1,2,3 --seed 1 --out results/`, saving `.npz` + JSON summary. End-to-end
       regression (PLAN §7.1): final log-probability within 1e-3 rel of Octave, same cluster
       count, ARI = 1 with replay / ≥ 0.9 over 3 seeds without. Mark as `slow` if > 2 min.
