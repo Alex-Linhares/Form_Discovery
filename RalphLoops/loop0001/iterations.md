@@ -114,7 +114,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       connected, chain, ring incl. first-split 2-cycle, hierarchy pind 1–3 incl. rootchain
       and domtreeflat, tree pind 1–2 incl. treever2), driven by split sequences recorded from
       the Octave baseline.
-- [ ] 13. **L2-a3.** `simplify_graph (+redundantinds), subtreeattach`. Fixtures: graphs from
+- [x] 13. **L2-a3.** `simplify_graph (+redundantinds), subtreeattach`. Fixtures: graphs from
       the growth histories before/after cleaning; `ps.cleanstrong` 0 and 1; tree and hierarchy
       regrafts onto edges and nodes.
 - [ ] 14. **L2-b1.** `filloutrelgraph, makelcfreq, relgraphinit (+subfunctions), reordermissing`.

@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 13/36 SOLVED
+- **Current**: 14/36 SOLVED
 
 ---
 
@@ -671,3 +671,74 @@
 - Item 13 (L2-a3: `simplify_graph (+redundantinds)`, `subtreeattach`). The spy pattern in
   `fx_split.m` (`make_spies` + `spied_run`, which calls `runmodel` directly) can capture
   `simplify_graph` inputs from real runs.
+
+## Iteration 16 — 2026-09-29 12:54
+### Completed
+- Item 13 **solved** (`[x]`).
+  - `src/formdiscovery/graph.py` gains three functions, each with its source lines in the
+    docstring:
+    - `simplify_graph` (`simplify_graph.m:1-60`).
+    - `redundantinds` (`simplify_graph.m:62-148`). It is a module-level function, so tests
+      can wrap it to see which cleaning case fired.
+    - `subtreeattach` (`subtreeattach.m`), with `objflag` as a keyword. `j` is a 0-based node
+      when `objflag` is 0 and a 0-based object when it is 1.
+  - Replicated quirks:
+    - every component is recombined against the *input* graph as `origgraph`, even after an
+      earlier component changed;
+    - case 2 joins the neighbours with weight `1/sum(1./w)` (`inf` if no positive weight),
+      and a 2-cycle or self-loop just drops the node;
+    - the tree case 3 ignores `runps.type`;
+    - `subtreeattach` leaves `edgecount`/`edgecountsym` stale and builds `imap` from the
+      old `adj` with the `[..., 1, 1, 1]` padding;
+    - a parentless `j` with `objflag` 0 returns before the type check.
+  - Error paths that MATLAB/Octave also error on now raise `FormDiscoveryError`:
+    - `subtreeattach` on a type missing from its list (`dirdomtreenoself`, which
+      `makeemptygraph` accepts): 'unexpected structure'. The live fresh-seed run hits this
+      in Octave, and the test pins the same error message.
+    - a `j` with several parents (nonconformant assignment in MATLAB).
+    - the tree case 3 with fewer than two children.
+
+    No new KI.
+  - Fixture `tests/octave/fx_simplify.m` → `tests/fixtures/simplify.mat` (Octave 10.3.0,
+    generated this iteration, ~56 s). It has three parts:
+    - **gh**: every `bestgraph` of the 73 baseline growth histories, simplified with
+      cleanstrong 0 and 1 (252 records).
+    - **sq/st** (seeded sequences): 7 `split_node` steps for the 26 single-component names
+      and grid/cylinder with prodtied 0/1. After steps 3 and 7 the graph is simplified raw,
+      after moving one node's members to another legal node, and after emptying two nodes
+      into a third. The configs are cs0/feat, cs1/feat and cs0/rel, plus fixedall and
+      fixedinternal for trees (513 records). Then come tree and hierarchy-family regrafts:
+      nodes onto edges/nodes chosen as `spr>makers` would, objects, and the parentless
+      no-op. Each is followed by simplify with cs 0 and 1 (94 records).
+    - **bl** (spied runs): spies on `simplify_graph`/`subtreeattach` during chain,
+      ring, tree×2 feature runs and dirhierarchy..undirhierarchynoself × `demo_hierarchy_rel_bin`
+      (142 simplify, 48 subtreeattach calls). Each run's final score equals the committed
+      baseline, which is tested.
+  - `tests/test_simplify.py` has 41 fixture tests and 3 live `octave` tests. The fixture
+    tests check:
+    - every call matches exactly, with weights to rtol 1e-10;
+    - coverage of redundantinds cases 1-3 for trees and for other types, and of case 2 on
+      trees with cleanstrong 0 and 1;
+    - regrafts of subtrees and objects, onto tree edges and hierarchy nodes, including
+      no-ops;
+    - the tree root is removed only with cleanstrong;
+    - rel and fixed* disable case 3;
+    - the error path;
+    - inputs are not mutated.
+
+    The live tests: the fixture regenerates identically; fresh sequences with
+    `seedoffset = 7919`; the 'unexpected structure' error in Octave. A mutation check
+    confirmed that the tests catch each of these deliberate breaks: the case-2 weight
+    formula, the objflag leaf weight, the tree edge weight, the `origgraph` choice and the
+    case-3 merge direction.
+  - `CONVENTIONS.md`: a bullet on keyword options, the meaning of `j` in `subtreeattach`,
+    and subfunctions exposed at module level.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 357 passed, 25 skipped. The
+    fd env gives 382 passed, live Octave tests included.
+### Blockers
+- None.
+### Next
+- Item 14 (L2-b1: `filloutrelgraph`, `makelcfreq`, `relgraphinit` (+subfunctions),
+  `reordermissing`). The spy pattern in `fx_simplify.m` also works for these. Note that
+  `subtreeattach`'s `imap` padding matters only for product graphs, and it never receives
+  one, so that padding cannot be tested.

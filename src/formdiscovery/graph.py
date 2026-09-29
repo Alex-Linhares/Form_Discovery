@@ -1,4 +1,4 @@
-"""Graph structure (PLAN.md §5; L0-b item 08, L2-a1 item 11, L2-a2 item 12).
+"""Graph structure (PLAN.md §5; L0-b item 08, L2-a1 item 11, L2-a2 item 12, L2-a3 item 13).
 
 ``expand_graph``, ``get_edgemap`` and ``find_descendants`` work on plain adjacency
 matrices (pinned by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat``,
@@ -7,6 +7,9 @@ struct, and ``combinegraphs``/``makeemptygraph`` build graphs (pinned by
 ``tests/octave/fx_graph.m`` → ``tests/fixtures/graph.mat``, ``tests/test_graph.py``).
 ``add_element``, ``empty_graph`` and ``split_node`` grow graphs (pinned by
 ``tests/octave/fx_split.m`` → ``tests/fixtures/split.mat``, ``tests/test_split.py``).
+``simplify_graph`` and ``subtreeattach`` clean and regraft them (item 13, pinned by
+``tests/octave/fx_simplify.m`` → ``tests/fixtures/simplify.mat``,
+``tests/test_simplify.py``).
 Indices are 0-based (``CONVENTIONS.md``); edge maps keep MATLAB's edge numbers.
 """
 
@@ -16,11 +19,13 @@ from dataclasses import dataclass, field, fields
 import numpy as np
 
 from . import FormDiscoveryError
-from .matlab_compat import find_F, median_matlab, setdiff, stable_argsort, union
+from .matlab_compat import (find_F, hist_centres, intersect, median_matlab, mysetdiff, setdiff,
+                            stable_argsort, union)
 from .util import subv2ind
 
 __all__ = ["Component", "Graph", "expand_graph", "get_edgemap", "find_descendants",
-           "combinegraphs", "makeemptygraph", "add_element", "empty_graph", "split_node"]
+           "combinegraphs", "makeemptygraph", "add_element", "empty_graph", "split_node",
+           "split_production", "simplify_graph", "redundantinds", "subtreeattach"]
 
 
 @dataclass
@@ -677,3 +682,283 @@ def split_node(graph, compind, c, pind, part1, part2, ps):
 
     graph = combinegraphs(graph, ps, origgraph=origgraph, compind=compind, imap=imap)
     return graph, c1, c2
+
+
+def _sym_count(adjsym):
+    """``sum(sum(adjsym))/2`` as an ``int`` when it is whole (a self-loop counts half)."""
+    ecs = np.sum(adjsym) / 2
+    return int(ecs) if ecs == int(ecs) else float(ecs)
+
+
+def simplify_graph(graph, ps):
+    """``simplify_graph.m:1-60``: remove unnecessary cluster nodes from every component.
+
+    For each component, :func:`redundantinds` cases 1-3 are applied in turn until one full
+    pass removes nothing (l.22-40): case 1 drops dangling unoccupied nodes, case 2 an
+    unoccupied node with two neighbours (joining them), case 3 merges split singleton pairs
+    (trees) or moves a lone object up/down to its only neighbour (other single-component
+    feature graphs). A changed component gets the new ``adj``, ``W``, ``adjsym`` (bool),
+    ``Wsym``, ``z``, counts and ``illegal`` (removed nodes dropped), and the graph is
+    recombined with ``combinegraphs(..., origgraph=<input graph>, compind=i, imap=)``,
+    where ``imap`` maps the kept nodes to their original numbers. Every component uses the
+    *input* graph as ``origgraph``, also after an earlier component was changed
+    (l.14, 54). The trailing ``if graph.objcount < 30 return`` (l.59) does nothing.
+    Returns a new :class:`Graph`.
+    """
+    origgraph = graph
+    graph = graph.copy()
+    overallchange = False
+    for i in range(int(graph.ncomp)):
+        comp = graph.components[i]
+        adj = np.atleast_2d(np.asarray(comp.adj, dtype=float)).copy()
+        W = np.atleast_2d(np.asarray(comp.W, dtype=float)).copy()
+        imap = np.arange(adj.shape[0], dtype=np.int64)
+        z = np.asarray(comp.z, dtype=np.int64).ravel().copy()
+        illegal = np.asarray(comp.illegal if comp.illegal is not None else [],
+                             dtype=np.int64).ravel()
+        cont = [1, 1, 1]
+        while sum(cont):
+            for caseind in (1, 2, 3):
+                ntot = adj.shape[0]
+                occ = np.zeros(ntot)
+                occ[z] = 1
+                adj, W, z, includeind = redundantinds(caseind, graph, i, adj, W, z, occ, ps)
+                if len(includeind) == ntot:
+                    cont[caseind - 1] = 0
+                else:
+                    cont[caseind - 1] = 1
+                    overallchange = True
+                    map_ = np.full(ntot, -1, dtype=np.int64)
+                    map_[includeind] = np.arange(len(includeind))
+                    z = map_[z]
+                    illegal = map_[illegal]
+                    illegal = illegal[illegal >= 0]
+                    imap = imap[includeind]
+
+        if overallchange:
+            adjsym = (adj != 0) | (adj.T != 0)
+            comp.adj = adj
+            comp.W = W
+            comp.adjsym = adjsym
+            Wsym = W.copy()
+            mask = adj.T != 0
+            Wsym[mask] = W.T[mask]
+            comp.Wsym = Wsym
+            comp.z = z
+            comp.edgecount = int(np.sum(adj))
+            comp.edgecountsym = _sym_count(adjsym)
+            comp.illegal = illegal
+            comp.nodecount = adj.shape[0]
+            graph = combinegraphs(graph, ps, origgraph=origgraph, compind=i, imap=imap)
+            overallchange = False
+    return graph
+
+
+def redundantinds(caseind, graph, i, adj, W, z, occ, ps):
+    """``simplify_graph.m:62-148`` (subfunction): one cleaning case on component ``i``.
+
+    ``adj``/``W`` are the component's current matrices, ``z`` its current 0-based node of
+    each object and ``occ`` the 0/1 occupancy of each node. Returns
+    ``(adj, W, z, includeind)`` with the removed node's rows/columns already dropped and
+    ``includeind`` the kept (old, 0-based) nodes in order; ``len(includeind) == len(adj)``
+    before the call means nothing changed. The inputs are not modified.
+
+    - Case 1: every unoccupied node with at most one neighbour.
+    - Case 2: the first unoccupied node with exactly two neighbours (for a ``tree``
+      without ``ps.cleanstrong``, only if it also has one parent, so the root stays).
+      Its neighbours are joined by an edge from the parent-side one (both neighbours
+      children: first to second) of weight ``1/sum(1./w)`` over the positive weights of
+      the four possible edges between it and them (``inf`` if there are none). A 2-node
+      cycle or self-loop (both neighbours the same node) just drops the node.
+    - Case 3, ``tree``: unless a ``ps.fixed*`` flag is set, the first node with exactly
+      two singleton neighbours has them merged into the lower-numbered one.
+    - Case 3, other types (feature data, one component): the first occupied node holding
+      one object, with one parent and no children (else one child and no parents), gives
+      its object to that neighbour and is removed.
+    """
+    adj = adj.copy()
+    W = W.copy()
+    z = z.copy()
+    n = adj.shape[0]
+    colsum = adj.sum(axis=0)
+    rowsum = adj.sum(axis=1)
+    ctype = graph.components[i].type
+    removeind = np.empty(0, dtype=np.int64)
+    if caseind == 1:
+        # dangling cluster nodes: unoccupied, zero or one cluster neighbour
+        removeind = np.flatnonzero((colsum + rowsum <= 1) & (occ == 0))
+    elif caseind == 2:
+        # unoccupied node with exactly two neighbours (keep the root of a tree)
+        if ctype == 'tree' and not ps.cleanstrong:
+            cand = np.flatnonzero((colsum + rowsum == 2) & (colsum == 1) & (occ == 0))
+        else:
+            cand = np.flatnonzero((colsum + rowsum == 2) & (occ == 0))
+        if len(cand) == 0:
+            return adj, W, z, np.arange(n, dtype=np.int64)
+        r = int(cand[0])
+        removeind = np.array([r])
+        nbs = np.concatenate([np.flatnonzero(adj[:, r]), np.flatnonzero(adj[r, :])])
+        if adj[nbs[1], r]:  # nbs(2) is a parent
+            nbs = nbs[::-1]
+        if nbs[0] != nbs[1]:  # special case when we simplify a 2 cluster ring
+            adj[nbs[0], nbs[1]] = 1
+            oldWs = W[[nbs[0], nbs[1], r, r], [r, r, nbs[0], nbs[1]]]
+            oldWs = oldWs[oldWs > 0]
+            with np.errstate(divide='ignore'):
+                W[nbs[0], nbs[1]] = 1 / np.sum(1 / oldWs)
+    else:
+        if ctype == 'tree':
+            if not (ps.fixedall or ps.fixedinternal or ps.fixedexternal):
+                # join pairs that have been split
+                zcnts = hist_centres(z + 1, np.arange(1, n + 1))
+                singletons = np.flatnonzero(zcnts == 1)
+                cnt = adj[singletons, :].sum(axis=0) + adj[:, singletons].sum(axis=1)
+                twosingleneighbors = np.flatnonzero(cnt == 2)
+                if len(twosingleneighbors):
+                    parent = twosingleneighbors[0]
+                    children = intersect(
+                        singletons, np.flatnonzero((adj[parent, :] != 0) | (adj[:, parent] != 0)))
+                    if len(children) < 2:
+                        raise FormDiscoveryError(
+                            "simplify_graph: index (2): out of bound (children, l.117)")
+                    z[z == children[1]] = children[0]
+                    removeind = np.array([children[1]])
+        elif ps.runps.type != 'rel' and int(graph.ncomp) == 1:
+            zcnts = hist_centres(z + 1, np.arange(1, n + 1))
+            # occupied node with one cluster parent and no cluster children
+            removeindpar = np.flatnonzero((colsum == 1) & (rowsum == 0) & (zcnts == 1))
+            # occupied node with one cluster child and no cluster parents
+            removeindch = np.flatnonzero((rowsum == 1) & (colsum == 0) & (zcnts == 1))
+            if len(removeindpar) == 0 and len(removeindch) == 0:
+                return adj, W, z, np.arange(n, dtype=np.int64)
+            if len(removeindpar):
+                r = removeindpar[0]
+                newz = np.flatnonzero(adj[:, r])
+            else:
+                r = removeindch[0]
+                newz = np.flatnonzero(adj[r, :])
+            z[z == r] = newz[0]
+            removeind = np.array([r])
+
+    includeind = np.asarray(mysetdiff(np.arange(n), removeind), dtype=np.int64)
+    ix = np.ix_(includeind, includeind)
+    return adj[ix], W[ix], z, includeind
+
+
+_SUBTREE_HIER = ('hierarchy', 'dirhierarchy', 'domtree', 'dirhierarchynoself',
+                 'domtreenoself', 'undirhierarchy', 'undirhierarchynoself',
+                 'undirdomtree', 'undirdomtreenoself')
+
+
+def subtreeattach(graph, j, edgep, edgec, comp, ps, objflag=0):
+    """``subtreeattach.m:1-82``: regraft node ``j`` (or object ``j`` if ``objflag``) in
+    component ``comp`` (all 0-based), as ``spr.m:28`` does.
+
+    ``tree``: a new internal node ``n`` (the old node count) is put on the edge
+    ``edgep -> edgec``, both halves getting twice the old weight, and is added to
+    ``illegal``. With ``objflag`` 0 the subtree rooted at ``j`` moves from its parent to
+    the new node (keeping its edge weight); with ``objflag`` 1 object ``j`` moves to a new
+    leaf ``n + 1`` under it, with twice its leaf length (``leaflengths[j]`` is doubled).
+    Hierarchy family (``edgec`` is ignored): with ``objflag`` 0 node ``j`` moves from its
+    parent to ``edgep``; with ``objflag`` 1 object ``j`` moves to a new leaf ``n`` under
+    ``edgep``. ``adjsym``/``Wsym`` are rebuilt; ``edgecount``/``edgecountsym`` are left
+    stale, as in MATLAB. The graph is recombined with ``imap`` sending each new node to the
+    first node adjacent to neither ``edgep`` nor ``edgec`` in the old ``adj`` (node 0 if
+    there is none, l.76-78).
+
+    With ``objflag`` 0 and ``j`` parentless the input is returned unchanged (a copy), before
+    the type check. Any other type (e.g. ``dirdomtreenoself``, missing from MATLAB's list)
+    raises :class:`FormDiscoveryError` ('unexpected structure'), and so does a ``j`` with
+    several parents (MATLAB: nonconformant assignment).
+    """
+    origgraph = graph
+    c = graph.components[comp]
+    adj = np.atleast_2d(np.asarray(c.adj, dtype=float))
+    W = np.atleast_2d(np.asarray(c.W, dtype=float))
+    n = adj.shape[0]
+    oldp = None
+    if objflag == 0:
+        oldp = np.flatnonzero(adj[:, j])
+        if len(oldp) == 0:  # j is a cluster node with no parent
+            return graph.copy()
+
+    def _single_parent():
+        if len(oldp) != 1:
+            raise FormDiscoveryError(
+                f"subtreeattach: node {j} has {len(oldp)} parents (MATLAB: =: nonconformant)")
+        return int(oldp[0])
+
+    graph = graph.copy()
+    c = graph.components[comp]
+    if c.type == 'tree':
+        size = n + 2 if objflag else n + 1
+    elif c.type in _SUBTREE_HIER:
+        size = n + 1 if objflag else n
+    else:
+        raise FormDiscoveryError("unexpected structure")
+    newadj = np.zeros((size, size))
+    newadj[:n, :n] = adj
+    newW = np.zeros((size, size))
+    newW[:n, :n] = W
+    leaflengths = np.asarray(graph.leaflengths, dtype=float).ravel().copy()
+
+    if c.type == 'tree':
+        # attach subtree rooted at j to edge between edgep and edgec
+        newweight = 2 * W[edgep, edgec]
+        newp = n
+        newadj[edgep, newp] = 1
+        newadj[newp, edgec] = 1
+        newadj[edgep, edgec] = 0
+        newW[edgep, newp] = newweight
+        newW[newp, edgec] = newweight
+        newW[edgep, edgec] = 0
+        illegal = np.asarray(c.illegal if c.illegal is not None else [],
+                             dtype=np.int64).ravel()
+        c.illegal = np.concatenate([illegal, [newp]]).astype(np.int64)
+        if objflag:
+            newpc = n + 1
+            newadj[newp, newpc] = 1
+            newW[newp, newpc] = 2 * leaflengths[j]
+            newadj[newpc, :] = 0
+            newW[newpc, :] = 0
+            leaflengths[j] = 2 * leaflengths[j]
+            c.z = np.asarray(c.z, dtype=np.int64).copy()
+            c.z[j] = newpc
+            c.nodecount = c.nodecount + 2
+        else:
+            p = _single_parent()
+            newadj[newp, j] = 1
+            newW[newp, j] = W[p, j]
+            newadj[p, j] = 0
+            newW[p, j] = 0
+            c.nodecount = c.nodecount + 1
+    else:
+        if objflag:  # attach object j to edgep
+            newp = n
+            newadj[edgep, newp] = 1
+            newadj[newp, :] = 0
+            newW[edgep, newp] = 2 * leaflengths[j]
+            newW[newp, :] = 0
+            leaflengths[j] = 2 * leaflengths[j]
+            c.z = np.asarray(c.z, dtype=np.int64).copy()
+            c.z[j] = newp
+            c.nodecount = c.nodecount + 1
+        else:  # attach subtree rooted at j to edgep
+            p = _single_parent()
+            newadj[oldp, j] = 0
+            newW[oldp, j] = 0
+            newadj[edgep, j] = 1
+            newW[edgep, j] = W[p, j]
+    graph.leaflengths = leaflengths
+
+    both = (newadj != 0) & (newadj.T != 0)
+    c.adj = newadj
+    c.W = newW
+    c.adjsym = newadj + newadj.T - both
+    c.Wsym = newW + newW.T - newW * both
+
+    # make sure new node doesn't map to a neighbour of edgep or edgec
+    empties = np.concatenate([np.flatnonzero((adj[edgep, :] == 0) & (adj[edgec, :] == 0)),
+                              [0, 0, 0]]).astype(np.int64)
+    imap = np.concatenate([np.arange(n), empties[:size - n]]).astype(np.int64)
+    return combinegraphs(graph, ps, origgraph=origgraph, compind=comp, imap=imap)

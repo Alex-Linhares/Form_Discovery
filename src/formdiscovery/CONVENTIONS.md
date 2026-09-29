@@ -50,6 +50,11 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   production number `pind` (1-3, `split_node.m`, `structurefit.m`) is a label, not an index,
   and is **not** shifted. Where MATLAB returns `-inf` as "production does not apply"
   (`split_node` → `graph = c1 = c2 = -inf`), the port returns `None`s.
+- MATLAB name/value options become keywords (`combinegraphs(..., origgraph=, compind=,
+  imap=, zonly=)`, `subtreeattach(..., objflag=)`). In `subtreeattach`, `j` is a 0-based
+  component node when `objflag` is 0 and a 0-based object when it is 1, as in MATLAB.
+  MATLAB subfunctions that tests need to observe are module-level functions
+  (`graph.redundantinds`, called through the module so a test can wrap it).
 - Exception: `matlab_compat.chol_upper` returns MATLAB's 1-based failure column `p`, because
   callers only test `p == 0`.
 - Exception: **edge maps** (`graph.get_edgemap`, the `edgemap`/`edgemapsym` fields) keep
