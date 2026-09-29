@@ -823,6 +823,23 @@
   and the split fixtures can be used as round-trip inputs. Remember that edge maps keep
   MATLAB's edge numbers (subtract 1 when indexing `Wvec`).
 
+## Iteration 17b — 2026-09-29 13:2x (item 15; entry written afterwards by the parent session)
+### Completed
+- Item 15 **solved** (`[x]`) by the loop session, which ended before writing its PROGRESS
+  entry (it backgrounded the fd-env gate and exited). The work itself is complete and was
+  committed by loop.py as `bb06602` ("iteration 18: item 15"; the number repeats because this
+  section was missing when the next iteration was numbered).
+  - `src/formdiscovery/weights.py`: `mat2vec`, `combineWs`, `extract_weights` (+ column-major
+    helpers), all tying modes. `tests/octave/fx_weights.m` → `tests/fixtures/weights.mat`;
+    `tests/test_weights.py` (20 tests incl. round trips and live Octave parity) pass in the fd env.
+    `KNOWN_ISSUES.md` gained entries from this item; `CONVENTIONS.md` updated.
+  - A stray `octave-workspace` dump was committed by that session; removed and added to
+    `.gitignore` in the follow-up commit.
+### Blockers
+- None.
+### Next
+- Item 16 (done in iteration 18).
+
 ## Iteration 18 — 2026-09-29 13:34
 ### Completed
 - Item 16 **solved** (`[x]`).
