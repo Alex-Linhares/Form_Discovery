@@ -25,6 +25,9 @@ The Python port runs the original `masterrun` demo end to end:
   optimiser: Octave's `fminunc` stops early, so log-evidence values agree to about 2e-4
   relative, and Python's optimum is never worse than Octave's.
 
+Anomalies found along the way (for example, on the `animals` data the code prefers a hierarchy
+where the paper reports a tree) are logged in `ANOMALIES.md`.
+
 Remaining work: paper-level checks on the real data sets, the Graphviz display port
 (pygraphviz, then networkx/matplotlib), and a performance pass. Progress is tracked in
 `RalphLoops/loop0001/PROGRESS.md` and `iterations.md`.
@@ -82,6 +85,7 @@ python tools/gen_fixtures.py          # regenerate all fixtures through Octave
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
 | `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources and data, plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
 | `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures |
+| `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
 | `tests/` | Fixture scripts (`tests/octave/`), fixtures, pytest parity tests, Octave baselines |
 | `tools/` | Fixture generation and Octave/Python run comparison |

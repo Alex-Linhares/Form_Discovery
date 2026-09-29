@@ -37,6 +37,8 @@ read the relevant section of PLAN.md before starting an item.
       for deterministic floats, documented tolerance for optimizer-dependent values).
 - [ ] Each Python function has a docstring citing the source file and line range.
 - [ ] `python -m pytest -q -m "not slow"` passes (all previously green tests still green).
+- [ ] Any anomaly found (paper vs code, Octave vs MATLAB, surprising result, original bug)
+      is added to `/ANOMALIES.md` (curated, with a status) as well as `KNOWN_ISSUES.md`.
 - [ ] `iterations.md` checkbox updated and a PROGRESS.md section appended.
 - [ ] No regressions.
 
