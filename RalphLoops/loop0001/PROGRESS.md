@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 31/36 SOLVED
+- **Current**: 32/36 SOLVED
 
 ---
 
@@ -2200,3 +2200,85 @@
 ### Next
 - Item 31 (Viz A1: `viz/dot.py`, `graph_to_dot` / `dot_to_graph`).
   `tests/fixtures/dot_to_graph*` already exists from item 03's `dot_to_graph.m` patch.
+
+## Iteration 34 — 2026-09-29 20:41
+### Completed
+- Item 31 **solved** (`[x]`).
+  - New package `src/formdiscovery/viz/` with `dot.py`. Each function cites its source
+    lines:
+    - `graph_to_dot(adj, node_label=None, arc_label=None, width=10, height=10,
+      leftright=0, directed=1, filename=None) -> str` (`graph_to_dot.m:1-85`). It returns
+      the text and writes it only when `filename` is given. `arc_label` is a 2-D sequence
+      (`None` = empty cell) or a dict.
+    - `dot_to_graph(text) -> (adj, labels, x, y)` (`dot_to_graph.m:1-114`, Octave-patched
+      copy) and `dot_to_graph_file(path)`. It replicates `char` padding, the edge scan,
+      the position carry-over (KI-7), substring label matching (KI-8), `sscanf`'s
+      `' pos  = "%f,%f"'` and the normalisation. It warns when there are no coordinates,
+      and raises as Octave does (no `graph ` → `ValueError`, short `pos` → `IndexError`,
+      no edges → `ValueError`).
+    - `adj_is_directed` (`draw_dot.m:35`).
+  - Fixture `tests/octave/fx_viz_dot.m` → `tests/fixtures/viz_dot.mat` (Octave 10.3.0,
+    generated this iteration, 5 s).
+    - `bl_*`: the **unmodified `draw_dot(adj, names)`** runs on 74 graphs: the true `adj`
+      of the 11 data sets that store one (runmodel.m:45), plus every final baseline graph
+      (9 feature + 54 relational). A `graph_draw` shim (`tests/octave/drawdot_shim/`,
+      added to the path only by this fixture) records the temporary `_GtDout.dot` and
+      `_LAYout.dot` texts and the X/Y that draw_dot passes on. Octave's `dot_to_graph` of
+      each layout is saved. neato is the fd env's Graphviz 14.1.2, put first on `PATH`.
+    - `go_*`: 15 `graph_to_dot` option variants (node/arc labels, width/height including
+      10.5 and 1/3, leftright, directed 0/1, no edges, weighted adj, and the undirected +
+      arc_label error).
+    - `cr_*`: 16 crafted DOT texts (chained and mixed `--`/`->` edges, no coordinates,
+      substring labels in both orders, zero and signed/exponent coordinates, comments,
+      CRLF, blank lines, a short `pos`, no `graph `, no edges).
+  - `tests/test_viz_dot.py` has 200 gate tests and 1 live `octave` test:
+    - byte parity of the DOT text on all 74 draw_dot graphs. It is exact, so the
+      whitespace normalisation PLAN allows is not needed. The final `graph.adj` of the
+      baselines is always directed, and 8 of the 11 true graphs give undirected text;
+    - exact parse parity (adj, labels, x, y with `assert_array_equal`) on the 74 neato
+      layouts, the 6 layouts of `dot_to_graph.mat` (item 03), and the crafted texts
+      (errors and warnings included). draw_dot's `xret/yret` start with those `x/y`;
+    - the option variants and their written files;
+    - pins for KI-7, KI-8 and KI-31..34, plus `_sscanf_pos`, Octave's `%d`, and a round
+      trip through graph_to_dot.
+    - Live (fd env, 80 s): the fixture regenerates identically.
+  - A mutation check confirmed that the tests catch 13 of 14 deliberate breaks: no
+    padding, no `+1` in `x`, whole-name matching, no carry-over, undirected full row, no
+    blank before `;`, `--` not symmetric, arrows before dashes, `+1` in `y`, no `x == 0`
+    check, `left_bound` not advanced, no first-line check, comments kept.
+    - The first run missed the arrows-first break; a mixed-line crafted case was added.
+    - The one miss, `%g` for integer sizes, only differs at 10^6 or more; a check was
+      added.
+    - A stale `.pyc` (mutation and restore in the same second with the same size) gave a
+      false result once. The loop was rerun with `PYTHONDONTWRITEBYTECODE` and a cleared
+      `__pycache__`.
+  - **Findings (new KI-31..34, ANOMALIES A9 and A10):**
+    - **KI-31**: `graph_to_dot.m:50` has a `labeltext` typo, so an undirected graph with
+      arc labels crashes. Replicated: `NameError`, after the partial file is written.
+    - **KI-32**: `draw_dot.m:46-47` glue `-Gregular` and `-Gminlen=5` into one flag, and
+      every layout carries `"regular-Gminlen"=5`. Neither `regular` nor `minlen` is ever
+      applied, though PLAN §6 lists both. Item 32 must pass the same attributes to match
+      the layouts.
+    - **KI-33**: the right node keeps its `;` unless its line is the longest (`char`
+      padding + `length(line)-1`). Not reached on neato output.
+    - **KI-34**: `x` is divided by range + 1, `y` by range.
+    - **A10**: Octave prints `%d` of 10.5 as `10.5`, MATLAB as `1.050000e+01`. Python
+      follows Octave. draw_dot only uses 10,10, so drawn graphs are unaffected.
+  - Docs:
+    - `KNOWN_ISSUES.md`: KI-31..34, and the KI-7/KI-8 pins now exist.
+      `test_known_issues.py` expects KI-1..34 and pins the new lines;
+    - `ANOMALIES.md`: A9, A10;
+    - `CONVENTIONS.md`: a new Display section.
+  - Gate: base `python -m pytest -q -m "not slow"`: 2340 passed, 60 skipped, 76
+    deselected (186 s).
+### Blockers
+- None.
+### Next
+- Item 32 (Viz A2: pygraphviz backend, `viz/draw.py` facade, CLI `formdiscovery draw`).
+  - `viz_dot.mat` already holds, for all 74 graphs, draw_dot's `xret/yret` and the `X/Y`
+    passed to `graph_draw`. These are the targets for porting draw_dot l.52-67:
+    singletons at 0.05, the `sort(num_names)` reordering, and the `pos` override.
+  - Decide KI-32 for the backend: replicate the glued `regular-Gminlen` attribute by
+    default (layout parity with Octave's neato call), with an option for the intended
+    flags.
+  - `-x` applies for n > 100 (the largest graph in the fixture has 89 nodes).

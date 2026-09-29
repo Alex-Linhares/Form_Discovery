@@ -246,6 +246,20 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `dlocs`. `tests/test_masterrun.py` replays the whole script with one provider and the
   oracles above.
 
+## Display (`viz/`, PLAN §6)
+- `viz/dot.py` (item 31) is a pure-text port: `graph_to_dot(adj, ...)` returns the DOT
+  string (nodes numbered `1..n`, MATLAB's numbers, as in the file Octave writes) and
+  writes it only when `filename=` is given. `dot_to_graph(text)` returns `(adj, labels, x,
+  y)` with `labels` in order of first appearance and `adj` holding 1-based edge numbers;
+  `dot_to_graph_file(path)` reads a file first. `adj_is_directed` is `draw_dot.m:35`.
+- The parsers replicate the original's quirks (KI-7, KI-8, KI-31..34); a real DOT parser
+  (pygraphviz) belongs to the backends of items 32-33.
+- Layouts are compared on the same neato text, so parses are exact (`assert_array_equal`).
+  `fx_viz_dot.m` runs the unmodified `draw_dot` with a `graph_draw` shim
+  (`tests/octave/drawdot_shim/`, added to the path only by that fixture) that records the
+  temporary `_GtDout.dot`/`_LAYout.dot` texts. neato comes from the Octave prefix's `bin/`
+  (the fd env), put first on `PATH`.
+
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
 - Deterministic floats: `assert_allclose(rtol=1e-10, atol=1e-12)`.

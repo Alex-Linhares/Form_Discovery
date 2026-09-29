@@ -108,8 +108,9 @@ deal with them.
 - **Reachable:** yes (display only, items 31–32).
 - **Decision:** replicate in the parity parser `viz/dot.py::dot_to_graph`. The
   pygraphviz backend reads positions from the layout directly and does not have this quirk.
-- **Pin:** `tests/test_viz_dot.py::test_dot_to_graph_matches_octave` *(item 31)*, run on
-  `tests/fixtures/dot_to_graph/`.
+- **Pin:** `tests/test_viz_dot.py::test_dot_to_graph_matches_octave` (run on
+  `tests/fixtures/dot_to_graph/`), `test_ki7_positions_come_from_the_next_line` and
+  `test_dot_to_graph_baseline_layout_matches_octave` (74 neato layouts, item 31).
 
 ### KI-8 `dot_to_graph.m:88–89`: labels that are substrings of other labels
 - **Code:** `strfind(line, labels{node})` for every node, and the last match wins
@@ -120,7 +121,8 @@ deal with them.
   fixture).
 - **Decision:** replicate in the parity parser. The pygraphviz/networkx backends match whole
   node names.
-- **Pin:** `tests/test_viz_dot.py::test_dot_to_graph_ring12_substring_labels` *(item 31)*.
+- **Pin:** `tests/test_viz_dot.py::test_dot_to_graph_ring12_substring_labels` (item 31).
+  Crafted case 5 of `viz_dot.mat` shows it: node `1` takes the position of node `10`.
 
 ### KI-9 Octave `union(row, [])` returns a column (`find_descendants.m:29`)
 - **Code:** this is an Octave-vs-MATLAB difference, not a bug in the original. Octave returns
@@ -458,3 +460,46 @@ deal with them.
 - **Pin:** `tests/test_paperlevel.py::test_octave_recovers_form`,
   `test_octave_animals_tree_runner_up`, `test_python_recovers_form` and
   `test_python_rescores_octave_graphs` (all `slow`; fixture `paperlevel.mat`).
+
+### KI-31 `graph_to_dot.m:50`: undirected graphs with arc labels crash
+- **Code:** the undirected branch assigns `labeltext = '[label="%s",dir=none]'`, but l.66
+  builds the edge format from `labeltxt`, which is then undefined. Octave:
+  `'labeltxt' undefined`, after the header and node lines are already in the file.
+- **Reachable:** no. `draw_dot` never passes `arc_label`.
+- **Decision:** replicate. `viz.dot.graph_to_dot` raises `NameError` and, when given a
+  `filename`, writes the same partial text first.
+- **Pin:** `tests/test_viz_dot.py::test_graph_to_dot_options_match_octave` (case 10) and
+  `test_graph_to_dot_ki31_undirected_arc_label`.
+
+### KI-32 `draw_dot.m:46-47`: `-Gregular` and `-Gminlen=5` are glued together
+- **Code:** l.46 ends the string with `-Gregular` and l.47 appends `'-Gminlen=5 ...'` with
+  no blank. neato receives `-Gregular-Gminlen=5` and sets a graph attribute named
+  `regular-Gminlen` to 5 (it shows in every layout as `"regular-Gminlen"=5`). So neither
+  `regular` nor `minlen=5` is applied; only `maxiter=25000` and `overlap=false` are. PLAN §6
+  lists all four as the attributes to use.
+- **Reachable:** yes, whenever a graph is drawn (`ps.show*`), display only.
+- **Decision:** replicate for layout parity. The item 32 pygraphviz backend should pass the
+  same attributes (`maxiter`, `overlap`, and the glued name), with an option for the
+  intended `regular`/`minlen`.
+- **Pin:** `tests/test_viz_dot.py::test_baseline_neato_attributes_ki32` (on the 74
+  layouts that Octave's `draw_dot` produced).
+
+### KI-33 `dot_to_graph.m:57`: the right node keeps its `;` unless its line is the longest
+- **Code:** `char(lines)` pads every line with blanks to the longest one, and the right node
+  is read from `line(dash_pos+3 : length(line)-1)`. The character dropped is meant to be
+  the final `;`, but it is a pad blank except on the longest line. So `1 -- 2;` gives the
+  node `2;` (a new label), unless that line is the longest in the file.
+- **Reachable:** no, for neato output. neato writes every edge with a `[pos=...]` list after
+  the right node, so the first token is the plain name. Hand-written DOT files hit it.
+- **Decision:** replicate (the parser pads as `char` does).
+- **Pin:** `tests/test_viz_dot.py::test_ki33_right_node_keeps_semicolon_unless_longest_line`
+  and the crafted cases of `test_dot_to_graph_crafted_matches_octave`.
+
+### KI-34 `dot_to_graph.m:108`: `x` is divided by its range plus one
+- **Code:** `x = .9*(x-min(x))/((max(x)-min(x))+1)+.05`, but
+  `y = .9*(y-min(y))/(max(y)-min(y))+.05` (l.109). The `+1` guards against a zero range
+  but also keeps `x` just below 0.95 (on neato layouts of hundreds of points the effect
+  is < 0.5 %; on small coordinates it is large).
+- **Reachable:** yes, whenever a graph is drawn, display only.
+- **Decision:** replicate.
+- **Pin:** `tests/test_viz_dot.py::test_ki34_x_divided_by_range_plus_one`.

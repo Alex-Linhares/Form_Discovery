@@ -186,7 +186,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## Visualisation (PLAN §6)
 
-- [ ] 31. **Viz A1: DOT text.** `viz/dot.py`: `graph_to_dot(adj, labels, directed, ...) -> str`
+- [x] 31. **Viz A1: DOT text.** `viz/dot.py`: `graph_to_dot(adj, labels, directed, ...) -> str`
       and `dot_to_graph(text) -> (adj, labels, x, y)`. Fixtures: Octave's `_GtDout.dot` for
       every baseline graph (byte parity after whitespace normalisation) and Octave's parse of
       the corresponding neato layout files (exact).
