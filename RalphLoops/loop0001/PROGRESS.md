@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 20/36 SOLVED
+- **Current**: 21/36 SOLVED
 
 ---
 
@@ -1132,3 +1132,91 @@
   `likelihood_rel.py`). `graph_like` currently raises `NotImplementedError('... item 20')`
   for `runps.type == 'rel'`. `bbloglike`, `bblikesumhyps`, `dirmultloglike` and `makehyps`
   are already ported (item 08). `relgraphinit`/`filloutrelgraph` are done (item 14).
+
+## Iteration 23 — 2026-09-29 15:46
+### Completed
+- Item 20 **solved** (`[x]`).
+  - `src/formdiscovery/likelihood_rel.py` gains four functions, each with its source lines
+    in the docstring:
+    - `countmatrix` (`countmatrix.m:1-21`). Objects with `z == -1` are in no cluster. With
+      no clusters it returns MATLAB's l.13 scalar as a 1 x 1 array.
+    - `rellikebin` (`rellikebin.m:1-41`). It keeps the column-major hyperparameter grid and
+      the `find(triu(ones))` pair order.
+    - `rellikefreqs` (`rellikefreqs.m:1-27`).
+    - `graph_like_rel` (`graph_like_rel.m:1-163`). It returns `(logI, graph)`, and the graph
+      is the input object. It has three parts:
+      - It fills out order/domtree/connected graphs first (`filloutrelgraph`, l.8-13).
+      - relbin/relfreq (l.102-155) use the `_SELF` (links within classes) and `_UNDIR`
+        (symmetrised) form lists. `hist_centres` counts the assigned objects per cluster.
+      - The unused `'reldom'` branch (l.22-101) is ported in `_reldom`, including the
+        `lowdiag` eps tricks and the 'data not lower diagonal!' error.
+
+      An inf/NaN `logI` raises `FormDiscoveryError('graph_like_rel: logI is inf or NaN')`,
+      and any other data type raises 'unknown relational type'.
+  - `likelihood.graph_like` now passes rel data (the dict, whole) to
+    `likelihood_rel.graph_like_rel` through the module.
+    `test_graphlike.py::test_data_subsetting` now checks this dispatch instead of expecting
+    `NotImplementedError`. `CONVENTIONS.md` is updated.
+  - New **KI-22** (replicate): the `reldom` two-cluster edge-direction flip (l.93-100) only
+    writes `graph.adj`, and l.162 then discards it, so it has no effect. It is not
+    computed. `test_known_issues.py` now expects KI-1..22 and pins `graph_like_rel.m:96`.
+  - Fixture `tests/octave/fx_rellike.m` → `tests/fixtures/rellike.mat` (Octave 10.3.0,
+    generated this iteration, ~28 s). It has these parts:
+    - **ri**: 980 records: the 24 `ps.structures` names + 4 domtree names × the 7
+      relational data sets (relbin: demo_ring_rel_bin, demo_hierarchy_rel_bin, kularing,
+      prisoners; relfreq: demo_order_rel_freq, mangabeys, bushcabinet) × 5 `z` kinds
+      (1:n, one cluster, two seeded partitions, a partition with 2 unassigned objects).
+      644 are scored. `relgraphinit` cannot build the feature forms, connected or
+      domtree, so those records hold its 'init:' error.
+    - **sq**: 455 graphs from seeded `split_node` sequences on all 7 data sets. They cover
+      order, ordernoself, connected, connectednoself, the 4 domtree names, partition,
+      undirchain, undirring, undirhierarchynoself and dirhierarchy. Together with ri,
+      every relational form is scored on every data set.
+    - **sy**: 1960 records: the ri recipe on 7 seeded random relations (binary, counts,
+      two with self links, one with a NaN entry), each run as relbin and as relfreq.
+      476 give the nanscore error. Examples: count data read as relbin (`ys > ns`), self
+      links in a singleton cluster, and the NaN entry.
+    - **pv**: 392 records: ri graphs under 4 non-default `edgesumsteps`/`edgeoffset`/
+      `edgesumlambda` grids.
+    - **gh**: 79 bestgraphs from the 54 relational baseline growth histories, with
+      `graph_prior` and `bestgraphlls`.
+    - **rb/rf**: 12 direct `rellikebin`/`rellikefreqs` calls each (all-zero and all-one
+      adjacency included).
+    - **rd**: 149 `reldom` records (`lowdiag` 0/1, two-cluster one-edge graphs) and the
+      lowdiag error.
+    - **bl**: 48 `graph_like_rel` calls spied in dirring × demo_ring_rel_bin,
+      undirhierarchy × demo_hierarchy_rel_bin, order × demo_order_rel_freq and
+      partitionnoself × demo_order_rel_freq (run_baseline.m settings). The final scores
+      equal `test_baseline_rel.EXPECTED_LL` exactly.
+  - `tests/test_rellike.py` has 77 gate tests and 2 live `octave` tests:
+    - Every record matches Octave. `logI` matches to rtol 1e-10 (worst 4e-14). The
+      returned graph is the input, exactly. `countmatrix` is exact, and `graph_like`'s
+      `logI` also matches. Every Octave nanscore/lowdiag error raises.
+    - On every gh graph, `logI + graph_prior` equals `bestgraphlls` to 1e-10 (relational
+      runs score in fast mode only).
+    - Other checks: coverage of every form × data set; `_SELF`/`_UNDIR` each change some
+      scores; the KI-22 pin; inputs are not mutated; unassigned objects are excluded from
+      `countmatrix`.
+    - Live: the fixture regenerates identically, and fresh seeds (`seedoffset = 7919`)
+      match.
+  - A mutation check confirmed that the tests catch each of these deliberate breaks:
+    - the diagonal size correction dropped;
+    - `alphas` used for non-edges in `rellikefreqs`;
+    - all theta pairs instead of `triu`;
+    - no halving of reldom diagonal counts;
+    - unassigned objects counted in the class sizes;
+    - no `sizevec == 0 → 1`;
+    - `countmatrix` transposed;
+    - no `filloutrelgraph`.
+  - Gate: base python `python -m pytest -q -m "not slow"` gives 1225 passed, 39 skipped
+    (78 s). fd env `-m octave tests/test_rellike.py tests/test_graphlike.py` gives
+    4 passed (88 s).
+### Blockers
+- None.
+### Next
+- Item 21 (M3 checkpoint: `tools/compare_runs.py --score-true-graphs`). Every likelihood
+  path is now ported: feature fast/slow, the missing-data chunk path and relational.
+  Relational scores have no slow mode (`graph_like_rel` has no optimiser), so for the rel
+  demos "fast" and "slow" are the same number. Check how the `.mat` files store the true
+  graphs before writing the script (the demo files are loaded by `io.load_dataset`, which
+  currently keeps only `data`/`names`).

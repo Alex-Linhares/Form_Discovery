@@ -37,6 +37,7 @@ QUIRKS = {
     "KI-19": ("inv_covariance.m", 26, "J(holes, holes)=1;"),
     "KI-20": ("reordermissing.m", 22, "Wvec(2:nobj+1) = Wvec(tind+1);"),
     "KI-21": ("dataprobwsig.m", 27, "ll = wpriors; dWvec = 0;"),
+    "KI-22": ("graph_like_rel.m", 96, "graph.adj(nobj+1:end, nobj+1:end) = clustgraph';"),
 }
 
 
@@ -53,7 +54,7 @@ def test_quirk_at_cited_line(key):
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
-    assert ids == {f"KI-{n}" for n in range(1, 22)}
+    assert ids == {f"KI-{n}" for n in range(1, 23)}
     for key in QUIRKS:
         assert re.sub(r"[ab]$", "", key) in ids
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:

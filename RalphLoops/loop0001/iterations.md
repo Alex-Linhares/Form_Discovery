@@ -138,7 +138,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       analytic gradient), replicate `includeind` truncation and the `isreal` fallback. Tests:
       objective at Python optimum ≤ Octave's + 1e-6, gradient norm ≤ Octave's, `logI` within
       documented tolerance (start 1e-4 rel). Record which scipy method tracks Octave best.
-- [ ] 20. **L3-c.** `countmatrix, rellikebin, rellikefreqs, graph_like_rel` →
+- [x] 20. **L3-c.** `countmatrix, rellikebin, rellikefreqs, graph_like_rel` →
       `likelihood_rel.py`. Fixtures: every `relbin`/`relfreq` data set × every dir/undir/noself
       variant (covers diagonal self-link and symmetrisation branches).
 - [ ] 21. **M3 checkpoint.** Script `tools/compare_runs.py --score-true-graphs`: for each demo

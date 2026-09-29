@@ -6,7 +6,7 @@ Pinned by ``tests/octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
 
 import numpy as np
 
-from . import likelihood_feat
+from . import likelihood_feat, likelihood_rel
 
 __all__ = ["graph_like"]
 
@@ -17,10 +17,10 @@ def graph_like(data, graph, ps):
     The data are restricted to the assigned objects (``graph.z >= 0``, MATLAB's
     ``find(graph.z > 0)``, l.7): rows and columns for ``ps.runps.type == 'sim'``, rows for
     ``'feat'``; relational data are passed whole (the subsetting is commented out in the
-    original, l.13). ``'rel'`` goes to ``graph_like_rel`` (item 20, not yet ported:
-    raises ``NotImplementedError``), every other type to
-    :func:`formdiscovery.likelihood_feat.graph_like_conn` (called through the module so a
-    test can wrap it). The input graph is not modified.
+    original, l.13). ``'rel'`` goes to
+    :func:`formdiscovery.likelihood_rel.graph_like_rel` (item 20), every other type to
+    :func:`formdiscovery.likelihood_feat.graph_like_conn` (both called through their
+    modules so a test can wrap them). The input graph is not modified.
     """
     currobj = np.flatnonzero(np.asarray(graph.z).ravel() >= 0)
     kind = ps.runps.type
@@ -30,5 +30,5 @@ def graph_like(data, graph, ps):
         data = np.asarray(data)[currobj, :]
 
     if kind == "rel":
-        raise NotImplementedError("graph_like: graph_like_rel is item 20")
+        return likelihood_rel.graph_like_rel(data, graph, ps)
     return likelihood_feat.graph_like_conn(data, graph, ps)

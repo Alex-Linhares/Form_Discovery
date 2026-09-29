@@ -323,3 +323,14 @@ deal with them.
 - **Decision:** replicate. `dataprobwsig(..., nargout=3)` raises `FormDiscoveryError` on the
   chunk path; `nargout=2` returns `(ll, dWvec)`.
 - **Pin:** `tests/test_dpmiss.py::test_three_outputs_error`.
+
+### KI-22 `graph_like_rel.m:93-100`: the `reldom` edge-direction flip is discarded
+- **Code:** for a two-cluster graph with one cluster edge, the `'reldom'` branch flips the
+  edge (`graph.adj(nobj+1:end, nobj+1:end) = clustgraph'`) when the data favour the other
+  direction. l.162 then sets `graph = origgraph`, so the flip never reaches the caller and
+  has no effect on `logI`.
+- **Reachable:** no. The branch is marked "Not currently used", and no data set has type
+  `'reldom'`.
+- **Decision:** replicate (the result is the input graph). `likelihood_rel._reldom` does not
+  compute the flip.
+- **Pin:** `tests/test_rellike.py::test_reldom_direction_flip_discarded`.

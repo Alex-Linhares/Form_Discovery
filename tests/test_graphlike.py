@@ -210,7 +210,7 @@ def test_returned_graph_roundtrip():
 
 def test_data_subsetting(monkeypatch):
     """graph_like.m:7-14: feat rows / sim rows+columns of the assigned objects (z >= 0);
-    rel data are passed whole (and graph_like_rel is item 20)."""
+    rel data are passed whole to graph_like_rel."""
     seen = []
     monkeypatch.setattr(lf, "graph_like_conn", lambda d, g, p: seen.append(d) or (0.0, g))
     r = next(r for r in FX["sy"] if "missing" in str(r["src"]) and int(r["variant"]) == 2)
@@ -223,8 +223,11 @@ def test_data_subsetting(monkeypatch):
     np.testing.assert_array_equal(seen[-1], D[np.ix_(obs, obs)])
     graph_like(D, g, ps.replace(runps=RunPs(type="feat")))
     np.testing.assert_array_equal(seen[-1], D[obs, :])
-    with pytest.raises(NotImplementedError, match="item 20"):
-        graph_like({"R": D}, g, ps.replace(runps=RunPs(type="rel")))
+    import formdiscovery.likelihood_rel as lr
+    monkeypatch.setattr(lr, "graph_like_rel", lambda d, g, p: seen.append(d) or (0.0, g))
+    rel = {"R": D, "type": "relbin"}
+    graph_like(rel, g, ps.replace(runps=RunPs(type="rel")))
+    assert seen[-1] is rel
 
 
 def test_inputs_not_mutated():
