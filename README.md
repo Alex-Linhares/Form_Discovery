@@ -147,8 +147,10 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
 - Every MATLAB function has an Octave fixture script in `tests/octave/` that runs the original
   code on real inputs and saves inputs and outputs to `tests/fixtures/*.mat`. The pytest
   suite compares the Python translation against those fixtures, so the tests run without
-  Octave. Tests marked `octave` additionally drive Octave live through oct2py and are
-  skipped when it is not installed.
+  Octave. Tests marked `octave` additionally drive Octave live through oct2py. They are
+  skipped when it is not installed, except in strict mode (the `fd` env's Python, or
+  `RALPH_REQUIRE_OCTAVE=1`), where a skipped Octave test fails the run;
+  `tests/test_gate_env.py` checks the toolchain itself.
 - Structural outputs are compared exactly; deterministic floats at `rtol=1e-10`;
   optimiser-dependent values by optimality (objective and gradient norm no worse than
   Octave's) plus a documented tolerance.
@@ -159,7 +161,8 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   are committed under `tests/fixtures/baseline/`.
 
 ```bash
-python -m pytest -q -m "not slow"     # regression gate (~1 min)
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # regression gate, Octave live (strict)
+python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 python -m pytest -q -m slow           # long runs
 python tools/gen_fixtures.py          # regenerate all fixtures through Octave

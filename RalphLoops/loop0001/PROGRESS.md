@@ -2752,3 +2752,39 @@
 - Possible follow-up item: an L-BFGS-B or BFGS slow mode as the default. It would bring
   slow mode to Octave's speed, but needs parity runs of its own: `SLOW_METHOD` and the
   replay tests of items 27-29.
+
+## Iteration 39 — 2026-09-30 15:43
+### Completed
+- Final verification ("all items done"). No new item was started.
+  - `iterations.md`: 36 of 36 items are `[x]`, and none is `[ ]` or `[~]`.
+  - Every `tests/octave/fx_*.m` has its committed fixture in `tests/fixtures/`, and a
+    `tests/test_*.py` loads it.
+  - Base-env gate `python -m pytest -q -m "not slow"`: 3365 passed, 247 skipped, 78
+    deselected (187 s).
+  - **fd env, every live Octave test (`-m "octave and not slow"`, 36 min): 63 passed, 1
+    failed.** The failure was `test_glslow.py::test_live_fixture_regenerates`, with
+    `structure has no member 'nslow'`. The test passes on its own (40 s). It fails only
+    after `test_gibbs.py` in the same Oct2Py session.
+    - Cause, a test-harness bug (not in the original code or the port): `fx_gibbs.m`
+      leaves the global `SPY` set. `fx_glslow.m`'s `graph_like` spy counts calls whenever
+      `SPY` is non-empty, so it read a struct with other fields. Reproduced with
+      `test_dataprob/dpmiss/gibbs` + the glslow live test (15 min).
+    - Fix: `fx_glslow.m` sets `SPY = []` at the start and again after its spied runs.
+    - Fixture regenerated through Octave 10.3.0 (`tools/gen_fixtures.py glslow`, 38.5 s).
+      All 17 variables are identical to the committed ones.
+    - Check: with `SPY` poisoned as `fx_gibbs` leaves it, the live glslow test now passes
+      (fd env).
+  - No new anomaly: `ANOMALIES.md` and `KNOWN_ISSUES.md` are unchanged.
+  - Gate after the fix (base env): 3367 passed, 250 skipped, 78 deselected (359 s).
+- **Note for a human:** during this iteration, another process edited the working tree.
+  It changed `tests/conftest.py` (a strict mode, "loop0002 item 01", with
+  `RALPH_REQUIRE_OCTAVE`) and added the untracked `tests/test_gate_env.py`. Neither file
+  was touched here. The gate figures above include them. Check before committing that
+  they belong to this commit.
+### Blockers
+- None.
+### Next
+- The loop is complete. Open for a human: A1, A2, A17. Possible follow-up: an L-BFGS-B or
+  BFGS slow mode (see iteration 38).
+
+LOOP_COMPLETE

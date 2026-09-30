@@ -18,8 +18,9 @@ Work is driven by the Ralph loop in `RalphLoops/loop0001/` (`TASK.md`, `iteratio
 `PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`.
 
 Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py
-and pygraphviz. Regression gate: `python -m pytest -q -m "not slow"`. Live Octave parity:
-`-m octave` in the fd env. Fixtures are regenerated only through Octave
+and pygraphviz. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"`
+(in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
+`RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Fixtures are regenerated only through Octave
 (`tools/gen_fixtures.py`).
 
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices

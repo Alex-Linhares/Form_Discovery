@@ -3,7 +3,7 @@
 Legend: `[ ]` pending · `[x]` solved · `[~]` blocked (details in PROGRESS.md).
 Work on the first `[ ]` item only.
 
-- [ ] 01. **Strict Octave gate.** Make the gate fail, not skip, when Octave or oct2py is
+- [x] 01. **Strict Octave gate.** Make the gate fail, not skip, when Octave or oct2py is
       missing: in `tests/conftest.py`, if `RALPH_REQUIRE_OCTAVE=1` (set by `loop.py`) or the
       running interpreter is the fd env's, turn the `octave`-marker skip into a hard failure
       with a clear message. Add `tests/test_gate_env.py` asserting the interpreter has oct2py,

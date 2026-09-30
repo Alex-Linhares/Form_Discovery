@@ -37,7 +37,8 @@ olddir = pwd;
 cd(mdir); ps0 = defaultps(setps()); cd(olddir);   % setps builds ps.dlocs from pwd
 out = struct();
 more off;
-global GLC
+global GLC SPY
+SPY = [];   % an earlier fixture in a shared (live-test) session may leave its own SPY
 
 MODES = [0 0 0 0; 0 0 1 0; 0 1 0 0; 0 1 1 0; 1 0 0 0; 0 0 0 1; 0 0 1 1; 0 1 0 1];
 out.modes = MODES;
@@ -210,6 +211,7 @@ end
 out.bl = bl;
 
 rmpath(spydir);
+SPY = [];
 confirm_recursive_rmdir(false, 'local');
 rmdir(spydir, 's');
 rmdir(tmp, 's');

@@ -5,6 +5,11 @@ sources (``matlab/formdiscovery1.0``) on the Octave path. Tests marked
 ``@pytest.mark.octave`` are skipped when oct2py or an Octave executable is not
 available (e.g. when running under the base interpreter instead of the ``fd`` env).
 
+Strict mode (loop0002 item 01): when ``RALPH_REQUIRE_OCTAVE=1`` (set by the Ralph loop's
+gate) or the interpreter is the ``fd`` env's, a skipped ``octave`` test is reported as a
+failure instead, so the gate cannot pass without exercising Octave live.
+``RALPH_REQUIRE_OCTAVE=0`` turns strict mode off explicitly.
+
 Octave is located in this order: ``$OCTAVE_EXECUTABLE``; ``octave-cli`` next to the
 running Python (the ``fd`` env); ``octave-cli``/``octave`` on ``PATH``; the conda env
 ``fd`` under ``~/anaconda3``/``~/miniconda3``/``~/miniforge3``. conda-forge Octave
@@ -50,6 +55,20 @@ def find_octave():
     return None
 
 
+def is_fd_env():
+    """True when the running interpreter belongs to a conda env named ``fd``."""
+    prefix = Path(sys.prefix)
+    return prefix.name == "fd" and prefix.parent.name == "envs"
+
+
+def octave_required():
+    """Strict mode: Octave tests must run (``RALPH_REQUIRE_OCTAVE`` wins over the env)."""
+    flag = os.environ.get("RALPH_REQUIRE_OCTAVE")
+    if flag is not None and flag.strip() != "":
+        return flag.strip() not in ("0", "false", "no")
+    return is_fd_env()
+
+
 def _configure_octave_env(exe):
     os.environ["OCTAVE_EXECUTABLE"] = exe
     prefix = Path(exe).resolve().parent.parent
@@ -80,6 +99,23 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "octave" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """In strict mode, report a skipped ``octave`` test as a failure."""
+    outcome = yield
+    report = outcome.get_result()
+    if (report.skipped and not hasattr(report, "wasxfail")
+            and "octave" in item.keywords and octave_required()):
+        reason = report.longrepr[2] if isinstance(report.longrepr, tuple) else report.longrepr
+        reason = str(reason).removeprefix("Skipped: ")
+        report.outcome = "failed"
+        report.longrepr = (
+            f"Octave test skipped in strict mode ({reason}). The gate requires live Octave: "
+            f"run it with the fd env's Python (~/anaconda3/envs/fd/bin/python) where oct2py "
+            f"and octave-cli are installed, or set RALPH_REQUIRE_OCTAVE=0 to allow skips "
+            f"(interpreter: {sys.executable}).")
 
 
 @pytest.fixture(scope="session")

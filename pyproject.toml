@@ -36,5 +36,5 @@ pythonpath = ["src"]
 addopts = "--strict-markers"
 markers = [
     "slow: long-running tests (large synthetic/real data sets); excluded from the regression gate",
-    "octave: live parity tests that run the original MATLAB code through Octave (oct2py); skipped when Octave is unavailable",
+    "octave: live parity tests that run the original MATLAB code through Octave (oct2py); skipped when Octave is unavailable, a failure in strict mode (fd env or RALPH_REQUIRE_OCTAVE=1)",
 ]
