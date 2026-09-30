@@ -123,6 +123,13 @@ deal with them.
   node names.
 - **Pin:** `tests/test_viz_dot.py::test_dot_to_graph_ring12_substring_labels` (item 31).
   Crafted case 5 of `viz_dot.mat` shows it: node `1` takes the position of node `10`.
+- **Measured (item 33, ANOMALIES A15):** on the 74 real graphs draw_dot was run on, it
+  hits exactly the 5 synthetic true graphs (46-89 nodes). Node `41` (and 6 nodes in
+  `synthgrid`) is left at raw `(0, 0)`, which shifts the normalisation of every node.
+  The networkx backend (`viz/networkx_backend.py`, `graphviz_layout`) matches whole
+  names: its positions equal Octave's on the other 78 `viz_draw.mat` graphs. Pinned by
+  `tests/test_viz_networkx.py::test_ki8_in_draw_dot_layouts` and
+  `::test_neato_layout_parity`.
 
 ### KI-9 Octave `union(row, [])` returns a column (`find_descendants.m:29`)
 - **Code:** this is an Octave-vs-MATLAB difference, not a bug in the original. Octave returns

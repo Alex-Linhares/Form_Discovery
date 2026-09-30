@@ -165,6 +165,20 @@ def _sscanf_pos(s):
     return vals
 
 
+def normalise_xy(x, y):
+    """``dot_to_graph.m:106-110``: ``x = .9*(x-min)/(range+1)+.05`` (KI-34),
+    ``y = .9*(y-min)/range+.05`` (``0.5`` when the range is 0). The caller checks that
+    some ``x`` is nonzero (l.103)."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    x = 0.9 * (x - x.min()) / ((x.max() - x.min()) + 1) + 0.05
+    if (y.max() - y.min()) == 0:
+        y = 0.5 * np.ones(y.shape)
+    else:
+        y = 0.9 * (y - y.min()) / (y.max() - y.min()) + 0.05
+    return x, y
+
+
 def dot_to_graph(text):
     """``dot_to_graph.m:1-114`` (Octave-patched copy, PATCHES.md 10-15) on DOT ``text``.
 
@@ -254,11 +268,7 @@ def dot_to_graph(text):
     if not np.any(x != 0):
         warnings.warn("File does not contain node coordinates.", stacklevel=2)
     else:
-        x = 0.9 * (x - x.min()) / ((x.max() - x.min()) + 1) + 0.05
-        if (y.max() - y.min()) == 0:
-            y = 0.5 * np.ones(y.shape)
-        else:
-            y = 0.9 * (y - y.min()) / (y.max() - y.min()) + 0.05
+        x, y = normalise_xy(x, y)
     if not edges:
         raise ValueError("dot_to_graph: no edges ('Adj' undefined, dot_to_graph.m:111)")
     adj = np.zeros((nvrt, nvrt))

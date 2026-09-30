@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 33/36 SOLVED
+- **Current**: 34/36 SOLVED
 
 ---
 
@@ -2408,3 +2408,97 @@
   - For layout parity, `nx.nx_agraph.graphviz_layout(prog='neato')` needs pygraphviz,
     which exists only in the fd env. Pass it the same neato attributes as
     `pygraphviz_backend.neato_attrs(n, 'matlab')`.
+
+## Iteration 36 — 2026-09-30 11:38
+### Completed
+- Item 33 **solved** (`[x]`).
+  - New `src/formdiscovery/viz/networkx_backend.py`. Each function cites its source lines:
+    - `to_networkx(graph, names=None, directed=None)`. It takes a `Graph`, a MATLAB-style
+      dict or a bare matrix.
+      - Nodes are the 0-based indices of `graph.adj`. Each has `kind`
+        (`object`/`cluster`), `label` and `cluster_id` (`z`, or `node - objcount` for a
+        cluster node).
+      - Each edge has `W` and `weight = 1/W` (`inf` where `W == 0`). The graph attributes
+        are `type`, `objcount` and `sigma`.
+      - `directed=None` follows draw_dot.m:35, so every stored `graph.adj` gives a
+        `DiGraph`. `False` gives a `Graph` with each pair once.
+    - `from_networkx`, `to_graphml`/`from_graphml`, and `to_dot`/`from_dot`. `to_dot` is a
+      pure-text writer: floats use `repr`, and edges carry `len = 1/W` instead of Graphviz's
+      integer `weight`. `from_dot` needs pygraphviz.
+    - `nx_layout(adj, layout='auto'|'neato'|'kamada_kawai', flags)`:
+      - `neato` is `nx.nx_agraph.graphviz_layout` on graph_to_dot's graph with draw_dot's
+        neato attributes;
+      - `kamada_kawai` is deterministic and scaled to 72-point edges (see below);
+      - both are normalised as `dot_to_graph.m:103-110`.
+    - `draw_networkx`: `nx.draw_networkx_*` on the unit square, with grey self-loop nodes,
+      no self-loop edges, and `undirected='arrows'` (KI-37) or `'lines'`.
+  - Facade: `viz.draw.BACKENDS` now includes `'networkx'`, and `draw_dot(...,
+    backend='networkx', layout=, node_size=)` returns MATLAB's `(xret, yret, labels)`.
+    `ProgressFigures` and `draw_results` forward it. CLI: `formdiscovery draw ...
+    --backend networkx [--layout kamada_kawai]`.
+  - Refactors (behaviour unchanged, all item 31/32 tests still green):
+    - `viz.dot.normalise_xy` is factored out of `dot_to_graph`;
+    - `viz.draw.order_positions` is factored out of `dot_positions`.
+  - Fixture `tests/octave/fx_viz_networkx.m` → `tests/fixtures/viz_networkx.mat` (Octave
+    10.3.0, generated this iteration, <1 s, 24 KB). It holds the 63 final baseline graphs,
+    and for each: `find(graph.adj)` (column-major), `W` there, `1 ./ W`, the
+    `tril(adjsym)` pairs with `Wsym`, `sum(adjsym, 2)`, and `inv_covariance`'s Laplacian
+    `L`.
+  - `tests/test_viz_networkx.py`. In the fd env, all 540 tests pass, the live Octave test
+    included. In the base env, 381 pass and 159 skip (pygraphviz):
+    - conversion against Octave on all 63 graphs:
+      - edges, `W` and `1/W` are exact, in row-major order;
+      - kinds, labels and cluster ids match, and every object hangs off its cluster node;
+      - undirected: the networkx Laplacian over `W` equals `inv_covariance`'s `L`
+        (rtol 1e-12), and the degrees match.
+    - round trips (adj, W, labels, kind, cluster_id, type/objcount/sigma):
+      - networkx and GraphML on all 63 graphs, directed and undirected;
+      - DOT through pygraphviz on all 63 graphs.
+      Also checked: the DOT text structure and escaping, and that Graphviz can lay out the
+      export.
+    - **Layout parity:** on all 83 `viz_draw.mat` graphs, `graphviz_layout` gives Octave's
+      raw neato points exactly. The normalised positions equal Octave's draw_dot
+      `xret/yret` and graph_draw `X/Y` exactly on 78 graphs. The other 5 are the KI-8
+      cases below, where they equal a whole-name parse. The node order equals
+      `dot_to_graph`'s. With pygraphviz available, the neato positions also equal the
+      pygraphviz backend's.
+    - Kamada-Kawai: deterministic, in draw_dot's order, within [0.05, 0.95], and the
+      Spearman correlation of hop distance to drawn distance is > 0.8.
+    - The facade on 10 draw_dot cases (labels, singletons, self-loops, `pos`, `nodemult`,
+      `fontsz`, `' '` padding) returns Octave's outputs, and the drawn node offsets equal
+      Octave's X/Y. Also covered: artists (grey nodes, arrow/line counts), errors,
+      `ProgressFigures`, `draw_results` and the CLI.
+    - Image regression per backend: `tests/viz_images.py` has `render_case(...,
+      backend=)`, and the new baselines are in `tests/baseline_images/networkx/`
+      (`tools/gen_viz_baselines.py` writes both sets; the item 32 baselines were rewritten
+      byte-identical). Tolerances are as in item 32.
+  - Mutation check: the tests catch 10 of 12 deliberate breaks. The first run missed a
+    column-major edge scan, and a test was added for it (undirected W taken from the first
+    row-major entry). The 2 remaining misses are equivalent mutants: dropping
+    `center`/`size` does not change the `-Tdot` positions, and scanning full rows for an
+    undirected graph only adds duplicate edges, which networkx merges.
+  - **Finding (ANOMALIES A15, KI-8 updated with measurements):** KI-8 misplaces nodes in
+    **every drawing of the synthetic true graphs** (46-89 nodes, 5 of 74 real graphs).
+    - Node `41`'s line also matches `4`, so node `41` (and 6 nodes in synthgrid) keeps raw
+      `(0, 0)`.
+    - That zero enters the min/range normalisation, so every node moves. In synthgrid, 89
+      nodes are drawn at 84 distinct points.
+    - The demos and baselines (at most 35 nodes) and the crafted 105-node chain are not
+      affected.
+    - The pygraphviz backend replicates this (parity parser). The networkx backend reads
+      whole names, as KI-8's decision said. No new KI.
+  - Toolchain: the `kamada_kawai` layout needed a fix. networkx returns coordinates in
+    [-1, 1], and at that scale KI-34's `range + 1` divisor squeezed x threefold (the first
+    test run caught it). It is now scaled to neato's 72-point edge length.
+  - Docs: `ANOMALIES.md` (A15), `KNOWN_ISSUES.md` (KI-8 measurements), `CONVENTIONS.md`
+    (item 33 in the Display section), and the `viz` package docstring.
+  - Gate: base `python -m pytest -q -m "not slow"`: 2951 passed, 225 skipped, 76
+    deselected (195 s).
+### Blockers
+- None.
+### Next
+- Item 34 (Viz B2: optional `plotly`/`pyvis` backends behind extras, the
+  `examples/formdiscovery_demo.ipynb` notebook, and the README usage section).
+  - New backends plug into `viz.draw.BACKENDS`/`draw_dot`.
+  - `networkx_backend.to_networkx` gives the node attributes for hover text.
+  - `nx_layout(..., 'kamada_kawai')` works without Graphviz.

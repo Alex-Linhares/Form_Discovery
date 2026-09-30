@@ -20,6 +20,8 @@ histories under ``results/<struct>out/<data><rind>/``. ``run --figures DIR`` set
 (:func:`formdiscovery.viz.draw.draw_results`: neato layout, matplotlib), all runs in one
 figure or the ``--runs`` chosen (0-based, in the file's order). ``--graphviz`` renders
 one run with Graphviz itself (:func:`formdiscovery.viz.pygraphviz_backend.render`).
+``--backend networkx`` (item 33) lays out and draws with networkx
+(:mod:`formdiscovery.viz.networkx_backend`); ``--layout kamada_kawai`` needs no Graphviz.
 """
 
 import argparse
@@ -92,7 +94,9 @@ def _cmd_draw(args):
         g = res.structure[int(r["sind"]), int(r["dind"]), int(r["rind"]) - 1]
         render(g["adj"], pad_names(res.names[0, int(r["dind"])], len(g["adj"])), args.out)
     else:
-        draw_results(res, runs, args.out, flags=args.flags, undirected=args.undirected)
+        kw = {"layout": args.layout} if args.backend == "networkx" else {}
+        draw_results(res, runs, args.out, flags=args.flags, undirected=args.undirected,
+                     backend=args.backend, **kw)
     if not args.quiet:
         print(f"saved {args.out}")
     return 0
@@ -129,6 +133,11 @@ def main(argv=None):
                    help="neato flags: draw_dot's (default) or the intended ones")
     d.add_argument("--undirected", choices=("arrows", "lines"), default="arrows",
                    help="symmetric edges as two arrows (original) or one line")
+    d.add_argument("--backend", choices=("pygraphviz", "networkx"), default="pygraphviz",
+                   help="layout and drawing backend (default: %(default)s)")
+    d.add_argument("--layout", choices=("auto", "neato", "kamada_kawai"), default="auto",
+                   help="networkx backend layout: neato (needs pygraphviz) or "
+                        "kamada_kawai; auto picks neato when available")
     d.add_argument("--graphviz", action="store_true",
                    help="render one run with Graphviz instead of matplotlib")
     d.add_argument("-q", "--quiet", action="store_true")

@@ -289,6 +289,24 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   renders, `python tools/gen_viz_baselines.py`). The text-free variant is compared at
   RMS 2 on any matplotlib; the full one at 2 on the baselines' version, else 15.
 
+- Item 33, networkx backend (`viz/networkx_backend.py`):
+  - `to_networkx(graph, names, directed=None)`: nodes are the 0-based indices of
+    `graph.adj`. Each node has `kind` (`object`/`cluster`), `label` and `cluster_id`
+    (`z`, or `node - objcount` for a cluster node). Each edge has `W` and
+    `weight = 1/W` (a length, as networkx layouts read it). `directed=None` follows
+    draw_dot.m:35, which makes every stored `graph.adj` a `DiGraph`.
+  - `from_networkx` is the inverse. `to_graphml`/`from_graphml` and `to_dot`/`from_dot`
+    are the exports. The DOT writer is pure text and writes `len = 1/W` instead of
+    `weight`; the reader needs pygraphviz.
+  - `draw_dot(..., backend='networkx', layout='auto'|'neato'|'kamada_kawai')`.
+    - `neato` is `graphviz_layout` with draw_dot's attributes. It reads positions by
+      whole node name, so it equals Octave's draw_dot except where KI-8 fires
+      (ANOMALIES A15).
+    - `kamada_kawai` is scaled to 72-point edges before the `dot_to_graph`
+      normalisation.
+  - `tests/viz_images.py` takes `backend=`. The networkx baselines are in
+    `tests/baseline_images/networkx/`.
+
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
 - Deterministic floats: `assert_allclose(rtol=1e-10, atol=1e-12)`.

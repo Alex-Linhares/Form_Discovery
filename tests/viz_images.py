@@ -8,12 +8,17 @@ so no neato is needed), with draw_dot's labels, font size and ``nodemult``, on a
 title hidden). They are this port's own renders (the original cannot draw in
 Octave, ANOMALIES.md); regenerate them with ``python tools/gen_viz_baselines.py`` after
 a deliberate change to the drawing.
+
+Per-backend baselines (item 33): ``render_case(..., backend='networkx')`` draws the same
+cases with :func:`formdiscovery.viz.networkx_backend.draw_networkx`; its baselines are in
+``tests/baseline_images/networkx/``.
 """
 from pathlib import Path
 
 import numpy as np
 
 BASELINE_DIR = Path(__file__).resolve().parent / "baseline_images"
+BACKEND_DIRS = {"pygraphviz": BASELINE_DIR, "networkx": BASELINE_DIR / "networkx"}
 # matplotlib version the full (text) baselines were rendered with
 VERSION_FILE = BASELINE_DIR / "matplotlib_version.txt"
 # name -> dd_run of the fixture case, graph_draw options
@@ -32,7 +37,7 @@ def _labels(v):
     return [a if isinstance(a, str) else "" for a in np.atleast_1d(v)]
 
 
-def render_case(fx, name, path=None, dpi=100, text=True):
+def render_case(fx, name, path=None, dpi=100, text=True, backend="pygraphviz"):
     """Draw case ``name`` and return the matplotlib figure (saved to ``path``).
     ``text=False`` hides the labels and the title (text rasterisation changes between
     matplotlib versions; the geometry does not)."""
@@ -40,6 +45,7 @@ def render_case(fx, name, path=None, dpi=100, text=True):
     from matplotlib.figure import Figure
 
     from formdiscovery.viz.graph_draw import graph_draw
+    from formdiscovery.viz.networkx_backend import draw_networkx
 
     run, kw = IMAGE_CASES[name]
     k = list(fx["dd_run"]).index(run)
@@ -48,13 +54,20 @@ def render_case(fx, name, path=None, dpi=100, text=True):
                                 "savefig.dpi": dpi}):
         fig = Figure(figsize=(5.6, 4.2), dpi=dpi)
         ax = fig.add_subplot()
-        _, _, h = graph_draw(adj, node_labels=_labels(fx["dd_labels"][k]), x=fx["dd_x"][k],
-                             y=fx["dd_y"][k], fontsize=float(fx["dd_fontsize"][k]),
-                             nodemult=float(fx["dd_nodemult"][k]), ax=ax, **kw)
+        opts = dict(fontsize=float(fx["dd_fontsize"][k]),
+                    nodemult=float(fx["dd_nodemult"][k]), ax=ax, **kw)
+        x, y = np.ravel(fx["dd_x"][k]), np.ravel(fx["dd_y"][k])
+        if backend == "networkx":
+            _, h = draw_networkx(adj, _labels(fx["dd_labels"][k]), x, y, **opts)
+            texts = list(h["labels"].values())
+        else:
+            _, _, h = graph_draw(adj, node_labels=_labels(fx["dd_labels"][k]), x=x, y=y,
+                                 **opts)
+            texts = h["labels"]
         if text:
             ax.set_title(name)
         else:
-            for t in h["labels"]:
+            for t in texts:
                 t.set_visible(False)
         if path is not None:
             fig.savefig(path)

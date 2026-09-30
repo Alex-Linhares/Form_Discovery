@@ -6,5 +6,7 @@
   ``neato`` executable) and Graphviz rendering (item 32);
 - :mod:`formdiscovery.viz.graph_draw`: ``graph_draw.m`` with matplotlib (item 32);
 - :mod:`formdiscovery.viz.draw`: the ``draw_dot(adj, labels, backend=...)`` facade, the
-  progress figures and results drawing (item 32).
+  progress figures and results drawing (item 32);
+- :mod:`formdiscovery.viz.networkx_backend`: ``to_networkx``/``from_networkx``, GraphML
+  and DOT exports, and the ``backend='networkx'`` layout and drawing (item 33).
 """

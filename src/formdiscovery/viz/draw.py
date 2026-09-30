@@ -1,4 +1,5 @@
-"""``draw_dot.m`` facade and progress figures (item 32, PLAN.md §6 phase A).
+"""``draw_dot.m`` facade and progress figures (item 32, PLAN.md §6 phase A; the
+networkx backend is item 33).
 
 :func:`draw_dot` is ``draw_dot(adj, labels, 'pos', ..., 'nodemult', ..., 'fontsz', ...)``:
 lay the graph out with neato (:mod:`.pygraphviz_backend`), read the positions back
@@ -19,10 +20,11 @@ import numpy as np
 from .dot import dot_to_graph
 from .graph_draw import graph_draw
 
-__all__ = ["BACKENDS", "FIGURE", "default_fontsize", "dot_positions", "draw_dot",
+__all__ = ["BACKENDS", "FIGURE", "default_fontsize", "dot_positions", "order_positions",
+           "draw_dot",
            "pad_names", "ProgressFigures", "draw_results"]
 
-BACKENDS = ("pygraphviz",)
+BACKENDS = ("pygraphviz", "networkx")
 # MATLAB figure number of each show event (runmodel.m:41,183, structurefit.m:86,199,
 # best_split.m:153)
 FIGURE = {"truegraph": 1, "preclean": 1, "postclean": 2, "bestsplit": 3,
@@ -53,6 +55,13 @@ def dot_positions(lay, n, pos=None):
     - ``names``: node-number labels in sorted order (draw_dot's labels when none given).
     """
     _, names, x, y = dot_to_graph(lay)
+    return order_positions(names, x, y, n, pos)
+
+
+def order_positions(names, x, y, n, pos=None):
+    """:func:`dot_positions` after the parse (``draw_dot.m:55-72``): ``names`` are the
+    node numbers (strings, ``'1'..'n'``) of the laid-out nodes, ``x``/``y`` their
+    normalised positions, in the same order."""
     num = [int(float(s)) for s in names]  # str2num(char(names))
     x = list(np.asarray(x, dtype=float).ravel())
     y = list(np.asarray(y, dtype=float).ravel())
@@ -75,7 +84,7 @@ def dot_positions(lay, n, pos=None):
 
 def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
              fontsz=None, ax=None, flags="matlab", engine="auto", undirected="arrows",
-             wd=None):
+             wd=None, layout="auto", node_size=None):
     """``draw_dot.m:1-86``: lay out and draw the graph with adjacency matrix ``adj``;
     returns ``(xret, yret, labels)`` as MATLAB does.
 
@@ -87,20 +96,30 @@ def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
     - ``backend='pygraphviz'``: neato via :func:`.pygraphviz_backend.layout_text`
       (``flags``, ``engine``) and matplotlib drawing (``undirected``, ``wd``: see
       :func:`.graph_draw.graph_draw`).
+    - ``backend='networkx'`` (item 33): the layout of
+      :func:`.networkx_backend.nx_layout` (``layout='auto'|'neato'|'kamada_kawai'``,
+      ``flags``; neato gives draw_dot's positions exactly) and
+      :func:`.networkx_backend.draw_networkx` (``undirected``, ``node_size``).
+      ``engine`` and ``wd`` do not apply.
 
     A graph without edges raises (:func:`.dot.dot_to_graph`), as in MATLAB. A non-square
     ``adj`` warns (l.34).
     """
     if backend not in BACKENDS:
         raise ValueError(f"backend must be one of {BACKENDS}, not {backend!r}")
-    from .pygraphviz_backend import layout_text
-
     adj = np.asarray(adj, dtype=float)
     n, m = adj.shape
     if n != m:
         warnings.warn("not a square adjacency matrix!")
-    _, lay, _ = layout_text(adj, flags=flags, engine=engine)
-    xret, yret, x, y, names = dot_positions(lay, n, pos)
+    if backend == "networkx":
+        from .networkx_backend import nx_layout
+
+        xret, yret, x, y, names = order_positions(*nx_layout(adj, layout, flags), n, pos)
+    else:
+        from .pygraphviz_backend import layout_text
+
+        _, lay, _ = layout_text(adj, flags=flags, engine=engine)
+        xret, yret, x, y, names = dot_positions(lay, n, pos)
     if labels is None:
         labels = names
     labels = ["" if s is None else str(s) for s in labels]
@@ -108,9 +127,15 @@ def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
         raise ValueError(f"draw_dot: {len(labels)} labels for {n} nodes")
     if fontsz is None:
         fontsz = default_fontsize(n)
-    graph_draw((adj > 0).astype(float), node_labels=labels[:n], x=x, y=y, fontsize=fontsz,
-               node_shapes=np.zeros(len(x)), nodemult=nodemult, ax=ax,
-               undirected=undirected, wd=wd)
+    if backend == "networkx":
+        from .networkx_backend import draw_networkx
+
+        draw_networkx((adj > 0).astype(float), labels[:n], x, y, ax=ax, fontsize=fontsz,
+                      nodemult=nodemult, undirected=undirected, node_size=node_size)
+    else:
+        graph_draw((adj > 0).astype(float), node_labels=labels[:n], x=x, y=y,
+                   fontsize=fontsz, node_shapes=np.zeros(len(x)), nodemult=nodemult,
+                   ax=ax, undirected=undirected, wd=wd)
     return xret, yret, labels
 
 

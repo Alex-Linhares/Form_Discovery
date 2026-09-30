@@ -196,7 +196,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `viz/draw.py` facade `draw_dot(adj, labels, backend=...)`, CLI `formdiscovery draw`.
       Progress callbacks reproducing figures 1/2/3 behaviour. Smoke + low-tolerance image
       regression tests.
-- [ ] 33. **Viz B1: networkx backend.** `to_networkx(graph)` with node attrs (`kind`, `label`,
+- [x] 33. **Viz B1: networkx backend.** `to_networkx(graph)` with node attrs (`kind`, `label`,
       `cluster_id`) and edge weights `1/W`; layout via `graphviz_layout(prog='neato')` when
       available else `kamada_kawai_layout`; `nx.draw_networkx` rendering; `to_graphml`,
       `to_dot` exports. Round-trip tests.
