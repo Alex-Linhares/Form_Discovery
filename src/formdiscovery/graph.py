@@ -60,8 +60,8 @@ class Component:
     illegal: np.ndarray | None = None
 
     def copy(self):
-        """Deep copy (MATLAB structs are values)."""
-        return copy.deepcopy(self)
+        """Deep copy (MATLAB structs are values), see :func:`_copy_struct`."""
+        return _copy_struct(self)
 
 
 @dataclass
@@ -102,8 +102,8 @@ class Graph:
     Wsym: np.ndarray | None = None
 
     def copy(self):
-        """Deep copy (MATLAB structs are values)."""
-        return copy.deepcopy(self)
+        """Deep copy (MATLAB structs are values), see :func:`_copy_struct`."""
+        return _copy_struct(self)
 
     def replace(self, **changes):
         """Deep copy with some fields changed."""
@@ -113,6 +113,32 @@ class Graph:
                 raise AttributeError(f"Graph has no field {k!r}")
             setattr(g, k, v)
         return g
+
+
+def _copy_value(v):
+    """Deep copy of one struct field: arrays keep their memory layout (``order='K'``, as
+    ``copy.deepcopy``), immutable scalars are shared, lists and structs are copied
+    element by element; anything else goes to ``copy.deepcopy``."""
+    if isinstance(v, np.ndarray) and v.dtype != object:
+        return v.copy(order="K")
+    if v is None or isinstance(v, (str, int, float, bool, np.generic)):
+        return v
+    if isinstance(v, list):
+        return [_copy_value(x) for x in v]
+    if isinstance(v, (Graph, Component)):
+        return _copy_struct(v)
+    return copy.deepcopy(v)
+
+
+def _copy_struct(obj):
+    """``copy.deepcopy`` of a :class:`Graph`/:class:`Component` without its generic
+    machinery (item 35: it took a third of a ``runmodel`` run). Every attribute is copied
+    with :func:`_copy_value`, so the copy equals the ``deepcopy`` one; the one difference
+    is that two fields sharing an array get separate copies (``deepcopy`` keeps them
+    shared), which is closer to MATLAB's value semantics."""
+    new = object.__new__(type(obj))
+    new.__dict__.update({k: _copy_value(v) for k, v in obj.__dict__.items()})
+    return new
 
 
 GRAPH_FIELDS = tuple(f.name for f in fields(Graph))

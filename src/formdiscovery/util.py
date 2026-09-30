@@ -15,7 +15,7 @@ from . import FormDiscoveryError
 from .matlab_compat import chol_upper, mysetdiff  # noqa: F401  (mysetdiff.m lives there)
 
 __all__ = [
-    "vec", "inv_triu", "inv_posdef", "logdet", "mylogdet", "sumlogs", "meanlogs",
+    "vec", "inv_triu", "inv_posdef", "logdet", "inv_posdef_logdet", "mylogdet", "sumlogs", "meanlogs",
     "mysetdiff", "subv2ind", "trans2orig", "matrixpartition", "triplepartition",
     "stirling2", "dijkstra",
 ]
@@ -46,6 +46,14 @@ def inv_triu(U):
     return scipy.linalg.solve_triangular(U, np.eye(U.shape[0]), lower=False)
 
 
+def _inv_triu_checked(U):
+    """:func:`inv_triu` of a factor from :func:`chol_upper` (finite, since ``chol``
+    checked its input): the same LAPACK solve without scipy's finiteness check
+    (item 35)."""
+    return scipy.linalg.solve_triangular(U, np.eye(U.shape[0]), lower=False,
+                                         check_finite=False)
+
+
 def _chol_or_raise(A, where):
     U, p = chol_upper(A)
     if p != 0:
@@ -60,7 +68,7 @@ def inv_posdef(A):
     Only the upper triangle of ``A`` is read (as MATLAB's ``chol``). Raises
     :class:`FormDiscoveryError` if ``A`` is not positive definite (MATLAB errors).
     """
-    iU = inv_triu(_chol_or_raise(A, "inv_posdef"))
+    iU = _inv_triu_checked(_chol_or_raise(A, "inv_posdef"))
     return iU @ iU.T
 
 
@@ -72,6 +80,16 @@ def logdet(A):
     """
     U = _chol_or_raise(A, "logdet")
     return float(2 * np.sum(np.log(np.diag(U))))
+
+
+def inv_posdef_logdet(A):
+    """``(inv_posdef(A), logdet(A))`` from one ``chol`` (item 35). ``gplike.m:10-11``
+    calls both on the same matrix, and each starts with ``chol(A)``; the factor is the
+    same, so the results equal the two calls bit for bit. A non-positive-definite ``A``
+    raises :func:`inv_posdef`'s error (the first of the two calls in MATLAB)."""
+    U = _chol_or_raise(A, "inv_posdef")
+    iU = _inv_triu_checked(U)
+    return iU @ iU.T, float(2 * np.sum(np.log(np.diag(U))))
 
 
 def mylogdet(A):

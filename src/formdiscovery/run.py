@@ -27,6 +27,7 @@ from .io import graph_from_mat, load_dataset, load_mat
 from .params import Params, graph_prior, setrunps, structcounts
 from .preprocess import scaledata
 from .rng import NumpyPermutations, as_provider
+from .threads import limit_blas_threads
 
 __all__ = ["runmodel", "brlencases", "run_dir", "REL_EXTERNAL_INIT", "REL_OVERD_INIT",
            "masterrun", "masterrun_ps", "masterrun_pairs", "MasterResults", "save_results",
@@ -206,6 +207,7 @@ def _add_second_dimension(graph, ps, comptypes):
     return combinegraphs(graph, ps)
 
 
+@limit_blas_threads
 def runmodel(ps, sind, dind, rind, outdir=None, rng=None, show=None):
     """``runmodel.m:1-193``: find the best instance of form ``ps.structures[sind]`` for data
     set ``ps.data[dind]`` (both 0-based; ``rind`` is the repeat number, used only in the
@@ -244,6 +246,9 @@ def runmodel(ps, sind, dind, rind, outdir=None, rng=None, show=None):
     entries up to the node count of that graph (masterrun stores them). ``show`` is passed on to
     ``structurefit``/``best_split`` (``ps.showpreclean``/``showpostclean``/
     ``showbestsplit``) and to the nested dimension-search run.
+
+    Runs with BLAS limited to :data:`formdiscovery.threads.BLAS_THREADS` threads
+    (:func:`formdiscovery.threads.limit_blas_threads`, item 35; same results).
     """
     rng = as_provider(rng)
     ps = ps.copy()

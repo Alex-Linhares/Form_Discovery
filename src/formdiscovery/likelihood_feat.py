@@ -24,7 +24,7 @@ import scipy.optimize
 
 from . import FormDiscoveryError
 from .matlab_compat import stable_argsort
-from .util import inv_posdef, logdet, matrixpartition, mylogdet, triplepartition, vec
+from .util import inv_posdef, inv_posdef_logdet, matrixpartition, mylogdet, triplepartition, vec
 from .weights import combineWs, extract_weights, mat2vec, weightprior
 from .graph import reordermissing
 
@@ -119,8 +119,8 @@ def gplike(X, G, dim, ps):
             f"gplike: G({nobj},_): out of bound {G.shape[0]} "
             f"(dimensions are {G.shape[0]}x{G.shape[1]})")
     Gsmall = G[:nobj, :nobj]
-    invGsmall = inv_posdef(Gsmall)
-    logdetGsmall = logdet(Gsmall)
+    # inv_posdef and logdet (l.10-11) share one chol (item 35)
+    invGsmall, logdetGsmall = inv_posdef_logdet(Gsmall)
     if ps.runps.type == "sim":  # similarity data
         ll = dim * (-0.5 * logdetGsmall - nobj / 2 * np.log(2 * np.pi))
         ll = ll - 0.5 * np.trace(dim * X @ invGsmall)
@@ -518,11 +518,13 @@ def graph_like_conn(data, graph, ps, method=None, info=None):
     Xinit = np.concatenate([[graph.sigma], Xinit])
 
     # Find MAP values of branch lengths
+    hcache = {}
     res = _slow_minimize(lambda x: dataprobwsig(x, data, graph, ps, nargout=2), Xinit,
-                         method or SLOW_METHOD)
+                         method or SLOW_METHOD, hcache)
     X, fX = res.x, float(res.fun)
 
-    logI, lap = laplace_logI(dataprobwsig, X, data, graph, ps)
+    # the trust-region methods end at a point whose Hessian they computed
+    logI, lap = laplace_logI(dataprobwsig, X, data, graph, ps, hcache=hcache)
 
     out = slow_graph(graph, X, ps)
     if info is not None:
@@ -541,24 +543,37 @@ def slow_graph(graphorig, X, ps):
     return graph
 
 
-def _fd_hess(fun, e=1e-5):
+HCACHE_SIZE = 8  # Hessians kept for laplace_logI (item 35)
+
+
+def _fd_hess(fun, e=1e-5, hcache=None):
     """Symmetrised central-difference Hessian of the analytic gradient (as
-    :func:`hessiangrad`), for the optimizers that need one."""
+    :func:`hessiangrad`), for the optimizers that need one. With ``hcache`` (a dict) the
+    unsymmetrised :func:`hessiangrad` of the last :data:`HCACHE_SIZE` points is kept in it,
+    keyed by the point's bytes, so that :func:`laplace_logI` can reuse it (item 35). The
+    last Hessian is not always the optimum's: when trust-exact stops on a rejected step
+    ('A bad approximation caused failure to predict improvement') it was taken at the
+    rejected point, and the optimum's is the one before."""
     def hess(x):
         H = hessiangrad(fun, x, e)
+        if hcache is not None:
+            hcache[np.asarray(x, dtype=float).ravel().tobytes()] = H.copy()
+            while len(hcache) > HCACHE_SIZE:
+                del hcache[next(iter(hcache))]
         return (H + H.T) / 2
     return hess
 
 
-def _slow_minimize(fun, X0, method):
+def _slow_minimize(fun, X0, method, hcache=None):
     """Minimise ``fun(x) -> (f, g)`` from ``X0`` (``graph_like_conn.m:54``, ``fminunc``
     with ``GradObj`` on). ``method`` is a :func:`scipy.optimize.minimize` method; the
     trust-region and Newton methods get the symmetrised finite-difference Hessian
-    :func:`_fd_hess`. Tolerances are tighter than ``fminunc``'s defaults (TolFun = TolX =
-    1e-6), so the result is at least as good an optimum as Octave's."""
+    :func:`_fd_hess` (which fills ``hcache``). Tolerances are tighter than ``fminunc``'s
+    defaults (TolFun = TolX = 1e-6), so the result is at least as good an optimum as
+    Octave's."""
     kw = {}
     if method in ("trust-exact", "trust-ncg", "trust-krylov", "dogleg", "Newton-CG"):
-        kw["hess"] = _fd_hess(fun)
+        kw["hess"] = _fd_hess(fun, hcache=hcache)
     opts = {"gtol": 1e-8} if method in ("trust-exact", "trust-ncg", "trust-krylov",
                                          "dogleg", "BFGS") else {}
     if method == "L-BFGS-B":
@@ -569,7 +584,7 @@ def _slow_minimize(fun, X0, method):
     return res
 
 
-def laplace_logI(dprobfun, X, data, graphL, ps):
+def laplace_logI(dprobfun, X, data, graphL, ps, hcache=None):
     """``graph_like_conn.m:76-93``: the Laplace approximation to ``log p(D | S)`` at the
     optimum ``X`` of ``dprobfun(x, data, graphL, ps) -> -log p`` (with ``nargout=``
     ``1``/``2``). Returns ``(logI, info)`` with ``info`` holding ``ll``, the full
@@ -584,6 +599,11 @@ def laplace_logI(dprobfun, X, data, graphL, ps):
     ``~isreal``), it is recomputed from ``real(prod(es(es > 0)))`` over the eigenvalues
     ``es`` of ``inv(-H)`` (``es > 0`` compares real parts, as MATLAB does for complex
     values) with a 'laplacian approx gone awry' warning.
+
+    ``hcache`` (item 35) is :func:`_fd_hess`'s record of the optimizer's recent
+    :func:`hessiangrad` calls on the same ``dprobfun`` objective: one taken at ``X``
+    exactly is ``hessiangrad(datal, X, 1e-5)`` itself and is used instead of recomputing
+    it (``2 len(X)`` gradient evaluations saved, same bits).
     """
     def datal(x):
         return dprobfun(x, data, graphL, ps, nargout=2)
@@ -593,7 +613,10 @@ def laplace_logI(dprobfun, X, data, graphL, ps):
 
     # Laplace approximation to p(D|S)
     # minus sign because datal computes -ll
-    Hfull = -hessiangrad(datal, X, 1e-5)
+    if hcache and X.tobytes() in hcache:
+        Hfull = -hcache[X.tobytes()]
+    else:
+        Hfull = -hessiangrad(datal, X, 1e-5)
 
     includeind = np.flatnonzero(X < UPPER_BOUND - 5)
     H = Hfull[np.ix_(includeind, includeind)]

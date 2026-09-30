@@ -14,7 +14,8 @@ The defaults are masterrun's. Output in ``--out``: ``resultsdemo.npz`` and
 histories under ``results/<struct>out/<data><rind>/``. ``run --figures DIR`` sets
 ``ps.showpostclean`` and ``ps.showinferredgraph`` (what masterrun.m:17-21 does when
 ``which neato`` succeeds) and saves the figures there
-(:class:`formdiscovery.viz.draw.ProgressFigures`).
+(:class:`formdiscovery.viz.draw.ProgressFigures`). ``run --blas-threads N`` sets
+:data:`formdiscovery.threads.BLAS_THREADS` (default 1, item 35; 0 = no limit).
 
 ``draw`` reads a ``run`` results file and draws the final graphs
 (:func:`formdiscovery.viz.draw.draw_results`: neato layout, matplotlib), all runs in one
@@ -56,6 +57,8 @@ def parse_list(text, names, what):
 
 
 def _cmd_run(args, ps):
+    from . import threads
+    threads.BLAS_THREADS = args.blas_threads or None
     thisstruct = parse_list(args.structures, ps.structures, "structure")
     thisdata = parse_list(args.datasets, ps.data, "data set")
     if args.speed is not None:
@@ -138,6 +141,9 @@ def main(argv=None):
     r.add_argument("--figures", default=None, metavar="DIR",
                    help="save the post-clean and final graph figures in DIR "
                         "(masterrun.m's display)")
+    r.add_argument("--blas-threads", type=int, default=1, metavar="N",
+                   help="BLAS threads inside the model (default 1, much faster on its "
+                        "small matrices; 0 = the library's setting)")
     r.add_argument("-q", "--quiet", action="store_true")
     d = sub.add_parser("draw", help="draw the final graphs of a results file (draw_dot.m)")
     d.add_argument("results", help="results file from 'run' (.npz or .json)")

@@ -35,8 +35,14 @@ where the paper reports a tree) are logged in `ANOMALIES.md`.
   original. networkx, plotly and pyvis backends and GraphML/DOT exports are also
   available.
 
-Remaining work: a performance pass. Progress is tracked in
-`RalphLoops/loop0001/PROGRESS.md` and `iterations.md`.
+- Speed: per call, fast-mode scoring takes about half of Octave's time and relational
+  scoring a fifth. Slow mode, with scipy's trust-exact optimiser, takes 1.4-3.6 times
+  Octave's `fminunc`. Whole runs take 0.8-1.4 times Octave's, 0.25 on relational data.
+  The model keeps BLAS to one thread, because OpenBLAS threads made it up to 20 times
+  slower on these small matrices; the results do not change. Run
+  `python tools/bench_perf.py` to measure it on your machine.
+
+Progress is tracked in `RalphLoops/loop0001/PROGRESS.md` and `iterations.md`.
 
 ## Quick start
 
@@ -84,6 +90,10 @@ ll, graph, names, bestglls, bestgraph = runmodel(ps, 5, 2, 1, rng=1)   # a singl
 In Python, the structure and data set indices are 0-based (`ps.structures[5] == 'tree'`,
 `ps.data[2] == 'demo_tree_feat'`). The CLI takes names or MATLAB's 1-based indices.
 `rng` is a seed or a permutation provider (`formdiscovery.rng`).
+`runmodel` and `structurefit` limit BLAS to one thread while they run
+(`formdiscovery.threads`, needs `threadpoolctl`). Wrap your own loops over `graph_like` in
+`with formdiscovery.threads.blas_threads():` for the same speed-up. On the command line
+the option is `formdiscovery run --blas-threads N` (0 keeps the library's setting).
 
 ### Drawing graphs
 
@@ -168,7 +178,7 @@ python tools/gen_fixtures.py          # regenerate all fixtures through Octave
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
 | `tests/` | Fixture scripts (`tests/octave/`), fixtures, pytest parity tests, Octave baselines |
-| `tools/` | Fixture generation and Octave/Python run comparison |
+| `tools/` | Fixture generation, Octave/Python run comparison, benchmark (`bench_perf.py`) |
 | `PLAN.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
 | `RalphLoops/` | The fresh-context iteration loop that carried out the plan |
 

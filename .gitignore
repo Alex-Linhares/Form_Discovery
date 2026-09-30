@@ -18,3 +18,6 @@ _LAYout.dot
 # Octave crash dumps
 octave-core
 octave-workspace
+
+# matplotlib image-comparison artifacts (tests/viz_images.py)
+*-failed-diff.png

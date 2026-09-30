@@ -206,7 +206,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
 
 ## Wrap-up
 
-- [ ] 35. **Performance budget.** Time Octave vs Python per `graph_like` call and per
+- [x] 35. **Performance budget.** Time Octave vs Python per `graph_like` call and per
       `structurefit` depth on the demos and one synthetic set; profile `dataprobwsig`;
       apply safe optimisations (cached inverses, avoiding repeated `inv`) only with parity
       tests still green. Record the table in PROGRESS.md. Then verify every item above,

@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 35/36 SOLVED
+- **Current**: 36/36 SOLVED
 
 ---
 
@@ -2595,3 +2595,160 @@
   is a matplotlib comparison artifact that was committed in item 33. Test runs rewrite it
   (it was restored this iteration). Remove it from git and add `*-failed-diff.png` to
   `.gitignore`.
+
+## Iteration 38 — 2026-09-30 14:08
+### Completed
+- Item 35 **solved** (`[x]`).
+  - Fixture `tests/octave/fx_perf.m` → `tests/fixtures/perf.mat` (Octave 10.3.0,
+    generated this iteration, 54 s). It holds Octave's timings and the values it computed:
+    - `gl`: 15 graphs. These are the final graphs of chain/ring/tree × the 3 feature demos
+      (baseline `resultsdemo.mat`), chain × synthchain, tree × synthtree and grid ×
+      synthgrid (78-89 nodes, `paperlevel.mat`), and 3 relational ones (dirring, dirhierarchy,
+      order). For each: the median time per call of `graph_like` fast, `graph_like` slow and
+      `dataprobwsig` (value + gradient at the fast start point), with the values.
+    - `sf`: 5 whole `runmodel` runs with identity permutations. Spies on `structurefit`,
+      `choose_node_split` and `graph_like` log an event per structurefit start, depth and
+      return, with the `graph_like` fast/slow call counts and the seconds spent in them.
+      - The first depth marker (component 1, node 1, production 1) missed the tree's
+        depths, because the root is never split there. A depth now starts at the first
+        `choose_node_split` call whose graph differs from the previous call's.
+  - `tools/bench_perf.py` runs the same computations in Python, checks the values against
+    Octave's and prints the tables below (`--sections`, `--live`, `--profile`, `--json`,
+    `--blas-threads`).
+  - **Main finding (ANOMALIES A16): BLAS threads.** OpenBLAS (numpy's and scipy's, base and
+    fd env) wakes 32 threads for tiny matrices. A 40 × 40 triangular solve takes 3 ms
+    that way and 15 µs on one thread.
+    - Before this item, `chain x synthtree` took **506 s in Python against Octave's 31 s**.
+      Its fast calls averaged 5.4 ms against 0.37 ms, and `user` time was 244 min for
+      9 min of wall clock.
+    - A tight timing loop hides it: the same graphs cost 0.4 ms per call there.
+  - Optimisations. Each one gives exactly the same results, checked against the code it
+    replaces:
+    1. `formdiscovery/threads.py`:
+       - `blas_threads()` and `limit_blas_threads` (threadpoolctl), applied to `runmodel`
+         and `structurefit` (1 thread, `BLAS_THREADS`);
+       - CLI `run --blas-threads N` (0 = the library's setting);
+       - threadpoolctl is added to `pyproject.toml` dependencies and pinned to 3.7.0 in
+         `environment.yml` (installed in fd). Without it, a warning is issued once.
+       - Bit-identical: 1 thread vs the default, on all 15 graphs (fast, slow, gradient,
+         returned weights), in both envs.
+    2. `Graph.copy`/`Component.copy` copy field by field (`graph._copy_struct`) instead of
+       `copy.deepcopy`, which took about 30% of a demo run. Arrays keep `order='K'`.
+       Fields that shared an array are no longer shared (closer to MATLAB).
+    3. `laplace_logI` reuses the optimiser's finite-difference Hessian at the optimum
+       (`hcache`, the last 8 points by bytes). This saves 2n gradient calls per slow
+       call.
+       - The first version kept only the last Hessian and missed on 8 of 12 graphs.
+         trust-exact stops with "bad approximation", and its last Hessian is at the
+         rejected point.
+    4. `gplike` takes `inv_posdef` and `logdet` from one `chol`
+       (`util.inv_posdef_logdet`). `inv_posdef`'s triangular solve skips scipy's
+       `check_finite`: the `chol` factor is finite, and the LAPACK call is the same.
+  - Not done, because it is not bit-identical: changing the slow-mode optimiser.
+    - All of trust-exact, BFGS and L-BFGS-B reach the same optimum; their relative
+      distances from Octave's score match to the digits printed.
+    - BFGS and L-BFGS-B run at Octave's speed (demos 8-20 ms against Octave's 10-15 ms;
+      synthetic 63-160 ms against 95-155 ms). trust-exact takes 1.4-3.6 times Octave's.
+    - Switching would change scores within the optimiser tolerance and could move search
+      decisions, so it needs its own item with its own parity runs.
+  - **Table 1: time per call** (base env, numpy 1.26.4, 1 BLAS thread; Octave column
+    from the fixture, same machine, 32 cores; median of ≥ 3 calls). Values: every check
+    passed (fast, `dataprobwsig` value and gradient rtol 1e-10; slow rel ≤ 2e-4).
+
+    | graph | nodes | fast Oct / Py (ms) | slow Oct / Py (ms) | dataprobwsig Oct / Py (ms) |
+    |---|---|---|---|---|
+    | chain x demo_chain_feat | 12 | 0.253 / 0.125 | 9.98 / 18.8 | 0.300 / 0.173 |
+    | ring x demo_chain_feat | 12 | 0.255 / 0.125 | 10.4 / 20.3 | 0.296 / 0.174 |
+    | tree x demo_chain_feat | 14 | 0.254 / 0.126 | 11.2 / 22.0 | 0.299 / 0.175 |
+    | chain x demo_ring_feat | 12 | 0.253 / 0.125 | 9.96 / 18.9 | 0.297 / 0.175 |
+    | ring x demo_ring_feat | 12 | 0.255 / 0.125 | 10.5 / 15.3 | 0.296 / 0.176 |
+    | tree x demo_ring_feat | 14 | 0.257 / 0.127 | 11.2 / 22.0 | 0.301 / 0.176 |
+    | chain x demo_tree_feat | 12 | 0.258 / 0.124 | 9.97 / 14.2 | 0.299 / 0.174 |
+    | ring x demo_tree_feat | 12 | 0.257 / 0.125 | 10.6 / 20.3 | 0.299 / 0.174 |
+    | tree x demo_tree_feat | 14 | 0.261 / 0.126 | 15.1 / 21.8 | 0.302 / 0.174 |
+    | chain x synthchain | 78 | 0.409 / 0.272 | 95.8 / 254 | 0.498 / 0.319 |
+    | tree x synthtree | 78 | 0.402 / 0.273 | 95.1 / 204 | 0.495 / 0.324 |
+    | grid x synthgrid | 89 | 0.430 / 0.323 | 155 / 560 | 0.545 / 0.370 |
+    | dirring x demo_ring_rel_bin | 12 | 1.62 / 0.318 | - | - |
+    | dirhierarchy x demo_hierarchy_rel_bin | 33 | 1.75 / 0.368 | - | - |
+    | order x demo_order_rel_freq | 12 | 0.905 / 0.193 | - | - |
+
+    Before the optimisations (library default threads, same graphs): fast 0.17-0.49 ms,
+    slow 25-38 ms on the demos and 519-1330 ms on the synthetic sets, `dataprobwsig`
+    0.22-0.58 ms. With the code changes but default threads: slow 18-38 ms and 427-989
+    ms.
+  - **Table 2: whole runs and per structurefit depth** (identity permutations on both
+    sides).
+
+    | run | speed | total Oct / Py before / Py after (s) | depths Oct / Py | s per depth Oct / Py | fast calls Oct / Py (s in them) | slow calls Oct / Py (s in them) | final score Oct / Py |
+    |---|---|---|---|---|---|---|---|
+    | chain x demo_chain_feat | 54 | 1.62 / 2.41 / 1.31 | 7 / 7 | 0.222 / 0.179 | 1056 (0.26) / 1104 (0.14) | 43 (0.84) / 45 (0.99) | -8247.2048 / -8247.1924 |
+    | ring x demo_ring_feat | 54 | 1.73 / 2.66 / 1.44 | 8 / 7 | 0.207 / 0.196 | 1162 (0.29) / 1095 (0.14) | 46 (0.97) / 47 (1.15) | -8500.5205 / -8500.5182 |
+    | tree x demo_tree_feat | 54 | 4.21 / 10.84 / 5.97 | 10 / 10 | 0.410 / 0.587 | 1906 (0.51) / 1906 (0.25) | 103 (2.58) / 116 (5.37) | -8707.8103 / -8707.8087 |
+    | dirring x demo_ring_rel_bin | 54 | 0.64 / 0.20 / 0.16 | 2 / 2 | 0.312 / 0.077 | 268 (0.49) / 268 (0.11) | 9 (0.02) / 9 (0.00) | -22.1872 / -22.1872 |
+    | chain x synthtree | 5 | 31.11 / 505.71 / 24.45 | 27 / 26 | 1.144 / 0.927 | 34939 (12.89) / 33976 (8.67) | 83 (5.25) / 82 (11.30) | -87705.9201 / -87705.7987 |
+
+    Per depth (chain x synthtree, first structurefit call, Oct / Py seconds):
+    - Python makes the same `graph_like` calls at each of the 22 depths, except 2 fast
+      calls at depth 19. It takes 0.43-0.64 of Octave's time per depth: 1.54 / 0.92 at
+      depth 1, 0.46 / 0.20 at depth 20, 2.23 / 1.14 at depth 22 (22 slow calls).
+    - Calls 2-3 diverge where slow scores decide: Python's third call accepts one depth
+      fewer.
+    - tree x demo_tree_feat: the speed-5 depths take 0.46-0.62 of Octave's time. The
+      speed-4 depths take 1.4-1.9 times, because 14-22 slow calls per depth dominate.
+  - **Budget verdict (PLAN §7.4, "not slower than Octave"):**
+    - Met for fast mode, `dataprobwsig`, relational scoring and every whole run except
+      tree × demo_tree_feat (1.42).
+    - Slow mode alone takes 1.4-3.6 times Octave's, because of the trust-exact optimiser
+      (see above).
+  - Profile of `dataprobwsig` (`bench_perf.py --profile`, 1 thread): no single hot spot
+    is left. Each call costs 0.17 ms on the demos. About half of it is `_grad_observed`
+    (which includes `extract_weights`, 13%). `combineWs` takes 18%, and scipy's
+    wrappers of `cholesky`/`solve_triangular` about 27%; this was measured before
+    `inv_posdef` dropped its check.
+  - `tests/test_perf.py`: base env 83 passed, 1 skipped (live Octave); fd env 85 passed
+    (the live Octave `gl` regeneration and the `slow` timing test included).
+    - Fixture checks: contents, and each event log well formed (one depth event per
+      accepted depth plus the final one, counters monotone, sums).
+    - Parity on the 15 graphs: fast, `dataprobwsig` value, gradient and `Xinit`; slow on
+      the 12 feature graphs.
+    - The Python spied `chain x demo_chain_feat` run makes Octave's `graph_like` calls
+      depth for depth in its first structurefit call, with the growth history to 1e-5
+      and the final score to 1e-3.
+    - `Graph.copy` equals `deepcopy` on all 15 graphs (dtype, layout, no sharing).
+      `inv_posdef_logdet` is bit-identical.
+    - Hessian reuse: same bits with and without it, and one `hessiangrad` saved on all
+      12 graphs. The cache is ignored at other points.
+    - BLAS: bit-identical results; the limit is applied and restored, nests, and is set
+      inside `runmodel`/`structurefit`. Also checked: the no-threadpoolctl warning, the
+      CLI option, and the table formatting.
+    - Mutation check: 9 of 10 deliberate breaks caught. The miss, `2*sum` → `sum(2*…)`
+      in the log determinant, is an equivalent mutant: multiplying by 2 is exact.
+  - **Finding A17 (open):** with identity permutations, ring × demo_ring_feat leaves
+    Octave's search path at depth 1. Python goes straight to Octave's depth-2 score. The
+    final scores agree to 3e-7, and replayed-permutation parity (item 27) is unaffected.
+    The cause was not investigated.
+  - Housekeeping: removed the committed matplotlib artifact
+    `tests/baseline_images/networkx/feat_tree_demo_tree_feat_notext-failed-diff.png`
+    and added `*-failed-diff.png` to `.gitignore`.
+  - Docs:
+    - `ANOMALIES.md`: A16 (handled) and A17 (open);
+    - `CONVENTIONS.md`: a new Performance section;
+    - README: Status speed bullet, BLAS note in Usage, `tools/` row;
+    - docstrings of `runmodel`, `structurefit`, `gplike`, `laplace_logI`, `_fd_hess`.
+    - No new KI: nothing in the original code changes. `KNOWN_ISSUES.md` is unchanged.
+  - **Verification of items 01-34:**
+    - Every `tests/octave/fx_*.m` (31) has its committed fixture and a test that loads it.
+    - All 35 earlier checkboxes are `[x]`.
+    - The base-env gate passes: 3365 passed, 247 skipped, 78 deselected (185 s, against
+      272 s in iteration 37).
+    - The fd-env run with every live Octave parity test (not slow) is recorded below.
+### Blockers
+- None.
+### Next
+- The loop is complete: 36 of 36 items are solved.
+- Open for a human: A1 (animals: hierarchy vs tree), A2 (hierarchy relational demo), A17
+  (identity-permutation divergence on ring).
+- Possible follow-up item: an L-BFGS-B or BFGS slow mode as the default. It would bring
+  slow mode to Octave's speed, but needs parity runs of its own: `SLOW_METHOD` and the
+  replay tests of items 27-29.

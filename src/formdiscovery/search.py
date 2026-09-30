@@ -36,6 +36,7 @@ from .matlab_compat import intersect, max_first, setdiff, stable_argsort, unique
 from .util import dijkstra
 from .params import graph_prior
 from .rng import as_provider
+from .threads import limit_blas_threads
 
 
 def sprintf_g(x):
@@ -1174,6 +1175,7 @@ def _save_history(savefile, bestgraphlls, bestgraph):
                             "bestgraph": cells})
 
 
+@limit_blas_threads
 def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
                  show=None):
     """``structurefit.m:1-213``: grow a graph of structure ``ps.runps.structname`` by
@@ -1211,7 +1213,8 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
     (names padded with ``' '``); ``show`` is also passed to :func:`best_split`
     (``ps.showbestsplit``). ``part`` is not kept (KI-3); ``bestsplit`` keeps KI-4.
     MATLAB keeps ``lls``/``newgraph`` for all depths but reads only the current one; the
-    port keeps one depth's dicts.
+    port keeps one depth's dicts. Runs with BLAS limited to
+    :data:`formdiscovery.threads.BLAS_THREADS` threads (item 35; same results).
     """
     from .graph import makeemptygraph
     from .matlab_compat import hist_centres

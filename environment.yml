@@ -18,6 +18,7 @@ dependencies:
   - oct2py=6.1.1
   - pygraphviz=2.0.2
   - graphviz=14.1.2
+  - threadpoolctl=3.7.0  # item 35: BLAS thread limit (formdiscovery.threads)
   - pip=26.2.1
   - pip:
       # item 34: optional interactive display backends (extra "interactive")

@@ -329,6 +329,32 @@ that a line of Python can be matched to its `.m` source and compared with Octave
     `tools/gen_demo_notebook.py`; the gate checks that it matches the generator's cells
     and that its outputs reproduce Octave's masterrun scores, and a `slow` test runs it.
 
+## Performance (item 35, PLAN §7.4)
+- Optimisations must leave every result bit for bit unchanged. `tests/test_perf.py`
+  compares each one with the code it replaces. Changes that only agree within a
+  tolerance (a different optimiser, reusing `inv(J)` blocks) are not made.
+- **BLAS threads**: `runmodel` and `structurefit` run under
+  `threads.blas_threads()` (1 thread, `threadpoolctl`). On these small matrices a
+  multithreaded OpenBLAS is up to 200 times slower (ANOMALIES A16), and one thread
+  gives the same bits. Code that calls `graph_like` in a loop outside the drivers should
+  use `with threads.blas_threads():` too. `threads.BLAS_THREADS = None` or
+  `formdiscovery run --blas-threads 0` keeps the library's setting.
+- `Graph.copy`/`Component.copy` copy field by field (`graph._copy_struct`), not through
+  `copy.deepcopy`. Arrays keep their memory layout. Two fields that share one array get
+  separate copies, so do not rely on aliasing between fields.
+- `graph_like_conn`'s slow mode keeps the optimiser's last 8 finite-difference Hessians
+  (`hcache`, keyed by the point's bytes). `laplace_logI` reuses the one taken at the
+  optimum instead of calling `hessiangrad` again. `gplike` takes `inv_posdef` and
+  `logdet` from one `chol` (`util.inv_posdef_logdet`).
+- Where the time goes (PROGRESS.md iteration 38): fast mode and `dataprobwsig` take 0.5-0.7
+  of Octave's time per call, and relational scoring 0.2. Slow mode takes 1.4-3.6 times
+  Octave's, because trust-exact (item 19) computes a finite-difference Hessian, `2n`
+  gradient calls, at every iteration. BFGS and L-BFGS-B reach the same optimum at
+  Octave's speed, but they are not the default because they change scores within the
+  optimiser tolerance.
+- Benchmark: `python tools/bench_perf.py [--sections gl,sf] [--live] [--profile]`
+  against `tests/fixtures/perf.mat` (`tests/octave/fx_perf.m`).
+
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
 - Deterministic floats: `assert_allclose(rtol=1e-10, atol=1e-12)`.
