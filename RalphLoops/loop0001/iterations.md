@@ -200,7 +200,7 @@ Work on the first `[ ]` item only. Section references are to `/PLAN.md`.
       `cluster_id`) and edge weights `1/W`; layout via `graphviz_layout(prog='neato')` when
       available else `kamada_kawai_layout`; `nx.draw_networkx` rendering; `to_graphml`,
       `to_dot` exports. Round-trip tests.
-- [ ] 34. **Viz B2: interactive backends and examples.** Optional `plotly` and `pyvis`
+- [x] 34. **Viz B2: interactive backends and examples.** Optional `plotly` and `pyvis`
       backends behind extras; `examples/formdiscovery_demo.ipynb` reproducing the masterrun
       demo end to end with figures; README usage section.
 

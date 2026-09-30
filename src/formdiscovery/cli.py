@@ -22,6 +22,9 @@ figure or the ``--runs`` chosen (0-based, in the file's order). ``--graphviz`` r
 one run with Graphviz itself (:func:`formdiscovery.viz.pygraphviz_backend.render`).
 ``--backend networkx`` (item 33) lays out and draws with networkx
 (:mod:`formdiscovery.viz.networkx_backend`); ``--layout kamada_kawai`` needs no Graphviz.
+``--backend plotly`` (item 34, extra ``interactive``) writes an interactive HTML page with
+all the runs (hover: object → cluster, cluster → members); ``--backend pyvis`` writes one
+run (``--runs``) as a vis-network page. Both use the networkx backend's layout.
 """
 
 import argparse
@@ -93,8 +96,20 @@ def _cmd_draw(args):
         r = res.runs[sel[0]]
         g = res.structure[int(r["sind"]), int(r["dind"]), int(r["rind"]) - 1]
         render(g["adj"], pad_names(res.names[0, int(r["dind"])], len(g["adj"])), args.out)
+    elif args.backend == "pyvis":
+        from .viz.draw import draw_graph
+
+        sel = runs if runs is not None else list(range(len(res.runs)))
+        if len(sel) != 1:
+            raise ValueError("--backend pyvis draws one run: choose it with --runs")
+        r = res.runs[sel[0]]
+        g = res.structure[int(r["sind"]), int(r["dind"]), int(r["rind"]) - 1]
+        net = draw_graph(g, res.names[0, int(r["dind"])], "pyvis", layout=args.layout,
+                         flags=args.flags, undirected=args.undirected,
+                         title=f"{r['data']}: {g['type']}")
+        net.write_html(args.out, notebook=False)
     else:
-        kw = {"layout": args.layout} if args.backend == "networkx" else {}
+        kw = {"layout": args.layout} if args.backend != "pygraphviz" else {}
         draw_results(res, runs, args.out, flags=args.flags, undirected=args.undirected,
                      backend=args.backend, **kw)
     if not args.quiet:
@@ -126,17 +141,20 @@ def main(argv=None):
     r.add_argument("-q", "--quiet", action="store_true")
     d = sub.add_parser("draw", help="draw the final graphs of a results file (draw_dot.m)")
     d.add_argument("results", help="results file from 'run' (.npz or .json)")
-    d.add_argument("--out", required=True, help="image file (format from the suffix)")
+    d.add_argument("--out", required=True,
+                   help="image file (format from the suffix); .html for plotly/pyvis")
     d.add_argument("--runs", default=None,
                    help="comma-separated 0-based run numbers (default: all)")
     d.add_argument("--flags", choices=("matlab", "intended"), default="matlab",
                    help="neato flags: draw_dot's (default) or the intended ones")
     d.add_argument("--undirected", choices=("arrows", "lines"), default="arrows",
                    help="symmetric edges as two arrows (original) or one line")
-    d.add_argument("--backend", choices=("pygraphviz", "networkx"), default="pygraphviz",
-                   help="layout and drawing backend (default: %(default)s)")
+    d.add_argument("--backend", choices=("pygraphviz", "networkx", "plotly", "pyvis"),
+                   default="pygraphviz",
+                   help="layout and drawing backend (default: %(default)s); plotly and "
+                        "pyvis write HTML")
     d.add_argument("--layout", choices=("auto", "neato", "kamada_kawai"), default="auto",
-                   help="networkx backend layout: neato (needs pygraphviz) or "
+                   help="networkx/plotly/pyvis layout: neato (needs pygraphviz) or "
                         "kamada_kawai; auto picks neato when available")
     d.add_argument("--graphviz", action="store_true",
                    help="render one run with Graphviz instead of matplotlib")

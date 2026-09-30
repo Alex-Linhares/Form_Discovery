@@ -307,6 +307,28 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   - `tests/viz_images.py` takes `backend=`. The networkx baselines are in
     `tests/baseline_images/networkx/`.
 
+- Item 34, interactive backends (optional extra `interactive`: plotly, pyvis):
+  - `draw_dot(..., backend='plotly'|'pyvis')` uses the networkx backend's layout
+    (`layout`, `flags`) and draws with `viz/plotly_backend.draw_plotly` (a `go.Figure`:
+    a `'nodes'` trace, a `'lines'` trace, one arrow annotation per edge) or
+    `viz/pyvis_backend.draw_pyvis` (a *directed* `Network`, nodes pinned at
+    `(600 x, -600 y)`, physics off; pyvis drops the second edge of a pair in an
+    undirected network). `ax` is then the figure/network to draw into.
+    `return_figure=True` appends the figure (matplotlib, plotly or pyvis) to the return.
+  - `viz/interactive.py`: `edge_sets` (graph_draw's arrows in drawing order, or lines for
+    symmetric pairs) and `hover_text` (object → `cluster c` = `cluster_id`, 0-based;
+    cluster → members), built from `to_networkx`. `sep='<br>'` for plotly, `'\n'` for
+    pyvis (vis-network shows titles as plain text).
+  - `viz.draw.draw_graph(graph, names, backend)` draws a model graph with hover text;
+    `draw_results(..., backend='plotly')` makes one `make_subplots` figure (HTML);
+    `ProgressFigures` stays matplotlib-only. CLI: `draw --backend plotly|pyvis`.
+  - Tests feed Octave's `X/Y` to both backends and compare nodes, fills and arrows with
+    Octave's (`viz_draw.mat`); graph_draw's arrow ends are offset by `wd_x cos`/`wd_y
+    sin`, so they are not exactly parallel to the centre line.
+  - `examples/formdiscovery_demo.ipynb` is generated and executed by
+    `tools/gen_demo_notebook.py`; the gate checks that it matches the generator's cells
+    and that its outputs reproduce Octave's masterrun scores, and a `slow` test runs it.
+
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
 - Deterministic floats: `assert_allclose(rtol=1e-10, atol=1e-12)`.

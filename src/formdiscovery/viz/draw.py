@@ -1,5 +1,5 @@
 """``draw_dot.m`` facade and progress figures (item 32, PLAN.md §6 phase A; the
-networkx backend is item 33).
+networkx backend is item 33, the interactive plotly and pyvis backends item 34).
 
 :func:`draw_dot` is ``draw_dot(adj, labels, 'pos', ..., 'nodemult', ..., 'fontsz', ...)``:
 lay the graph out with neato (:mod:`.pygraphviz_backend`), read the positions back
@@ -10,6 +10,10 @@ on matplotlib axes. The temporary ``_GtDout.dot``/``_LAYout.dot`` files are not 
 :func:`formdiscovery.search.structurefit` and :func:`formdiscovery.search.best_split`: it
 reproduces MATLAB's figures 1 (true graph / pre-clean), 2 (post-clean) and 3 (best split /
 inferred graph), live and/or as numbered image files.
+
+:func:`draw_graph` draws a model graph (a :class:`formdiscovery.graph.Graph` with its
+object names) through the facade, with per-node hover text for the interactive
+backends (:func:`.interactive.hover_text`).
 """
 
 import warnings
@@ -20,11 +24,13 @@ import numpy as np
 from .dot import dot_to_graph
 from .graph_draw import graph_draw
 
-__all__ = ["BACKENDS", "FIGURE", "default_fontsize", "dot_positions", "order_positions",
+__all__ = ["BACKENDS", "INTERACTIVE", "FIGURE", "default_fontsize", "dot_positions", "order_positions",
            "draw_dot",
-           "pad_names", "ProgressFigures", "draw_results"]
+           "draw_graph", "pad_names", "ProgressFigures", "draw_results"]
 
-BACKENDS = ("pygraphviz", "networkx")
+BACKENDS = ("pygraphviz", "networkx", "plotly", "pyvis")
+# backends that draw into a plotly figure / pyvis network instead of matplotlib axes
+INTERACTIVE = ("plotly", "pyvis")
 # MATLAB figure number of each show event (runmodel.m:41,183, structurefit.m:86,199,
 # best_split.m:153)
 FIGURE = {"truegraph": 1, "preclean": 1, "postclean": 2, "bestsplit": 3,
@@ -84,7 +90,7 @@ def order_positions(names, x, y, n, pos=None):
 
 def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
              fontsz=None, ax=None, flags="matlab", engine="auto", undirected="arrows",
-             wd=None, layout="auto", node_size=None):
+             wd=None, layout="auto", node_size=None, hover=None, return_figure=False):
     """``draw_dot.m:1-86``: lay out and draw the graph with adjacency matrix ``adj``;
     returns ``(xret, yret, labels)`` as MATLAB does.
 
@@ -101,6 +107,13 @@ def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
       ``flags``; neato gives draw_dot's positions exactly) and
       :func:`.networkx_backend.draw_networkx` (``undirected``, ``node_size``).
       ``engine`` and ``wd`` do not apply.
+    - ``backend='plotly'`` / ``'pyvis'`` (item 34, optional extras): the same layout as
+      ``'networkx'`` (``layout``, ``flags``), drawn by :func:`.plotly_backend.draw_plotly`
+      or :func:`.pyvis_backend.draw_pyvis` (``undirected``, ``hover``: one string per
+      node; ``node_size`` for plotly). ``ax`` is then a plotly figure / directed pyvis
+      network to draw into (``None``: a new one).
+    - ``return_figure=True`` returns ``(xret, yret, labels, fig)``: the matplotlib
+      figure of the axes, the plotly figure or the pyvis network.
 
     A graph without edges raises (:func:`.dot.dot_to_graph`), as in MATLAB. A non-square
     ``adj`` warns (l.34).
@@ -111,7 +124,10 @@ def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
     n, m = adj.shape
     if n != m:
         warnings.warn("not a square adjacency matrix!")
-    if backend == "networkx":
+    if backend in INTERACTIVE and ax is not None and hasattr(ax, "add_patch"):
+        raise ValueError(f"backend {backend!r} draws into a plotly figure / pyvis "
+                         "network, not matplotlib axes")
+    if backend == "networkx" or backend in INTERACTIVE:
         from .networkx_backend import nx_layout
 
         xret, yret, x, y, names = order_positions(*nx_layout(adj, layout, flags), n, pos)
@@ -127,16 +143,60 @@ def draw_dot(adj, labels=None, backend="pygraphviz", *, pos=None, nodemult=0.5,
         raise ValueError(f"draw_dot: {len(labels)} labels for {n} nodes")
     if fontsz is None:
         fontsz = default_fontsize(n)
-    if backend == "networkx":
-        from .networkx_backend import draw_networkx
+    b = (adj > 0).astype(float)
+    if backend == "plotly":
+        from .plotly_backend import draw_plotly
 
-        draw_networkx((adj > 0).astype(float), labels[:n], x, y, ax=ax, fontsize=fontsz,
-                      nodemult=nodemult, undirected=undirected, node_size=node_size)
+        fig = draw_plotly(b, labels[:n], x, y, fig=ax, fontsize=fontsz, nodemult=nodemult,
+                          undirected=undirected, node_size=node_size, hover=hover)
+    elif backend == "pyvis":
+        from .pyvis_backend import draw_pyvis
+
+        fig = draw_pyvis(b, labels[:n], x, y, net=ax, fontsize=fontsz,
+                         undirected=undirected, hover=hover)
     else:
-        graph_draw((adj > 0).astype(float), node_labels=labels[:n], x=x, y=y,
-                   fontsize=fontsz, node_shapes=np.zeros(len(x)), nodemult=nodemult,
-                   ax=ax, undirected=undirected, wd=wd)
+        if ax is None:
+            import matplotlib.pyplot as plt
+            ax = plt.gca()
+        if backend == "networkx":
+            from .networkx_backend import draw_networkx
+
+            draw_networkx(b, labels[:n], x, y, ax=ax, fontsize=fontsz, nodemult=nodemult,
+                          undirected=undirected, node_size=node_size)
+        else:
+            graph_draw(b, node_labels=labels[:n], x=x, y=y, fontsize=fontsz,
+                       node_shapes=np.zeros(len(x)), nodemult=nodemult, ax=ax,
+                       undirected=undirected, wd=wd)
+        fig = ax.figure
+    if return_figure:
+        return xret, yret, labels, fig
     return xret, yret, labels
+
+
+def draw_graph(graph, names=None, backend="plotly", *, title=None, **kw):
+    """Draw a model graph (:class:`~formdiscovery.graph.Graph` or a results-file dict
+    with ``adj``, ``W``, ``z``, ``objcount``, ``type``) with :func:`draw_dot`, the
+    object names padded with ``''`` as ``runmodel.m:184-186``. The interactive backends
+    get :func:`.interactive.hover_text` (object → cluster, cluster → members) unless
+    ``hover`` is given. Returns the figure (matplotlib figure, plotly figure or pyvis
+    network); ``title`` titles it (plotly layout title, matplotlib axes title, pyvis
+    ``heading``)."""
+    from .interactive import hover_text
+
+    get = graph.get if isinstance(graph, dict) else (lambda f: getattr(graph, f))
+    adj = np.asarray(get("adj"), dtype=float)
+    labels = pad_names(names, adj.shape[0], "")
+    if backend in INTERACTIVE and kw.get("hover") is None:
+        kw["hover"] = hover_text(graph, names, sep="\n" if backend == "pyvis" else "<br>")
+    *_, fig = draw_dot(adj, labels, backend, return_figure=True, **kw)
+    if title is not None:
+        if backend == "plotly":
+            fig.update_layout(title=title)
+        elif backend == "pyvis":
+            fig.heading = title
+        else:
+            (kw.get("ax") or fig.axes[-1]).set_title(title)
+    return fig
 
 
 class ProgressFigures:
@@ -160,6 +220,9 @@ class ProgressFigures:
 
     def __init__(self, outdir=None, live=False, fmt="png", figsize=(5.6, 4.2), dpi=100,
                  strict=False, **draw_kw):
+        if draw_kw.get("backend") in INTERACTIVE:
+            raise ValueError("ProgressFigures draws matplotlib figures: use the "
+                             "pygraphviz or networkx backend")
         self.outdir = None if outdir is None else Path(outdir)
         self.live, self.fmt, self.figsize, self.dpi = live, fmt, figsize, dpi
         self.strict, self.draw_kw = strict, draw_kw
@@ -222,14 +285,23 @@ def draw_results(res, runs=None, path=None, ncols=3, panel=(5.6, 4.2), dpi=100, 
     indices into ``res.runs``, default all), one panel each, titled as
     ``runmodel.m:187`` (``'<type>: estimated structure:  <ll>'``) under the data set
     name, with the object names padded with ``''`` (l.184-186). Returns the matplotlib
-    figure; saves it to ``path`` when given."""
-    from matplotlib.figure import Figure
+    figure; saves it to ``path`` when given.
 
+    ``backend='plotly'`` returns a plotly ``make_subplots`` figure instead, with hover
+    text (:func:`.interactive.hover_text`), saved as HTML to ``path``. ``'pyvis'``
+    draws one graph per page: use :func:`draw_graph`."""
     sel = list(range(len(res.runs))) if runs is None else list(runs)
     if not sel:
         raise ValueError("no runs to draw")
     nc = min(ncols, len(sel))
     nr = -(-len(sel) // nc)
+    backend = draw_kw.get("backend")
+    if backend == "pyvis":
+        raise ValueError("draw_results: pyvis draws one graph per page; use draw_graph")
+    if backend == "plotly":
+        return _draw_results_plotly(res, sel, path, nr, nc, panel, dpi, draw_kw)
+    from matplotlib.figure import Figure
+
     fig = Figure(figsize=(panel[0] * nc, panel[1] * nr), dpi=dpi)
     for p, k in enumerate(sel):
         r = res.runs[k]
@@ -245,3 +317,55 @@ def draw_results(res, runs=None, path=None, ncols=3, panel=(5.6, 4.2), dpi=100, 
     if path is not None:
         fig.savefig(path)
     return fig
+
+
+def _run_panel(res, r):
+    """The graph, padded names and panel title of results record ``r``."""
+    idx = (int(r["sind"]), int(r["dind"]), int(r["rind"]) - 1)
+    g = res.structure[idx]
+    get = g.get if isinstance(g, dict) else (lambda f, g=g: getattr(g, f))
+    names = res.names[0, idx[1]]
+    title = f"{r['data']}<br>{get('type')}: estimated structure:  {_g(r['ll'])}"
+    return g, names, title
+
+
+def _draw_results_plotly(res, sel, path, nr, nc, panel, dpi, draw_kw):
+    """:func:`draw_results` with ``backend='plotly'``: one subplot per run."""
+    from plotly.subplots import make_subplots
+
+    from .interactive import hover_text
+    from .plotly_backend import draw_plotly
+
+    panels = [_run_panel(res, res.runs[k]) for k in sel]
+    fig = make_subplots(rows=nr, cols=nc, subplot_titles=[t for _, _, t in panels],
+                        horizontal_spacing=0.03, vertical_spacing=0.08)
+    kw = {k: v for k, v in draw_kw.items() if k != "backend"}
+    for p, (g, names, _) in enumerate(panels):
+        get = g.get if isinstance(g, dict) else (lambda f, g=g: getattr(g, f))
+        adj = np.asarray(get("adj"), dtype=float)
+        _, _, x, y, lbl = _layout(adj, pad_names(names, adj.shape[0], ""), kw)
+        draw_plotly((adj > 0).astype(float), lbl, x, y, fig=fig,
+                    fontsize=kw.get("fontsz") or default_fontsize(adj.shape[0]),
+                    nodemult=kw.get("nodemult", 0.5),
+                    undirected=kw.get("undirected", "arrows"),
+                    node_size=kw.get("node_size"), hover=hover_text(g, names),
+                    row=p // nc + 1, col=p % nc + 1)
+    for a in fig.layout.annotations:
+        if a.text:
+            a.font.size = 11
+    fig.update_layout(width=int(panel[0] * dpi * nc), height=int(panel[1] * dpi * nr))
+    if path is not None:
+        fig.write_html(str(path))
+    return fig
+
+
+def _layout(adj, labels, kw):
+    """draw_dot's positions through :func:`.networkx_backend.nx_layout` (the interactive
+    backends' layout): ``(xret, yret, x, y, labels)``."""
+    from .networkx_backend import nx_layout
+
+    n = adj.shape[0]
+    xret, yret, x, y, _ = order_positions(
+        *nx_layout(adj, kw.get("layout", "auto"), kw.get("flags", "matlab")), n,
+        kw.get("pos"))
+    return xret, yret, x, y, labels

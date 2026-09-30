@@ -3,7 +3,7 @@
 ## Ralph Loop 0001 Status
 - **Started**: 2026-09-28
 - **Target**: 36 items (see iterations.md)
-- **Current**: 34/36 SOLVED
+- **Current**: 35/36 SOLVED
 
 ---
 
@@ -2502,3 +2502,96 @@
   - New backends plug into `viz.draw.BACKENDS`/`draw_dot`.
   - `networkx_backend.to_networkx` gives the node attributes for hover text.
   - `nx_layout(..., 'kamada_kawai')` works without Graphviz.
+
+## Iteration 37 — 2026-09-30 11:58
+### Completed
+- Item 34 **solved** (`[x]`).
+  - New modules. Each function cites its source lines:
+    - `viz/interactive.py`:
+      - `edge_sets(adj, undirected)` gives graph_draw's arrows in drawing order
+        (`graph_draw.m:72-94`). With `'lines'`, each symmetric pair becomes one line
+        instead (KI-37);
+      - `hover_text(graph, names, sep)` is built from `to_networkx`: an object shows its
+        name and `cluster c`, a cluster node its members;
+      - also `default_hover`, `have_plotly` and `have_pyvis`.
+    - `viz/plotly_backend.py`: `draw_plotly` returns a `go.Figure` on the unit square.
+      It has a `'nodes'` trace (white or grey fill, labels at `fontsz * 4/3` px, hover
+      text), a `'lines'` trace and one arrow annotation per edge (tail in data
+      coordinates). It also works in `make_subplots` panels (`row`/`col`).
+    - `viz/pyvis_backend.py`: `draw_pyvis` returns a pyvis `Network`. The nodes are
+      pinned at `(600 x, -600 y)` with physics off, so the drawing is draw_dot's layout.
+      The network must be **directed**: in an undirected one, pyvis drops the second
+      arrow of a symmetric pair. A user `net` that is undirected raises.
+  - Facade and CLI:
+    - `viz.draw.BACKENDS` now also has `'plotly'` and `'pyvis'` (`INTERACTIVE`).
+      `draw_dot(..., backend='plotly'|'pyvis', layout=, hover=)` uses the networkx
+      backend's layout, so neato gives draw_dot's positions. `ax` is the figure or
+      network to draw into, and a matplotlib axes raises. `return_figure=True` appends
+      the figure for every backend;
+    - new `draw_graph(graph, names, backend, title=)`: a model graph with hover text;
+    - `draw_results(..., backend='plotly')`: all runs in one interactive HTML figure.
+      pyvis raises (one graph per page), and `ProgressFigures` rejects the interactive
+      backends;
+    - CLI: `formdiscovery draw ... --backend plotly --out f.html` (all runs), and
+      `--backend pyvis --runs k` (one run).
+  - Extras: `pyproject.toml` has `interactive = [plotly, pyvis]` and `notebook`.
+    `environment.yml` pins plotly 5.24.1 and pyvis 0.3.2 in a pip section. Both are
+    pip-installed into the fd env; the base interpreter had plotly, and pyvis 0.3.2 was
+    added.
+  - `examples/formdiscovery_demo.ipynb` (458 KB, executed) is generated and run by the
+    new `tools/gen_demo_notebook.py` (35 s). It covers:
+    - the masterrun demo end to end (chain, ring, tree × the three feature demos);
+    - a Python vs Octave score table: all 9 runs within 7.4e-6 rel, and every demo picks
+      its true form in both;
+    - `draw_results` (matplotlib), the progress figures 2/3 of one run
+      (`ProgressFigures`), plotly `draw_results`, a pyvis tree, and the networkx/GraphML
+      exports.
+    - The layout is neato when pygraphviz is present, else Kamada-Kawai (the base
+      kernel, as committed).
+  - README: a new **Usage** section (running the model, a backend table, drawing,
+    exports, progress figures and CLI examples, each snippet run once), an updated
+    Status, and `viz/` and `examples/` rows in the Layout table.
+  - Other docs: `CONVENTIONS.md` (item 34 in the Display section) and the `viz` package
+    docstring.
+  - Fixture: `tests/octave/fx_viz_draw.m` → `tests/fixtures/viz_draw.mat` was
+    regenerated in Octave 10.3.0 (12 s). All 31 variables are identical to the committed
+    ones. It is the parity target, together with `viz_networkx.mat` (hover) and
+    `masterrun.mat` (notebook).
+  - `tests/test_viz_interactive.py`: base env, 331 pass and 21 skip (pygraphviz). fd env,
+    350 pass, the live Octave test included; 3 skip for nbformat/nbclient. There is also
+    1 `slow` test that executes the notebook (37 s, passes). Checks:
+    - on all 83 draw_dot cases, both backends are given Octave's X/Y. The nodes, labels,
+      fills (grey self-loops) and font size are exact. There is one arrow per Octave
+      arrow, in Octave's drawing order and pointing the same way. graph_draw offsets the
+      ends by `wd_x cos`/`wd_y sin`, so the arrows are not exactly parallel to the centre
+      line; the test checks which end is nearer which node;
+    - hover on all 63 baseline graphs matches Octave's `z` and cluster edges;
+    - facade: with neato (pygraphviz, 10 cases × 2 backends), Octave's xret/yret/labels,
+      and the nodes drawn at Octave's X/Y. With Kamada-Kawai, the ordered layout;
+    - `undirected='lines'`, subplots, `draw_graph`, `draw_results` (plotly), the errors
+      and the CLI;
+    - the notebook matches the generator's cells, ran without errors, and its printed
+      scores are within 1e-3 rel of Octave's `modellike`, with each true form recovered;
+    - live (fd env, 2 s): the real `draw_dot` on the 9 final graphs of Octave's
+      masterrun demo. `draw_graph` places every node where Octave's draw_dot does, with
+      plotly and with pyvis (9 of 9 compared).
+  - Existing tests: two "unknown backend" checks used `'plotly'`, which is now valid.
+    They use `'bokeh'` instead.
+  - Mutation check: the tests catch 10 of 10 deliberate breaks: line pair order, hover
+    cluster +1, column-major edge order, pyvis `y` sign, empty pyvis labels, swapped
+    arrow ends, no grey fill, subplot `axref`, xret instead of the ordered positions, and
+    the pyvis hover separator.
+  - No new anomalies: the original has no interactive display, and the notebook's scores
+    agree with Octave's. `ANOMALIES.md` and `KNOWN_ISSUES.md` are unchanged.
+  - Gate: base `python -m pytest -q -m "not slow"`: 3282 passed, 246 skipped, 77
+    deselected (272 s). fd env, the three viz test files: 1120 passed, 2 skipped.
+### Blockers
+- None.
+### Next
+- Item 35 (performance budget: Octave vs Python per `graph_like` call and per
+  `structurefit` depth, profile `dataprobwsig`, safe optimisations with parity still
+  green). Then verify every item, update the status header and add `LOOP_COMPLETE`.
+- Housekeeping: `tests/baseline_images/networkx/feat_tree_demo_tree_feat_notext-failed-diff.png`
+  is a matplotlib comparison artifact that was committed in item 33. Test runs rewrite it
+  (it was restored this iteration). Remove it from git and add `*-failed-diff.png` to
+  `.gitignore`.

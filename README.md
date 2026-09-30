@@ -28,8 +28,14 @@ The Python port runs the original `masterrun` demo end to end:
 Anomalies found along the way (for example, on the `animals` data the code prefers a hierarchy
 where the paper reports a tree) are logged in `ANOMALIES.md`.
 
-Remaining work: paper-level checks on the real data sets, the Graphviz display port
-(pygraphviz, then networkx/matplotlib), and a performance pass. Progress is tracked in
+- Paper-level checks: every synthetic data set recovers its true form and `colors` gives a
+  ring, in Octave and in Python.
+- The display code (`draw_dot`, `graph_to_dot`, `dot_to_graph`, `graph_draw`) is ported
+  with pygraphviz and matplotlib, and gives the same DOT text and node positions as the
+  original. networkx, plotly and pyvis backends and GraphML/DOT exports are also
+  available.
+
+Remaining work: a performance pass. Progress is tracked in
 `RalphLoops/loop0001/PROGRESS.md` and `iterations.md`.
 
 ## Quick start
@@ -53,6 +59,78 @@ res = masterrun()            # MasterResults: names, ll, cluster counts, z, grap
 
 Data sets and structure names follow the original `setps.m` (20 data sets, 24 forms); both
 can be given by name or 1-based index.
+
+## Usage
+
+The notebook [`examples/formdiscovery_demo.ipynb`](examples/formdiscovery_demo.ipynb) runs
+the whole `masterrun` demo, compares it with Octave and draws the results with every
+backend. `python tools/gen_demo_notebook.py` rebuilds and runs it.
+
+### Running the model
+
+```python
+from formdiscovery.run import masterrun, masterrun_ps, runmodel, save_results
+
+ps = masterrun_ps()                       # defaultps(setps()) with reloutsideinit = 'overd'
+res = masterrun(ps, thisstruct=[1, 3, 5], thisdata=[0, 1, 2], seed=1, log=print)
+res.modellike[:, :, 0]                    # log posterior per (structure, data set)
+graph = res.structure[5, 2, 0]            # the tree fitted to demo_tree_feat
+names = res.names[0, 2]
+save_results(res, "results/resultsdemo", ps)   # .npz + .json, read back with load_results
+
+ll, graph, names, bestglls, bestgraph = runmodel(ps, 5, 2, 1, rng=1)   # a single run
+```
+
+In Python, the structure and data set indices are 0-based (`ps.structures[5] == 'tree'`,
+`ps.data[2] == 'demo_tree_feat'`). The CLI takes names or MATLAB's 1-based indices.
+`rng` is a seed or a permutation provider (`formdiscovery.rng`).
+
+### Drawing graphs
+
+`draw_dot(adj, labels, backend=...)` is `draw_dot.m`. It returns MATLAB's
+`(xret, yret, labels)`, and `return_figure=True` also returns the figure.
+
+| Backend | Needs | Layout | Output |
+|---|---|---|---|
+| `pygraphviz` (default) | pygraphviz or the `neato` executable | neato with draw_dot's flags (positions equal the original's) | matplotlib, the `graph_draw.m` ellipses and arrows |
+| `networkx` | nothing extra | neato via pygraphviz, else Kamada-Kawai (`layout=`) | matplotlib, `nx.draw_networkx` |
+| `plotly` | `pip install -e .[interactive]` | as `networkx` | interactive `plotly` figure with hover text |
+| `pyvis` | `pip install -e .[interactive]` | as `networkx` | vis-network HTML page |
+
+```python
+from formdiscovery.viz.draw import draw_dot, draw_graph, draw_results, ProgressFigures
+from formdiscovery.viz.networkx_backend import to_networkx, to_graphml, to_dot
+
+draw_results(res, path="results.png", backend="networkx", layout="kamada_kawai")
+draw_results(res, path="results.html", backend="plotly")    # all runs, interactive
+
+fig = draw_graph(graph, names, backend="plotly")            # hover: object -> cluster,
+fig.show()                                                  #        cluster -> members
+draw_graph(graph, names, backend="pyvis").write_html("tree.html")
+
+G = to_networkx(graph, names)          # DiGraph; node kind/label/cluster_id, edge W and 1/W
+to_graphml(graph, "tree.graphml", names)                    # for Gephi / Cytoscape
+
+# MATLAB's progress figures 1-3 (pre-clean, post-clean, best split / result)
+show = ProgressFigures(outdir="figures", backend="networkx")
+runmodel(ProgressFigures.enable(ps), 5, 2, 1, show=show)
+```
+
+From the shell:
+
+```bash
+formdiscovery run --structures chain,ring,tree --datasets 1,2,3 --out results/ --figures figs/
+formdiscovery draw results/resultsdemo.npz --out results.png                 # neato + matplotlib
+formdiscovery draw results/resultsdemo.npz --out results.png --backend networkx --layout kamada_kawai
+formdiscovery draw results/resultsdemo.npz --out results.html --backend plotly
+formdiscovery draw results/resultsdemo.npz --out tree.html --backend pyvis --runs 8
+formdiscovery draw results/resultsdemo.npz --out tree.svg --graphviz --runs 8  # Graphviz renders (pygraphviz)
+```
+
+Display quirks of the original are kept by default. Each undirected edge is drawn as two
+arrows (KI-37); use `undirected='lines'` for plain lines. draw_dot's neato flags are
+malformed (KI-32/35); use `flags='intended'` for the documented ones. See
+`KNOWN_ISSUES.md`.
 
 ## How it was verified
 
@@ -82,6 +160,8 @@ python tools/gen_fixtures.py          # regenerate all fixtures through Octave
 | Path | Contents |
 |---|---|
 | `src/formdiscovery/` | The port. `graph.py` (graph structure and grammars), `likelihood_feat.py` / `likelihood_rel.py` (scores), `search.py` (split, swap, prune-and-regraft, `gibbs_clean`, `structurefit`), `run.py` (`runmodel`, `masterrun`), `cli.py`, `rng.py`, `params.py`, `preprocess.py`, `weights.py`, `matlab_compat.py`, `io.py` |
+| `src/formdiscovery/viz/` | Display: `dot.py` (DOT text), `pygraphviz_backend.py` + `graph_draw.py` (draw_dot's layout and drawing), `draw.py` (the `draw_dot` facade, progress figures, results), `networkx_backend.py` (conversion, exports), `plotly_backend.py`, `pyvis_backend.py`, `interactive.py` |
+| `examples/` | `formdiscovery_demo.ipynb`: the masterrun demo end to end, with figures |
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
 | `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources and data, plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
 | `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures |

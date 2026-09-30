@@ -482,7 +482,7 @@ def test_layout_binarises_weights(engine):
 
 def test_draw_dot_errors(engine):
     with pytest.raises(ValueError, match="backend"):
-        draw_dot(np.eye(2), backend="plotly")
+        draw_dot(np.eye(2), backend="bokeh")
     with pytest.raises(ValueError, match="labels"):
         draw_dot(np.array([[0, 1.0], [0, 0]]), ["a"], ax=_ax(), engine=engine)
     with pytest.raises(ValueError):  # no edges: dot_to_graph fails, as in MATLAB

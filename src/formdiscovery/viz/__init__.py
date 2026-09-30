@@ -8,5 +8,8 @@
 - :mod:`formdiscovery.viz.draw`: the ``draw_dot(adj, labels, backend=...)`` facade, the
   progress figures and results drawing (item 32);
 - :mod:`formdiscovery.viz.networkx_backend`: ``to_networkx``/``from_networkx``, GraphML
-  and DOT exports, and the ``backend='networkx'`` layout and drawing (item 33).
+  and DOT exports, and the ``backend='networkx'`` layout and drawing (item 33);
+- :mod:`formdiscovery.viz.plotly_backend`, :mod:`formdiscovery.viz.pyvis_backend` and
+  :mod:`formdiscovery.viz.interactive`: the optional interactive backends
+  (``backend='plotly'|'pyvis'``, hover text; item 34).
 """

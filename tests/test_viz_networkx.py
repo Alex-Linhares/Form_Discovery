@@ -477,7 +477,7 @@ def test_draw_dot_networkx_kamada_kawai():
     assert np.sum(xr == 0.05) >= 1  # the singletons, lower left
     assert len(ax.collections[0].get_offsets()) == adj.shape[0]
     with pytest.raises(ValueError, match="backend"):
-        draw_dot(adj, backend="plotly")
+        draw_dot(adj, backend="bokeh")
 
 
 @needs_pgv

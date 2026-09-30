@@ -19,3 +19,7 @@ dependencies:
   - pygraphviz=2.0.2
   - graphviz=14.1.2
   - pip=26.2.1
+  - pip:
+      # item 34: optional interactive display backends (extra "interactive")
+      - plotly==5.24.1
+      - pyvis==0.3.2
