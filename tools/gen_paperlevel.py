@@ -5,7 +5,7 @@
 speed 5, animals/colors at speed 54, 4 extra animals seeds). Run one after another they
 take over an hour; this tool runs each job in its own ``octave-cli`` (``fx_paperlevel(part, job)``), then merges the
 parts in Octave (``paperlevel_merge.m``). ``python tools/gen_fixtures.py paperlevel``
-also works (all jobs in one process), only slower.
+does the same (one task per job, then the merge) inside its own ``--jobs`` pool.
 
 Usage::
 

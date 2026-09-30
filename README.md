@@ -166,13 +166,20 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   (`tools/mat_compare.py DIR_A DIR_B` compares two output directories), except for
   `gibbs.mat`. Its `grid x synthgrid` run depends on the BLAS thread count, so it is
   regenerated unpinned (ANOMALIES A19, `BLAS_DEFAULT_FIXTURES` in `tests/conftest.py`).
+- Fixtures regenerate in parallel: `tools/gen_fixtures.py --jobs N` (default cores/2) runs
+  one `octave-cli` per fixture script (paperlevel split into its 45 runs), so a script that
+  reads another fixture waits for it. It keeps a log per task and prints a timing table. All 31 fixtures take
+  7 min 56 s with `--jobs 16` against 68 min 49 s with `--jobs 1`. The two runs and the
+  committed fixtures have the same content (`--compare DIR`: loaded arrays to all digits,
+  timing fields skipped, temp-directory names masked).
 
 ```bash
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # regression gate, Octave live (strict)
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 python -m pytest -q -m slow           # long runs
-python tools/gen_fixtures.py          # regenerate all fixtures through Octave
+python tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
+python tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
 python tools/mat_compare.py A B       # compare two directories of .mat outputs by content
 ```
 

@@ -6,7 +6,7 @@ among partition, chain, ring, tree and grid; on ``animals`` the tree wins and on
 
 The fixture ``tests/fixtures/paperlevel.mat`` comes from ``tests/octave/fx_paperlevel.m``
 (regenerate with ``python tools/gen_paperlevel.py``, parallel Octave processes, about
-8 min on 32 cores; ``python tools/gen_fixtures.py paperlevel`` runs them serially). It
+8 min on 32 cores; ``python tools/gen_fixtures.py paperlevel`` splits it the same way). It
 holds one original ``runmodel`` run per (form, data set) pair, with ``rand('state', 1)``:
 
 - synthetic sets (masterrun.m's option a, 5 x 5) at ``ps.speed = 5``. The default speed

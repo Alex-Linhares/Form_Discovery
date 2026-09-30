@@ -15,7 +15,7 @@ Work on the first `[ ]` item only.
       and any `run_baseline` driver; apply `limit_blas_threads` at pytest session start for
       the Python side. Measure Octave `run_baseline('feat', 2, 1)` and the live
       `test_glslow.py` tests before and after (wall and CPU). Prove results are bit-identical.
-- [ ] 03. **Parallel fixture generation.** `tools/gen_fixtures.py --jobs N` (default: cores/2):
+- [x] 03. **Parallel fixture generation.** `tools/gen_fixtures.py --jobs N` (default: cores/2):
       one `octave-cli` per `fx_*.m`, process pool, per-script logs, summary table of times.
       Regenerate all fixtures with `--jobs 16` and with `--jobs 1`; assert every `.mat` is
       content-identical (compare loaded arrays, not bytes; the header carries a timestamp).

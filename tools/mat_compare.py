@@ -25,7 +25,15 @@ import scipy.io
 DEFAULT_IGNORE = ("seconds",)
 
 
-def _diff(a, b, path, ignore, out):
+def _norm_str(x, normalize):
+    """``x`` with ``normalize`` applied to each string element (string arrays only)."""
+    if (normalize is None or not isinstance(x, np.ndarray) or x.dtype.kind != "U"
+            or x.size == 0):
+        return x
+    return np.array([normalize(str(v)) for v in x.ravel()]).reshape(x.shape)
+
+
+def _diff(a, b, path, ignore, out, normalize=None):
     if isinstance(a, np.ndarray) and a.dtype.names is not None:
         if not isinstance(b, np.ndarray) or a.dtype.names != b.dtype.names:
             out.append(f"{path}: struct fields {a.dtype.names} vs "
@@ -37,16 +45,17 @@ def _diff(a, b, path, ignore, out):
         for idx in np.ndindex(a.shape):
             for f in a.dtype.names:
                 if f not in ignore:
-                    _diff(a[idx][f], b[idx][f], f"{path}{list(idx)}.{f}", ignore, out)
+                    _diff(a[idx][f], b[idx][f], f"{path}{list(idx)}.{f}", ignore, out,
+                          normalize)
         return
     if isinstance(a, np.ndarray) and a.dtype == object:
         if not isinstance(b, np.ndarray) or b.dtype != object or a.shape != b.shape:
             out.append(f"{path}: cell {a.shape} vs {getattr(b, 'shape', type(b))}")
             return
         for idx in np.ndindex(a.shape):
-            _diff(a[idx], b[idx], f"{path}{{{list(idx)}}}", ignore, out)
+            _diff(a[idx], b[idx], f"{path}{{{list(idx)}}}", ignore, out, normalize)
         return
-    a, b = np.asarray(a), np.asarray(b)
+    a, b = _norm_str(np.asarray(a), normalize), _norm_str(np.asarray(b), normalize)
     if a.dtype != b.dtype or a.shape != b.shape:
         out.append(f"{path}: {a.dtype}{a.shape} vs {b.dtype}{b.shape}")
         return
@@ -55,8 +64,10 @@ def _diff(a, b, path, ignore, out):
         out.append(f"{path}: values differ")
 
 
-def compare_mat(fa, fb, ignore=DEFAULT_IGNORE):
-    """List of differences between two ``.mat`` files (empty: identical content)."""
+def compare_mat(fa, fb, ignore=DEFAULT_IGNORE, normalize=None):
+    """List of differences between two ``.mat`` files (empty: identical content).
+    ``normalize`` (optional) maps each string before comparison, e.g. to mask temporary
+    directory names."""
     ma = {k: v for k, v in scipy.io.loadmat(fa).items() if not k.startswith("__")}
     mb = {k: v for k, v in scipy.io.loadmat(fb).items() if not k.startswith("__")}
     out = []
@@ -64,7 +75,7 @@ def compare_mat(fa, fb, ignore=DEFAULT_IGNORE):
         out.append(f"variables {sorted(ma)} vs {sorted(mb)}")
     for k in sorted(set(ma) & set(mb)):
         if k not in ignore:
-            _diff(ma[k], mb[k], k, set(ignore), out)
+            _diff(ma[k], mb[k], k, set(ignore), out, normalize)
     return out
 
 

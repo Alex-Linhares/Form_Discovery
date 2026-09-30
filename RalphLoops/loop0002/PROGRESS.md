@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 2/7 SOLVED
+- **Current**: 3/7 SOLVED
 
 ---
 
@@ -149,3 +149,66 @@
 ### Next
 - Item 03: `tools/gen_fixtures.py --jobs N` (parallel fixture generation, compared with
   the serial run).
+
+---
+
+## Iteration 4 — 2026-09-30 21:39
+### Completed
+- Item 03, parallel fixture generation.
+  - `tools/gen_fixtures.py --jobs N` (default `os.cpu_count() // 2`). Each task is one
+    `octave-cli` (with `fixture_env(name)`, so everything is pinned except gibbs, A19).
+    Up to N run at once from a thread pool, each thread waiting on its own Octave
+    process, longest expected task first. `paperlevel` becomes its 45 `fx_paperlevel(part, j)` runs plus
+    a `paperlevel_merge` task, as in `gen_paperlevel.py`. The per-job expected times come
+    from the committed fixture's `secs`.
+  - Dependencies: `fx_perf.m` loads `paperlevel.mat`, and `fx_glslow.m`/`fx_graphlike.m`
+    load `dataprob.mat`/`dpmiss.mat`, always from `tests/fixtures`. In the old serial
+    alphabetical order the dependency ran first, so `DEPENDS` makes the dependent task
+    wait when both are regenerated. `tests/test_gen_fixtures.py` checks `DEPENDS` against
+    the scripts' `load(fullfile(fxdir, ...))` calls. Each output is written to a staging
+    directory and moved into `--outdir` with `os.replace`, so a reader of
+    `tests/fixtures` never sees a half-written file.
+  - Per-task logs go to `<logdir>/<task>.log` (default `build/gen_fixtures/`, which is
+    gitignored). Each log holds the command, the Octave output, and the exit code with
+    wall and CPU seconds (`os.wait4`). At the end the tool prints a summary table: wall
+    and CPU per task, then the totals.
+  - `--compare DIR`: `compare_fixture` compares loaded arrays to all digits
+    (`tools/mat_compare.py`, which gains a `normalize` hook for strings). It skips
+    `DEFAULT_IGNORE` (`seconds`) plus the `VOLATILE` timing fields (perf `t_*`/`n_*`/
+    `total`/`ev`, keeping `ev`'s count columns; paperlevel `secs`) and masks
+    `/tmp/oct-XXXXXX` in strings (rng's error messages). `run_one` keeps its signature
+    for `test_gibbs`, `bench_perf` and `compare_runs`.
+  - New `tests/test_gen_fixtures.py` (7 tests). `DEPENDS` vs the scripts; task planning;
+    the scheduler with a stand-in Octave (dependency order, longest first, job limit,
+    a failed paperlevel job skips the merge and perf); the volatile-field comparison; and
+    a live `octave` test showing that `--jobs 1` and `--jobs 4` give the same content for
+    7 quick fixtures, equal to the committed ones.
+- Full regeneration, all 31 fixtures (76 tasks), into `/tmp`:
+  - `--jobs 16` vs committed `tests/fixtures`: **31 identical**. That includes `gibbs`
+    (regenerated unpinned) and `paperlevel`.
+  - `--jobs 1` vs `--jobs 16`: **31 identical**. `--jobs 1` vs committed: 31 identical.
+  - A raw `mat_compare.compare_dirs` with no masking finds differences only in
+    `paperlevel.mat` (`secs`), `perf.mat` (timings) and `rng.mat` (temp dir names), which
+    are the known volatile fields.
+
+  | run | wall clock | CPU (user+sys) | workers |
+  |---|---|---|---|
+  | `gen_fixtures.py --jobs 1` (all 31, paperlevel as 45 tasks) | 68 min 49 s | 4530 s | 1 `octave-cli` |
+  | `gen_fixtures.py --jobs 16` | **7 min 56 s** (8.7×) | 5310 s | 16 `octave-cli` |
+  | before this item: serial `gen_fixtures.py`, `paperlevel` alone (one process, 45 runs) | ≈ 81 min (sum of `secs`) | – | 1 |
+
+  The `--jobs 16` wall time is set by the longest task (`paperlevel_job15`: 414 s,
+  348 s in the serial run). Per-task times are 15–30 % longer with 16 running side by
+  side. gibbs uses 673–840 CPU-s for 265–348 wall-s because it runs unpinned (A19). The
+  gate below ran at the same time as the `--jobs 1` run, so the serial times may be
+  slightly high.
+- Docs: `README.md` (bullet in "How it was verified" and the commands block),
+  `CLAUDE.md`, `PLAN.md` tree, and the `gen_paperlevel.py`/`test_paperlevel.py` docstrings.
+  No new anomaly: every regeneration matched.
+- Gate (fd env, strict): **3627 passed, 3 skipped (the known sklearn/nbformat, no Octave
+  skips), 78 deselected, exit 0**, in 39 min 19 s wall, 2970 s CPU.
+### Blockers
+- None. A19 (gibbs kept unpinned) is still open for a human.
+### Next
+- Item 04: `tools/gen_baselines.py --kind feat|rel --jobs N` with a merge step, compared
+  with the committed `tests/fixtures/baseline/{feat,rel}`.

@@ -57,7 +57,7 @@ Kemp_Tanembaum_matlab_code/
 │   ├── test_l0_util.py ... test_l5_run.py, test_viz.py
 │   └── parity/                    # live Octave-vs-Python tests (skipped if Octave missing)
 └── tools/
-    ├── gen_fixtures.py            # runs every tests/octave/*.m through Octave, writes tests/fixtures
+    ├── gen_fixtures.py            # runs every tests/octave/fx_*.m through Octave (--jobs N), writes tests/fixtures
     └── compare_runs.py            # diff a Python run against an Octave run (scores, graphs, z)
 ```
 
