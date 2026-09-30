@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 1/7 SOLVED
+- **Current**: 2/7 SOLVED
 
 ---
 
@@ -100,3 +100,52 @@
 - Docs: A19 added, A18 narrowed ("that run only; see A19"), and the README pinning note
   names the exception. No KI entry: this is an environment issue, not a formdiscovery1.0
   one (as for A18).
+
+---
+
+## Iteration 3 — 2026-09-30 20:16
+### Completed
+- Item 02, BLAS/OpenMP pinning. Iteration 2 committed the pinning and the A19 gate fix but
+  did not check the item. This iteration finished it: the remaining measurements, proof
+  of bit-identical results, and coverage of the last driver.
+  - Checked every place that starts Octave. `tests/conftest.py`: `pytest_configure` calls
+    `pin_blas_env()` before oct2py starts, and `pytest_sessionstart` calls
+    `pin_process_blas(1)` for the Python side. `tools/gen_fixtures.py` uses
+    `fixture_env(name)`. `tools/gen_paperlevel.py` uses `pinned_env()`.
+    `tools/bench_perf.py --live` goes through `_configure_octave_env` and
+    `gen_fixtures.run_one` (perf is pinned). There is no Python `run_baseline` driver
+    except the tests' `octave` fixture, which is pinned.
+  - `tests/test_gate_env.py::test_octave_cli_pinned` now also asserts that
+    `bench_perf.py --live` uses `run_one` and that `perf` is not in
+    `BLAS_DEFAULT_FIXTURES`.
+  - Bit-identical: `run_baseline('feat', 2, 1)` pinned and unpinned, each to its own
+    directory. `tools/mat_compare.py` finds 0 differences over the 3 `.mat` files. The
+    pinned run also matches the committed `tests/fixtures/baseline/feat`:
+    `modellike(2,1)` = −8247.204813441429 exactly, and
+    `results/chainout/demo_chain_feat1/growthhistoryalltie5.mat` has 0 differences. The
+    live glslow tests pass pinned and unpinned (both compare exactly with `glslow.mat`).
+    The fixture-wide check from iteration 2 still holds: 29 of 32 fixtures regenerate
+    identical when pinned, perf and rng differ only in non-numeric fields, and gibbs is
+    A19 (still open, left for a human to decide).
+
+  | run | wall | CPU (user+sys) | processes |
+  |---|---|---|---|
+  | `run_baseline('feat',2,1)`, unpinned | 1.71 s | 3.64 s | 1 Octave |
+  | `run_baseline('feat',2,1)`, pinned | 1.68 s | 1.67 s | 1 Octave |
+  | live `test_glslow.py` (2 tests), before (item 01 tree, unpinned) | 82.6 s | 90.5 s | 1 Python + 1 Octave |
+  | live `test_glslow.py` (2 tests), after (pinned) | 82.8 s | 82.5 s | 1 Python + 1 Octave |
+  | full gate, item 01 (unpinned) | 38 min 18 s | 4482 s (195 % CPU) | 1 (+1 Octave) |
+  | full gate, this item (pinned; gibbs regen unpinned per A19) | 38 min 03 s | 2714 s (119 % CPU) | 1 (+1 Octave) |
+
+  Pinning saves CPU (40 % of the gate's CPU time) but not wall clock, because a serial
+  run on small matrices does not benefit from extra BLAS threads. Wall-clock gains come
+  from items 03–05 (processes side by side), and pinning is what makes those safe to run
+  in parallel.
+- Gate (fd env, strict): **3621 passed, 3 skipped (sklearn 1, nbformat 2; no Octave
+  skips), 78 deselected, exit 0.**
+### Blockers
+- None for this item. A19 (whether to keep `gibbs.mat` unpinned) is still open for a
+  human.
+### Next
+- Item 03: `tools/gen_fixtures.py --jobs N` (parallel fixture generation, compared with
+  the serial run).

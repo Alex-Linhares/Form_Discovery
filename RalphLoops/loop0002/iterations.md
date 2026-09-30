@@ -9,7 +9,7 @@ Work on the first `[ ]` item only.
       with a clear message. Add `tests/test_gate_env.py` asserting the interpreter has oct2py,
       Octave is found, and one trivial live call works. Run the gate in the fd env, record the
       time, and confirm `0 skipped` among Octave tests. Update README/CLAUDE.md commands.
-- [ ] 02. **BLAS/OpenMP pinning for Octave and workers.** Set `OPENBLAS_NUM_THREADS=1`,
+- [x] 02. **BLAS/OpenMP pinning for Octave and workers.** Set `OPENBLAS_NUM_THREADS=1`,
       `OMP_NUM_THREADS=1` (and `MKL_NUM_THREADS=1`) for every Octave started by
       `conftest.py`, `tools/gen_fixtures.py`, `tools/gen_paperlevel.py`, `tools/bench_perf.py`
       and any `run_baseline` driver; apply `limit_blas_threads` at pytest session start for
