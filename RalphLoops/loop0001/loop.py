@@ -21,7 +21,7 @@ Environment overrides:
   RALPH_CLAUDE_ARGS   extra args for `claude -p`
                       (default: --dangerously-skip-permissions, required for unattended runs)
   RALPH_TEST_CMD      regression command (default: python -m pytest -q -m "not slow")
-  RALPH_TIMEOUT_MIN   per-Claude-call timeout in minutes (default 90)
+  RALPH_TIMEOUT_MIN   per-Claude-call timeout in minutes (default 240; a hang guard, not a budget)
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ SENTINEL = "LOOP_COMPLETE"
 MAX_FIX_ATTEMPTS = 3
 CLAUDE_ARGS = shlex.split(os.environ.get("RALPH_CLAUDE_ARGS", "--dangerously-skip-permissions"))
 TEST_CMD = os.environ.get("RALPH_TEST_CMD", 'python -m pytest -q -m "not slow"')
-TIMEOUT_S = int(float(os.environ.get("RALPH_TIMEOUT_MIN", "90")) * 60)
+TIMEOUT_S = int(float(os.environ.get("RALPH_TIMEOUT_MIN", "240")) * 60)
 PYTEST_NO_TESTS_COLLECTED = 5
 print = functools.partial(print, flush=True)  # keep log ordered when redirected
 
