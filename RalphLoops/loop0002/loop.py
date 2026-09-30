@@ -40,7 +40,8 @@ SENTINEL = "LOOP_COMPLETE"
 LOOP_ID = LOOP_DIR.name  # e.g. loop0002
 MAX_FIX_ATTEMPTS = 3
 CLAUDE_ARGS = shlex.split(os.environ.get("RALPH_CLAUDE_ARGS", "--dangerously-skip-permissions"))
-TEST_CMD = os.environ.get("RALPH_TEST_CMD", 'python -m pytest -q -m "not slow"')
+FD_PY = os.path.expanduser("~/anaconda3/envs/fd/bin/python")
+TEST_CMD = os.environ.get("RALPH_TEST_CMD", f'{FD_PY} -m pytest -q -m "not slow"')
 TIMEOUT_S = int(float(os.environ.get("RALPH_TIMEOUT_MIN", "240")) * 60)
 PYTEST_NO_TESTS_COLLECTED = 5
 print = functools.partial(print, flush=True)  # keep log ordered when redirected
@@ -153,6 +154,7 @@ def run_claude(prompt: str, *, dry_run: bool) -> int:
 
 def run_tests() -> tuple[bool, str]:
     print(f"[loop] regression gate: {TEST_CMD}")
+    os.environ["RALPH_REQUIRE_OCTAVE"] = "1"  # conftest turns Octave skips into failures
     proc = sh(TEST_CMD, timeout=TIMEOUT_S)
     ok = proc.returncode in (0, PYTEST_NO_TESTS_COLLECTED)
     out = proc.stdout or ""
