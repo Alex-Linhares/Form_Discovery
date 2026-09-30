@@ -46,7 +46,9 @@ ps0.showpreclean = 0; ps0.showpostclean = 0;
 out = struct();
 more off;
 out.octave_version = OCTAVE_VERSION;
-out.nproc = nproc();
+% nproc('current'): cores available to the process. Plain nproc() honours
+% OMP_NUM_THREADS, which the tools pin to 1 (loop0002 item 02, ANOMALIES A18).
+out.nproc = nproc('current');
 out.sections = sections;
 
 % --- graph_like / dataprobwsig per call -----------------------------------------------

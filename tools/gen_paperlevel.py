@@ -23,9 +23,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from tests.conftest import FIXTURES_DIR, MATLAB_DIR, OCTAVE_TESTS_DIR  # noqa: E402
 from tests.conftest import _configure_octave_env, find_octave  # noqa: E402
+from formdiscovery.threads import pinned_env  # noqa: E402
 
 NJOBS = 45
 
@@ -38,7 +40,7 @@ def _octave(exe, cmd):
     return subprocess.run(
         [exe, "--no-gui", "--quiet", "--no-window-system", "--eval",
          f"addpath({_octstr(MATLAB_DIR)}); addpath({_octstr(OCTAVE_TESTS_DIR)}); {cmd}"],
-        cwd=REPO_ROOT, capture_output=True, text=True, env=os.environ.copy())
+        cwd=REPO_ROOT, capture_output=True, text=True, env=pinned_env())
 
 
 def main(argv=None):
@@ -53,8 +55,6 @@ def main(argv=None):
     if exe is None:
         ap.error("Octave not found (set OCTAVE_EXECUTABLE or create the 'fd' env)")
     _configure_octave_env(exe)
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    os.environ["OMP_NUM_THREADS"] = "1"
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         def run(j):

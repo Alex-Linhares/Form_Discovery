@@ -159,6 +159,13 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   search heuristics are compared with identical random choices.
 - The Octave baseline runs (`matlab/run_baseline.m`) for the feature and relational demo grids
   are committed under `tests/fixtures/baseline/`.
+- Every process runs one BLAS/OpenMP thread (`OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`,
+  `MKL_NUM_THREADS` = 1, `formdiscovery.threads.PIN_ENV`). The test session, the Oct2Py
+  Octave and every `octave-cli` the tools start are pinned; speed comes from running
+  processes side by side. Pinned and unpinned runs give identical `.mat` contents
+  (`tools/mat_compare.py DIR_A DIR_B` compares two output directories), except for
+  `gibbs.mat`. Its `grid x synthgrid` run depends on the BLAS thread count, so it is
+  regenerated unpinned (ANOMALIES A19, `BLAS_DEFAULT_FIXTURES` in `tests/conftest.py`).
 
 ```bash
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # regression gate, Octave live (strict)
@@ -166,6 +173,7 @@ python -m pytest -q -m "not slow"     # fixture-only run under another Python (~
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 python -m pytest -q -m slow           # long runs
 python tools/gen_fixtures.py          # regenerate all fixtures through Octave
+python tools/mat_compare.py A B       # compare two directories of .mat outputs by content
 ```
 
 ## Layout

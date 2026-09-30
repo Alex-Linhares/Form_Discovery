@@ -13,11 +13,13 @@ Usage::
     python tools/gen_fixtures.py matlab_compat # only fx_matlab_compat.m
     python tools/gen_fixtures.py --list
 
+Each ``octave-cli`` runs one BLAS/OpenMP thread (``formdiscovery.threads.PIN_ENV``), except
+for the fixtures in ``tests/conftest.py`` ``BLAS_DEFAULT_FIXTURES`` (ANOMALIES A19).
+
 Octave is found as in ``tests/conftest.py`` (``$OCTAVE_EXECUTABLE``, the ``fd`` env, PATH).
 """
 
 import argparse
-import os
 import subprocess
 import sys
 import time
@@ -25,6 +27,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from tests.conftest import (  # noqa: E402
     FIXTURES_DIR,
@@ -32,6 +35,7 @@ from tests.conftest import (  # noqa: E402
     OCTAVE_TESTS_DIR,
     _configure_octave_env,
     find_octave,
+    fixture_env,
 )
 
 
@@ -45,6 +49,8 @@ def _octstr(path):
 
 
 def run_one(exe, name, script, outdir):
+    """Run ``script`` in a fresh ``octave-cli`` with ``fixture_env(name)``, writing
+    ``<outdir>/<name>.mat``."""
     outfile = Path(outdir) / f"{name}.mat"
     cmd = (
         f"addpath({_octstr(MATLAB_DIR)}); addpath({_octstr(OCTAVE_TESTS_DIR)}); "
@@ -53,7 +59,7 @@ def run_one(exe, name, script, outdir):
     t0 = time.time()
     res = subprocess.run(
         [exe, "--no-gui", "--quiet", "--no-window-system", "--eval", cmd],
-        cwd=REPO_ROOT, capture_output=True, text=True, env=os.environ.copy(),
+        cwd=REPO_ROOT, capture_output=True, text=True, env=fixture_env(name),
     )
     dt = time.time() - t0
     if res.returncode != 0 or not outfile.is_file():

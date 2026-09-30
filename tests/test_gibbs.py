@@ -34,7 +34,9 @@ from formdiscovery.io import graph_from_mat, load_fixture
 from formdiscovery.params import graph_prior
 from formdiscovery.rng import ReplayError, ReplayPermutations, parse_queue
 from formdiscovery.search import gibbs_clean, graphsig, nearmissopts
+from tests.conftest import BLAS_DEFAULT_FIXTURES, OCTAVE_TESTS_DIR, find_octave
 from tests.helpers import graph_diff
+from tools import gen_fixtures
 from tests.test_baseline import EXPECTED_LL as FEAT_LL
 from tests.test_baseline_rel import EXPECTED_LL as REL_LL
 from tests.test_glslow import LOGI_RTOL
@@ -436,9 +438,14 @@ def test_default_rng_runs(speed):
 
 @pytest.mark.octave
 def test_live_fixture_regenerates(octave, tmp_path):
-    out = tmp_path / "gibbs.mat"
-    octave.eval(f"fx_gibbs('{out}');", nout=0)
-    fx = load_fixture(out.name, fixtures_dir=tmp_path)
+    """Regenerated the way ``tools/gen_fixtures.py`` does it: in its own ``octave-cli``
+    with OpenBLAS's default thread count, as the committed fixture was made. The
+    ``grid x synthgrid`` run does not reproduce under the session's one-thread pin
+    (ANOMALIES A19; ``BLAS_DEFAULT_FIXTURES``)."""
+    assert "gibbs" in BLAS_DEFAULT_FIXTURES
+    assert gen_fixtures.run_one(find_octave(), "gibbs",
+                                OCTAVE_TESTS_DIR / "fx_gibbs.m", tmp_path)
+    fx = load_fixture("gibbs.mat", fixtures_dir=tmp_path)
     assert len(fx["calls"]) == len(CALLS)
     for x, y in zip(fx["calls"], CALLS):
         assert _text(x["logtext"]) == _text(y["logtext"])

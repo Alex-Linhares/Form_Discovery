@@ -27,6 +27,7 @@ The optimisations must not change any result:
 """
 
 import copy
+import os
 import warnings
 
 import numpy as np
@@ -312,9 +313,12 @@ def _scores(idx):
 
 
 def test_blas_threads_same_bits():
+    """1 thread vs all cores. The session runs pinned to 1 thread (conftest, loop0002
+    item 02), so the multithreaded side sets its limit explicitly."""
     pytest.importorskip("threadpoolctl")
     idx = [0, 5, 10, 11, 13]
-    ref = _scores(idx)
+    with threads.blas_threads(os.cpu_count() or 1):
+        ref = _scores(idx)
     with threads.blas_threads(1):
         one = _scores(idx)
     assert np.array_equal(ref, one)

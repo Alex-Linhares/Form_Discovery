@@ -16,6 +16,14 @@ running Python (the ``fd`` env); ``octave-cli``/``octave`` on ``PATH``; the cond
 needs ``OCTAVE_HOME`` pointing at its prefix when the env is not activated, so it is
 set from the executable's location if missing.
 
+BLAS threads (loop0002 item 02): ``pytest_configure`` puts
+``formdiscovery.threads.PIN_ENV`` (``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``,
+``MKL_NUM_THREADS`` = 1) into ``os.environ``, so the Oct2Py session and every
+``octave-cli`` started by the tools run one BLAS/OpenMP thread (``_configure_octave_env``
+does the same for the tools). The exceptions are ``BLAS_DEFAULT_FIXTURES``, which
+``fixture_env`` regenerates unpinned (ANOMALIES A19). ``pytest_sessionstart`` limits any
+BLAS Python has already loaded to one thread (``pin_process_blas``) until the session ends.
+
 The ``replay`` fixture (item 22, PLAN §4.2) puts the ``randperm`` shim
 (``matlab/octave_shims``) in front of the session's path and returns a
 :class:`ReplayControl`. Its methods set the Octave and Python sides up to draw the same
@@ -29,11 +37,24 @@ from pathlib import Path
 
 import pytest
 
+from formdiscovery.threads import pin_blas_env, pin_process_blas, pinned_env, unpinned_env
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MATLAB_DIR = REPO_ROOT / "matlab" / "formdiscovery1.0"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 OCTAVE_TESTS_DIR = REPO_ROOT / "tests" / "octave"
 SHIM_DIR = REPO_ROOT / "matlab" / "octave_shims"
+
+# Fixtures whose committed values depend on Octave's BLAS thread count (ANOMALIES A19):
+# they were generated with OpenBLAS's default (one thread per core, 32 here) and a
+# pinned Octave does not reproduce them, so they are regenerated unpinned.
+BLAS_DEFAULT_FIXTURES = frozenset({"gibbs"})
+
+
+def fixture_env(name):
+    """Environment for the ``octave-cli`` that regenerates fixture ``name``: pinned to one
+    BLAS/OpenMP thread, except for :data:`BLAS_DEFAULT_FIXTURES`."""
+    return unpinned_env() if name in BLAS_DEFAULT_FIXTURES else pinned_env()
 
 
 def find_octave():
@@ -70,6 +91,7 @@ def octave_required():
 
 
 def _configure_octave_env(exe):
+    pin_blas_env()
     os.environ["OCTAVE_EXECUTABLE"] = exe
     prefix = Path(exe).resolve().parent.parent
     if "OCTAVE_HOME" not in os.environ and (prefix / "conda-meta").is_dir():
@@ -77,10 +99,29 @@ def _configure_octave_env(exe):
 
 
 def pytest_configure(config):
-    """Point oct2py at Octave before it is first imported (its import creates a session)."""
+    """Pin BLAS threads and point oct2py at Octave before it is first imported (its
+    import creates a session)."""
+    pin_blas_env()
     exe = find_octave()
     if exe is not None:
         _configure_octave_env(exe)
+
+
+_blas_limit = None
+
+
+def pytest_sessionstart(session):
+    """One BLAS thread for the Python side too (a BLAS loaded before
+    ``pytest_configure`` did not see the environment variables)."""
+    global _blas_limit
+    _blas_limit = pin_process_blas(1)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    global _blas_limit
+    if _blas_limit is not None:
+        _blas_limit.restore_original_limits()
+        _blas_limit = None
 
 
 def pytest_collection_modifyitems(config, items):
