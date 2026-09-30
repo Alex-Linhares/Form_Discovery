@@ -61,6 +61,15 @@ def now() -> str:
     return _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def has_sentinel(progress_text: str) -> bool:
+    """True only if LOOP_COMPLETE stands alone on a line.
+
+    A plain substring test matched the sentinel quoted inside an item description that a
+    session had copied into PROGRESS.md (iteration 37), which ended the loop early.
+    """
+    return re.search(rf"^\s*{SENTINEL}\s*$", progress_text, re.M) is not None
+
+
 def next_item(iterations_text: str) -> tuple[str, str] | None:
     """Return (number, full item text) of the first `[ ]` item, or None."""
     matches = list(ITEM_RE.finditer(iterations_text))
@@ -205,7 +214,7 @@ def main(argv: list[str]) -> int:
         task = task_path.read_text()
         progress = progress_path.read_text()
         iterations = iterations_path.read_text()
-        if SENTINEL in progress:
+        if has_sentinel(progress):
             print(f"[loop] {SENTINEL} found; done")
             return 0
         item = next_item(iterations)
@@ -246,7 +255,7 @@ def main(argv: list[str]) -> int:
             git_commit(f"loop0001 iteration {iteration_n}: item {item_no} reverted (tests failing), notes kept\n\n"
                        f"Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>")
 
-        if SENTINEL in progress_path.read_text():
+        if has_sentinel(progress_path.read_text()):
             print(f"[loop] {SENTINEL} found; done")
             return 0
     print("[loop] iteration budget exhausted")
