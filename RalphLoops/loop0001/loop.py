@@ -112,10 +112,16 @@ Rules:
     ### Blockers
     ### Next
   and update the `**Current**: N/M SOLVED` line in its status header.
-- Run long commands (fixture generation, the test gate) in the FOREGROUND and wait for them.
-  Do not background a command and then end your turn: the session ends when you stop, and the
-  work is then committed without your checkbox update or PROGRESS.md entry (this happened on
-  items 15 and 19 and cost an extra iteration each time). Give long commands a generous timeout.
+- Long commands: a single tool call is capped at 10 minutes, and a session cannot wait
+  longer than that in one call. For anything longer (the full gate, fixture regeneration),
+  start it in the background writing to a log file, then WAIT IN THE FOREGROUND with
+  repeated short waits, e.g. `timeout 540 tail --pid=<PID> -f /dev/null` or a
+  `until grep -q ... ; do sleep 15; done` loop under `timeout 540`, re-issued until the job
+  is finished. NEVER end your turn while the job is still running: the session ends when
+  you stop, and the runner then commits whatever is on disk without your checkbox update or
+  PROGRESS.md entry (this happened on loop0001 items 15 and 19 and loop0002 item 02, costing
+  an extra iteration each time). If you truly cannot finish, write the PROGRESS.md entry and
+  leave the checkbox unticked before stopping.
 - Do NOT git commit; the loop script commits after running the regression gate:
     {TEST_CMD}
   Make sure that command passes before you finish (exit code 5 = no tests yet is acceptable
