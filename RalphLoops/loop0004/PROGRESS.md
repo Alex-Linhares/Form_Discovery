@@ -3,7 +3,7 @@
 ## Ralph Loop 0004 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 3/6 SOLVED
+- **Current**: 4/6 SOLVED
 
 ---
 
@@ -144,3 +144,37 @@
   `pyproject.toml` extras, README/CLAUDE.md/CONVENTIONS.md/`legacy/README.md`. Note: the base
   interpreter has no pytest-xdist, so the documented fixture-only `-n 16` command needs the
   `test` extra installed.
+
+## Iteration 4 — 2026-10-01 18:27
+### Completed
+- Item 04 (Phase 2, env + docs). `environment.yml` is Python-only (octave and oct2py
+  removed; PySide6, pytest-qt, pygraphviz, plotly/pyvis stay). New
+  `legacy/environment-octave.yml` (`name: fd`, used as `conda env update -f
+  legacy/environment-octave.yml`): octave=10.3.0, oct2py=6.1.1, and python, numpy, scipy,
+  libopenblas=0.3.34 repeated so the update cannot move them (A19). Both verified with
+  `conda env create --dry-run`: the Python-only file solves with no Octave package; the
+  two merged solve to exactly the builds installed in the fd env (same octave, oct2py,
+  numpy, scipy, python, libopenblas build strings).
+- `pyproject.toml`: `octave` extra kept, commented as legacy (only for `legacy/`, removed
+  in Phase 5). The `test` extra already includes pytest-xdist.
+- New test `legacy/tests/test_toolchain.py::test_environment_split` (no Octave in
+  `environment.yml`; octave/oct2py in the legacy file; shared pins agree).
+- Docs: README (Quick start env line and a note; "How it was verified" names the env
+  file and versions; new section "Legacy: the Octave oracle"; Layout rows for
+  `legacy/environment-octave.yml`, `legacy/README.md`, `environment.yml`/`pyproject.toml`;
+  command comment for `-m octave`), CLAUDE.md Environment line, CONVENTIONS.md intro
+  (package never needs Octave), new `legacy/README.md` (contents table, environment, the
+  live suite with counts: 74 `octave` tests in the default gate + 3 slow, 38 files;
+  regeneration commands checked against each tool's `--help`).
+- A34 (ANOMALIES, explained): an `fd` env built from the Python-only file is strict by
+  default (`octave_required` keys on the env name), so octave tests fail rather than skip
+  until the legacy env file is applied; documented, kept for this loop's strict gate.
+- Strict gate (`RALPH_REQUIRE_OCTAVE=1`, `-n 16`): 3747 passed, 3 skipped, 402 s
+  (= 3746 + the new test). No file under `tests/` modified.
+### Blockers
+- None.
+### Next
+- Item 05: `tests/fixtures/SHA256SUMS` + hash test, `tools/legacy_check.sh` (or Makefile
+  `legacy-check`), time the fixture-only gate, `RalphLoops/loop_template/loop.py`,
+  ralph_loop_guide.md, CLAUDE.md post-freeze policy line. Consider whether the fixture-only
+  default should also relax the fd-env strict default (A34).

@@ -1,8 +1,12 @@
-# Conda environment for the formdiscovery translation.
+# Conda environment for the formdiscovery port (Python only).
 # Create with:  conda env create -f environment.yml   (env name: fd)
 # Versions pinned in iteration 02 (2026-09-28) from the built env.
-# Octave works without activating the env: tests/conftest.py sets OCTAVE_EXECUTABLE and
-# OCTAVE_HOME (conda-forge Octave needs OCTAVE_HOME=<env prefix>, normally set by activate).
+# Octave and oct2py are not here (loop0004 item 04): the live Octave oracle under legacy/
+# needs them, and legacy/environment-octave.yml adds them to this env:
+#   conda env update -f legacy/environment-octave.yml
+# Without them, run the fixture-only gate: pytest -q -m "not slow and not octave" -n 16
+# (in an env named fd, strict mode is on by default and a skipped octave test fails;
+# RALPH_REQUIRE_OCTAVE=0 turns that off, tests/conftest.py).
 name: fd
 channels:
   - conda-forge
@@ -13,10 +17,8 @@ dependencies:
   - networkx=3.7
   - matplotlib=3.11.2
   - pytest=9.1.1
-  - pytest-xdist=3.8.0  # loop0002 item 05: parallel gate (-n 16, one Octave per worker)
+  - pytest-xdist=3.8.0  # loop0002 item 05: parallel gate (-n 16)
   - hypothesis=6.168.3
-  - octave=10.3.0
-  - oct2py=6.1.1
   - pygraphviz=2.0.2
   - graphviz=14.1.2
   - threadpoolctl=3.7.0  # item 35: BLAS thread limit (formdiscovery.threads)

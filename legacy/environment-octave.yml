@@ -1,0 +1,21 @@
+# Legacy: the Octave oracle (loop0004 item 04). Adds GNU Octave and oct2py to the
+# Python-only env of ../environment.yml, for the live Octave suite (pytest -m octave),
+# fixture and baseline regeneration (legacy/tools/) and compare_live.py. See legacy/README.md.
+#   conda env create -f environment.yml                 # from the repo root
+#   conda env update -f legacy/environment-octave.yml   # same env, name fd
+# Every committed fixture was produced with these versions. python, numpy, scipy and the
+# BLAS are repeated so the update cannot move them: the BLAS thread count changes one
+# fixture (gibbs.mat, ANOMALIES A19), and the oracle runs pinned to one thread otherwise.
+# Octave works without activating the env: tests/conftest.py sets OCTAVE_EXECUTABLE and
+# OCTAVE_HOME (conda-forge Octave needs OCTAVE_HOME=<env prefix>, normally set by activate).
+# Removed with legacy/ in PLAN_LEGACY.md Phase 5.
+name: fd
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.14
+  - numpy=2.5.3
+  - scipy=1.18.1
+  - libopenblas=0.3.34
+  - octave=10.3.0
+  - oct2py=6.1.1

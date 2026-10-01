@@ -28,7 +28,7 @@ Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
       Prove both: strict gate green with `legacy/`; in a temporary clone without `legacy/`,
       `pytest -q -m "not slow and not octave" -n 16` green under the fd env **and** under
       the base interpreter.
-- [ ] 04. **Environment split (Phase 2, env + docs).** `environment.yml` Python-only
+- [x] 04. **Environment split (Phase 2, env + docs).** `environment.yml` Python-only
       (PySide6 and the GUI extras stay); `legacy/environment-octave.yml` adds octave, oct2py
       and the pins; `pyproject.toml` extras adjusted (`octave` extra marked legacy or
       removed). README ("How it was verified", "Layout", a new "Legacy: the Octave oracle"

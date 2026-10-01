@@ -23,8 +23,9 @@ Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.
 (`tests/test_gui_*.py`, `QT_QPA_PLATFORM=offscreen` set in conftest) and screenshots in `examples/gui/`
 (`tools/gui_screenshots.py`).
 
-Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py,
-pygraphviz, pytest-xdist, PySide6 and pytest-qt. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
+Environment: conda env `fd` has Python, numpy/scipy, pygraphviz, pytest-xdist, PySide6 and pytest-qt
+(`environment.yml`, Python-only) plus Octave 10.3 and oct2py (`conda env update -f legacy/environment-octave.yml`;
+loop0004 item 04; `legacy/README.md`). Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
 (about 6 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
 new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module

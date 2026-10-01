@@ -47,7 +47,7 @@ Progress is tracked in `RalphLoops/loop0001/PROGRESS.md` and `iterations.md`.
 ## Quick start
 
 ```bash
-conda env create -f environment.yml      # env "fd": Python, numpy/scipy, Octave, oct2py, pygraphviz
+conda env create -f environment.yml      # env "fd": Python, numpy/scipy, pygraphviz, PySide6 (no Octave)
 conda activate fd
 pip install -e .
 
@@ -62,6 +62,9 @@ From Python:
 from formdiscovery.run import masterrun
 res = masterrun()            # MasterResults: names, ll, cluster counts, z, graphs, ps per run
 ```
+
+`environment.yml` is Python-only. The Octave oracle that produced the test fixtures needs
+`conda env update -f legacy/environment-octave.yml` as well (see "Legacy: the Octave oracle").
 
 Data sets and structure names follow the original `setps.m` (20 data sets, 24 forms); both
 can be given by name or 1-based index.
@@ -193,7 +196,9 @@ results are unchanged). Screenshots, with a description of each: [`examples/gui/
   Octave. Tests marked `octave` additionally drive Octave live through oct2py. They are
   skipped when it is not installed, except in strict mode (the `fd` env's Python, or
   `RALPH_REQUIRE_OCTAVE=1`), where a skipped Octave test fails the run;
-  `tests/test_gate_env.py` checks the toolchain itself.
+  `tests/test_gate_env.py` checks the toolchain itself. Octave 10.3.0 and oct2py 6.1.1
+  come from `legacy/environment-octave.yml`, added to the Python-only `environment.yml`
+  env; every committed fixture was produced with those versions.
 - Structural outputs are compared exactly; deterministic floats at `rtol=1e-10`;
   optimiser-dependent values by optimality (objective and gradient norm no worse than
   Octave's) plus a documented tolerance.
@@ -260,7 +265,7 @@ skipped; it now runs them all and fails if one is skipped.
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m "not slow and not octave" -n 16   # fixture-only: needs neither Octave nor legacy/ (~1.5 min)
-python -m pytest -q -m octave         # live Octave parity (needs the fd env)
+python -m pytest -q -m octave         # live Octave parity (fd env + legacy/environment-octave.yml)
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
 python legacy/tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
 python legacy/tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
@@ -268,6 +273,26 @@ python legacy/tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtu
 python legacy/tools/mat_compare.py A B       # compare two directories of .mat outputs by content
 python legacy/tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline pairs (~30 s)
 ```
+
+## Legacy: the Octave oracle
+
+The original MATLAB code, run in GNU Octave, is the reference the port was checked against.
+Everything it needs is under `legacy/`: the sources with their Octave patches
+(`legacy/matlab/`), the fixture scripts (`legacy/tests_octave/`), the generation and
+comparison tools (`legacy/tools/`), the tests that need them (`legacy/tests/`) and the
+environment file (`legacy/environment-octave.yml`). The package, the data and the
+committed fixtures do not depend on it: without `legacy/`, or without Octave,
+`python -m pytest -q -m "not slow and not octave" -n 16` runs every fixture-based test, and
+pytest skips `legacy/tests/`.
+
+```bash
+conda env update -f legacy/environment-octave.yml   # add Octave 10.3 and oct2py to env fd
+~/anaconda3/envs/fd/bin/python -m pytest -q -m octave -n 16   # live Octave parity
+```
+
+`legacy/README.md` lists what is there, how to run the live suite and how to regenerate the
+fixtures and baselines. The plan (`PLAN_LEGACY.md`) is to freeze `legacy/` at a tag and then
+remove it from `main`.
 
 ## Layout
 
@@ -282,10 +307,13 @@ python legacy/tools/compare_live.py --jobs 16   # Octave vs Python on the 63 bas
 | `legacy/matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `legacy/tools/gen_baselines.py`) |
 | `legacy/tests_octave/` | The Octave fixture scripts (`fx_<name>.m`), spies and shims |
 | `legacy/tests/` | pytest tests that need the MATLAB sources or the Octave tools (patches, toolchain, the `legacy/tools` scripts, KNOWN_ISSUES line pins); collected only when `legacy/` exists (`testpaths`, `legacy/tests/conftest.py`) |
+| `legacy/environment-octave.yml` | Adds Octave and oct2py (pinned) to the Python-only `environment.yml` env |
+| `legacy/README.md` | What is under `legacy/`, how to run the live suite and regenerate fixtures and baselines |
 | `legacy/tools/` | Octave-driven tools: fixture and baseline generation (`gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`), Octave vs Python side by side (`compare_live.py`), `.mat` content comparison (`mat_compare.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
 | `tests/` | Fixtures (produced by `legacy/tests_octave/`), pytest parity tests, Octave baselines |
+| `environment.yml`, `pyproject.toml` | Python-only conda env `fd`; package metadata and extras (`test`, `gui`, `graphviz`, `interactive`, `notebook`; `octave` = oct2py, legacy only) |
 | `tools/` | Python-side tools: true-graph score comparison (`compare_runs.py`), benchmark (`bench_perf.py`; `--live` needs `legacy/`), notebook, GUI screenshots and viz baselines |
 | `PLAN.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
 | `RalphLoops/` | The fresh-context iteration loop that carried out the plan |
