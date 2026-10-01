@@ -384,8 +384,9 @@ class MainWindow(QMainWindow):
         the file could not be loaded or a run is going)."""
         if self.load_file(Path(data_dir or DATA_DIR) / DEMO_FILE) is None:
             return None
-        self.set_forms([DEMO_FORM])
-        return self.start_run(self.run_settings())
+        settings = self.run_settings()
+        settings["forms"] = [DEMO_FORM]  # run chain only, but keep the user's selection
+        return self.start_run(settings)
 
     # --- runs (items 02, 05) ---------------------------------------------------------
     def running(self):

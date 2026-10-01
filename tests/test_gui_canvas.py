@@ -255,3 +255,12 @@ def test_window_stop_keeps_last_frame(win, qtbot):
     assert c.status.startswith("stopped · last: ")
     assert c.figure.texts[-1].get_text() == c.status
     assert win.run_button.isEnabled() and not win.stop_button.isEnabled()
+
+
+def test_default_backend_is_networkx(qtbot):
+    from formdiscovery.gui.main_window import MainWindow
+    w = MainWindow()
+    qtbot.addWidget(w)
+    assert CANVAS_BACKENDS[0] == "networkx"
+    assert w.backend_combo.currentText() == "networkx" and w.canvas.backend == "networkx"
+    assert GraphCanvas().backend == "networkx"

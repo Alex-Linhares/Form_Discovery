@@ -28,7 +28,7 @@ from formdiscovery.gui import app as gui_app  # noqa: E402
 from formdiscovery.gui import worker as gui_worker  # noqa: E402
 from formdiscovery.gui.dialogs import LAST_DIR_KEY, SETTINGS_ENV, gui_settings  # noqa: E402
 from formdiscovery.gui.main_window import (  # noqa: E402
-    DEMO_FILE, DEMO_FORM, SHORTCUTS, MainWindow,
+    DEFAULT_FORMS, DEMO_FILE, DEMO_FORM, SHORTCUTS, MainWindow,
 )
 from formdiscovery.io import DATA_DIR  # noqa: E402
 from formdiscovery.run import masterrun, masterrun_ps  # noqa: E402
@@ -222,7 +222,9 @@ def test_start_demo(win, qtbot, chain_ll):
     with qtbot.waitSignal(win.run_ended, timeout=TIMEOUT) as sig:
         assert win.start_demo() is not None
     assert sig.args == ["finished"]
-    assert win.info.stem == "demo_chain_feat" and win.selected_forms() == [DEMO_FORM]
+    assert win.info.stem == "demo_chain_feat"
+    assert win.selected_forms() == list(DEFAULT_FORMS)  # the demo does not narrow the selection
+    assert [r.form for r in win.queue.runs] == [DEMO_FORM]
     assert win.last_result["form"] == "chain" and win.last_result["ll"] == chain_ll
     assert win.windowTitle() == f"formdiscovery — {DEMO_FILE}"
 

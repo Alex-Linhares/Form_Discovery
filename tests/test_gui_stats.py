@@ -266,3 +266,6 @@ def test_window_fills_stats(qtbot, master, tmp_path):
     assert f"{st['ll']:.4f}" in win.stats.text.toPlainText()
     assert win.stats.export_figure(tmp_path / "w.png").exists()
     assert screenshot(win, tmp_path / "stats.png").stat().st_size > 0
+    # a single form is "finished", not "winner": there was nothing to beat
+    assert win.results.cell("chain", "status") == "finished"
+    assert not win.results.item(0, 0).font().bold()

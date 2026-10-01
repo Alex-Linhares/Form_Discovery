@@ -4,7 +4,7 @@
 row each: rank, form, ll (runmodel's final score, masterrun's ``modellike``), its prior and
 likelihood parts, clusters, wall time, frames and status. Finished forms come first, best
 ll first (:func:`formdiscovery.gui.runs.ranked`); the winner (highest ll) is bold on a
-tinted row and its status reads ``winner``. Clicking a row emits :attr:`form_selected`;
+tinted row and its status reads ``winner`` (only when at least two forms finished). Clicking a row emits :attr:`form_selected`;
 the window then shows that form's final graph, frames and statistics.
 """
 
@@ -72,7 +72,7 @@ class ResultsTable(QTableWidget):
         bold = QFont(self.font())
         bold.setBold(True)
         for i, r in enumerate(rows):
-            win = r.form == self.winner
+            win = r.form == self.winner and len(done) >= 2  # one form has nothing to beat
             rank = i + 1 if r.status == "finished" else None
             for j, text in enumerate(row_values(r, rank, win)):
                 item = QTableWidgetItem(text)

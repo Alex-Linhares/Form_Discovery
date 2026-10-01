@@ -40,7 +40,7 @@ from ..viz.draw import dot_positions, draw_dot
 
 __all__ = ["GraphCanvas", "CANVAS_BACKENDS", "frame_score"]
 
-CANVAS_BACKENDS = ("pygraphviz", "networkx")  # draw_dot's matplotlib backends
+CANVAS_BACKENDS = ("networkx", "pygraphviz")  # draw_dot's matplotlib backends; first is the default
 FINAL_EVENT = "inferredgraph"
 
 
@@ -69,7 +69,7 @@ class GraphCanvas(FigureCanvasQTAgg):
 
     frame_drawn = Signal(str, str)  # event, title (after each drawing)
 
-    def __init__(self, backend="pygraphviz", stable=True, interval=100, parent=None,
+    def __init__(self, backend="networkx", stable=True, interval=100, parent=None,
                  figsize=(6.4, 4.8), dpi=100):
         super().__init__(Figure(figsize=figsize, dpi=dpi))
         if parent is not None:
