@@ -3,7 +3,7 @@
 ## Ralph Loop 0003 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 4/6 SOLVED
+- **Current**: 5/6 SOLVED
 
 ---
 
@@ -195,3 +195,59 @@
 - Item 05: queue the selected forms (one or N workers), a results table ranked by ll with the winner
   highlighted (could sit in the Statistics column; `run_stats` per form), click a row to show its graph and
   stats, and a frame-history slider (capped).
+
+## Iteration 5 — 2026-10-01 13:58
+### Completed
+- Item 05 (several forms and history scrubbing) solved.
+- `gui/runs.py`: `RunQueue(QObject)` runs the selected forms on one file, each in its own `RunWorker` on its
+  own `QThread`, at most `parallel` at a time, in the order given (the next starts as soon as one ends);
+  signals `run_started(FormRun)`, `frame(form, Frame)`, `depth_done(form, lls)`, `form_ended(form,
+  outcome)`, `all_done(finished|cancelled|failed)` (once every form has an outcome and every thread has
+  ended); `cancel()` stops the running forms and never starts the pending ones; `wait(ms)` processes events
+  until done; `winner()` / `finished_runs()` (ranked by ll). `FormRun(QObject)` (GUI thread, so the worker's
+  signals are queued to it, A23): status, result, error, `depths`, and a `FrameHistory` (`deque`, cap
+  `FRAME_CAP = 500` per form, oldest dropped, `dropped` counted; `Frame` records keep the run-wide frame
+  number and seconds since the form started). `ranked(runs)`: finished by ll (ties in queue order), then
+  running, pending, cancelled, failed.
+- `gui/results.py`: `ResultsTable(QTableWidget)`, columns `# form ll prior likelihood clusters time (s)
+  frames status`; the winner (highest ll) bold on a tinted row with status `winner`; a click emits
+  `form_selected(form)`.
+- `MainWindow`: "Parallel runs" spin box (1..cores, default 1; `run_settings()['parallel']`); Run queues all
+  selected forms (`start_run` returns the first form's worker; `run_started(worker)` per form as before;
+  `run_ended(outcome)` once for the queue). The "Results (ranked by ll)" table sits under the graph (vertical
+  splitter). The canvas and statistics follow the first running form, then the next, and show the winner
+  at the end; clicking a row (`select_form`) shows that form's final graph (its `inferredgraph` frame) or
+  latest frame, its statistics (or live depths), and stops following. A "Frames" slider under the canvas
+  scrubs the shown form's history (`k / N · event`, `(m oldest dropped)`, `· paused`); at the right end the
+  canvas is live; moved back, it keeps the chosen frame while frames keep coming (the index is shifted when
+  the cap drops the oldest). `frame_cap` attribute (default 500). `worker` / `thread` are now properties (the
+  shown or first running form's). Status line at the end: `3 forms in 8.2 s; winner chain: ll = -8247.1924`
+  (a single form keeps item 02's text). Window 1440×900.
+- `canvas.py`: `push_entry(..., elapsed, number)` (push_frame with the recorded frame's own numbers).
+  No change outside `gui/` (and `tools/gui_screenshots.py`).
+- `tests/test_gui_forms.py` (16 tests, ~40 s alone): the queue at `parallel` 1 and 3 on chain+ring+tree ×
+  demo_chain_feat (every ll == masterrun's `modellike` bit for bit, `max_active == parallel`, one at a time in
+  order, history == frames, last frame the inferred graph, winner and ranking == masterrun's); cancel skips
+  the pending forms; bad form lists; `FrameHistory` cap/numbers/`last`; `ranked` order; the window (two at a
+  time): table order, cells, winner bold/tinted, display ends on the winner (canvas title, stats, status
+  line); clicking each row by mouse; slider scrubbing (title, event, status, label, live again at the end);
+  pausing during a run (canvas keeps frame 1 while the run finishes, range grows); `frame_cap = 4` (4 newest
+  kept per form, label, scores unchanged); following the running form one at a time; Stop with three forms
+  (all `cancelled`, a never-started form shows `stopped`, no frames); close joins three running threads.
+- Screenshot: `examples/gui/05_forms.png` (chain, ring, tree run two at a time; table chain -8247.1924
+  winner, tree -8252.9477, ring -8264.1963; chain's inferred graph and statistics shown). 01-04 regenerated
+  with the new layout (`tools/gui_screenshots.py` now waits with `wait_run`).
+- Anomalies: A27 (explained): threads give no speed-up, the search holds the GIL (7.0 s masterrun, 8.2 s one
+  at a time, 8.4 s three at a time; same scores). A28 (handled): `deleteLater()` of finished threads ran
+  inside the queue's `processEvents` wait and deleted a `QThread` a caller held; and the wait loop called
+  `.wait()` on a run reaped meanwhile, which aborted Python with live threads (3 of 6 standalone runs) —
+  fixed (runs keep their ended thread/worker; reaped runs skipped). No KI entries (GUI code, no original line).
+- README "GUI" section (queue, ranked table, slider, A27, screenshot 05); CLAUDE.md lists `runs.py` and
+  `results.py`.
+- Gate: `pytest -q -m "not slow" -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 3724 passed, 3 skipped (the existing
+  non-Octave skips), 479 s, exit 0. No model or viz code changed, so parity is untouched.
+### Blockers
+- None.
+### Next
+- Item 06: polish and wrap-up (error dialogs, QSettings last directory, title, shortcuts, `--demo`,
+  `examples/gui/README.md`, gate + `slow` suite, verify every item, `LOOP_COMPLETE`).

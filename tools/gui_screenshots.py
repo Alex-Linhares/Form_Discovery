@@ -9,7 +9,8 @@ in a worker thread (status line with the final score, frame count and time).
 first graph it draws (frames come faster than
 the canvas draws, so earlier ones are coalesced away); ``03_live_end.png``: the same run's inferred graph.
 ``04_stats.png``: the statistics panel filled after a chain run (score and its parts,
-clusters, per-depth score chart).
+clusters, per-depth score chart). ``05_forms.png``: chain, ring and tree run two at a
+time, the results table ranked by ll with the winner highlighted and shown.
 """
 
 import argparse
@@ -26,7 +27,6 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--outdir", default=str(REPO / "examples" / "gui"))
     args = ap.parse_args(argv)
-    from PySide6.QtCore import QEventLoop
     from PySide6.QtWidgets import QApplication
 
     from formdiscovery.gui.app import screenshot
@@ -64,10 +64,7 @@ def main(argv=None):
 
     win.canvas.frame_drawn.connect(grab_mid)
     win.start_run(win.run_settings())
-    while win.running():  # keep the GUI thread drawing while the worker runs
-        app.processEvents(QEventLoop.AllEvents, 20)
-        if win.thread is not None and win.thread.isFinished():
-            win.wait_run(1000)
+    win.wait_run(120000)  # processes events: the GUI thread draws while the worker runs
     app.processEvents()
     if win.last_result is None or not mid:
         raise RuntimeError("the live run drew no frame before the end: " + str(win.last_error))
@@ -79,14 +76,23 @@ def main(argv=None):
     win.set_forms(["chain"])
     win.show()
     win.start_run(win.run_settings())
-    while win.running():
-        app.processEvents(QEventLoop.AllEvents, 20)
-        if win.thread is not None and win.thread.isFinished():
-            win.wait_run(1000)
+    win.wait_run(120000)
     app.processEvents()
     if win.stats.stats is None:
         raise RuntimeError("no statistics after the run: " + str(win.last_error))
     print(screenshot(win, out / "04_stats.png"))
+    win.close()
+
+    win = MainWindow(path=DATA_DIR / "demo_chain_feat.mat")
+    win.set_forms(["chain", "ring", "tree"])
+    win.parallel_spin.setValue(2)
+    win.show()
+    win.start_run(win.run_settings())
+    win.wait_run(120000)
+    app.processEvents()
+    if win.queue.outcome != "finished":
+        raise RuntimeError("the three forms did not finish: " + str(win.last_error))
+    print(screenshot(win, out / "05_forms.png"))
     win.close()
     return 0
 

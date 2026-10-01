@@ -36,7 +36,7 @@ Work on the first `[ ]` item only.
       (`.npz`/`.json` as the CLI writes) and the final figure (PNG/SVG). README "GUI"
       section; CLAUDE.md. Tests: stats text for the demo run matches `MasterResults`
       numbers; export files load back. Screenshot `examples/gui/04_stats.png`.
-- [ ] 05. **Several forms and history scrubbing.** Queue the selected forms (one worker at a
+- [x] 05. **Several forms and history scrubbing.** Queue the selected forms (one worker at a
       time, or N in parallel with a spin box, each on its own thread; BLAS already pinned),
       a results table ranked by ll with the winner highlighted, click a row to show that
       form's final graph; a slider to scrub back through the frames recorded during a run

@@ -26,16 +26,28 @@ per-depth scores live from the worker's ``depth_done`` and, on ``finished``, sho
 final ll and its prior/likelihood parts, the clusters and their members, the score
 history chart, wall time and frames, with "Export results…" (``.npz`` + ``.json``, as
 ``formdiscovery run`` writes) and "Save figure…" (the graph canvas, PNG/SVG).
+
+Item 05: Run queues every selected form (:class:`formdiscovery.gui.runs.RunQueue`, one
+worker thread per form, "Parallel runs" at a time). The "Results" table under the graph
+(:class:`formdiscovery.gui.results.ResultsTable`) ranks them by ll with the winner
+highlighted; clicking a row shows that form's final graph (or its latest frame while it
+runs) and statistics. The canvas and the statistics follow the first running form, then
+the next, and show the winner at the end, until a row is clicked. Every frame a form sends
+is kept (:class:`formdiscovery.gui.runs.FrameHistory`, at most :attr:`MainWindow.
+frame_cap` per form, oldest dropped); the slider under the canvas scrubs back through the
+shown form's frames. At its right end the canvas is live; moved back, it stays on the
+chosen frame while the run goes on.
 """
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QValidator
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QListWidget, QMainWindow, QPushButton, QSpinBox, QVBoxLayout,
-    QWidget,
+    QHBoxLayout, QLabel, QListWidget, QMainWindow, QPushButton, QSlider, QSpinBox,
+    QSplitter, QVBoxLayout, QWidget,
 )
 
 from ..io import DATA_DIR
@@ -43,8 +55,9 @@ from ..params import STRUCTURES
 from ..run import MASTERRUN_STRUCT
 from .canvas import CANVAS_BACKENDS, GraphCanvas
 from .dataset import dataset_info
+from .results import ResultsTable
+from .runs import FRAME_CAP, RunQueue
 from .stats import StatsPanel
-from .worker import RunWorker, start_worker
 
 __all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "DEFAULT_SEED",
            "DEFAULT_SPEED", "FILE_FILTER"]
@@ -92,7 +105,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("formdiscovery")
         self.data_dir = Path(data_dir or DATA_DIR)
         self.info = None
-        self.worker = self.thread = None
+        self.queue = None         # RunQueue of the last Run
+        self.shown = None         # form shown in the canvas and statistics
+        self._follow = True       # the display follows the runs (until a row is clicked)
+        self._live = True         # the canvas draws the shown form's frames as they come
+        self.frame_cap = FRAME_CAP
         self.last_result = self.last_error = None
 
         self.open_button = QPushButton("Open data file…")
@@ -128,22 +145,49 @@ class MainWindow(QMainWindow):
         self.backend_combo.addItems(list(CANVAS_BACKENDS))
         self.bestsplit_check = QCheckBox("Draw best splits")
         self.bestsplit_check.setToolTip("Also show each depth's best split (ps.showbestsplit)")
+        self.parallel_spin = QSpinBox()
+        self.parallel_spin.setRange(1, max(1, os.cpu_count() or 1))
+        self.parallel_spin.setValue(1)
+        self.parallel_spin.setToolTip("Forms run at the same time, each on its own thread")
         settings = QGroupBox("Settings")
         sform = QFormLayout(settings)
         sform.addRow("Seed", self.seed_spin)
         sform.addRow("Speed", self.speed_spin)
         sform.addRow("Drawing", self.backend_combo)
         sform.addRow("", self.bestsplit_check)
+        sform.addRow("Parallel runs", self.parallel_spin)
 
         self.canvas = GraphCanvas()
         self.canvas.setMinimumSize(420, 360)
         self.backend_combo.currentTextChanged.connect(self.canvas.set_backend)
+        self.history_slider = QSlider(Qt.Horizontal)
+        self.history_slider.setEnabled(False)
+        self.history_slider.setToolTip("Scrub back through the frames of the shown form "
+                                       "(right end: live)")
+        self.history_slider.valueChanged.connect(self._on_slider)
+        self.history_label = QLabel("no frames")
+        history = QHBoxLayout()
+        history.addWidget(QLabel("Frames"))
+        history.addWidget(self.history_slider, 1)
+        history.addWidget(self.history_label)
         graph_box = QGroupBox("Graph")
-        QVBoxLayout(graph_box).addWidget(self.canvas)
+        glay = QVBoxLayout(graph_box)
+        glay.addWidget(self.canvas, 1)
+        glay.addLayout(history)
+        self.results = ResultsTable()
+        self.results.form_selected.connect(self.select_form)
+        results_box = QGroupBox("Results (ranked by ll)")
+        QVBoxLayout(results_box).addWidget(self.results)
         self.stats = StatsPanel(figure_source=self.canvas)
         self.stats.setMinimumWidth(340)
         stats_box = QGroupBox("Statistics")
         QVBoxLayout(stats_box).addWidget(self.stats)
+        center = QSplitter(Qt.Vertical)
+        center.addWidget(graph_box)
+        center.addWidget(results_box)
+        center.setStretchFactor(0, 4)
+        center.setStretchFactor(1, 1)
+        center.setChildrenCollapsible(False)
 
         self.run_button = QPushButton("Run")
         self.run_button.setEnabled(False)
@@ -163,7 +207,7 @@ class MainWindow(QMainWindow):
         left.addWidget(form_box, 1)
         middle = QHBoxLayout()
         middle.addLayout(left, 2)
-        middle.addWidget(graph_box, 3)
+        middle.addWidget(center, 3)
         middle.addWidget(stats_box, 2)
         root = QVBoxLayout()
         root.addLayout(top)
@@ -172,7 +216,7 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setLayout(root)
         self.setCentralWidget(central)
-        self.resize(1440, 800)
+        self.resize(1440, 900)
 
         self.form_list.itemSelectionChanged.connect(self._update_run_enabled)
         self.run_requested.connect(self.start_run)
@@ -233,7 +277,8 @@ class MainWindow(QMainWindow):
                 "seed": self.seed_spin.value(),
                 "speed": self.speed_spin.value(),
                 "backend": self.backend_combo.currentText(),
-                "bestsplit": self.bestsplit_check.isChecked()}
+                "bestsplit": self.bestsplit_check.isChecked(),
+                "parallel": self.parallel_spin.value()}
 
     def _update_run_enabled(self):
         self.run_button.setEnabled(self.info is not None and bool(self.selected_forms())
@@ -243,91 +288,222 @@ class MainWindow(QMainWindow):
         if self.run_button.isEnabled():
             self.run_requested.emit(self.run_settings())
 
-    # --- runs (item 02) --------------------------------------------------------------
+    # --- runs (items 02, 05) ---------------------------------------------------------
     def running(self):
-        return self.thread is not None
+        return self.queue is not None and self.queue.is_running()
+
+    def _current_run(self):
+        """The shown form's run if its thread is alive, else the first live one."""
+        if self.queue is None:
+            return None
+        act = self.queue.active()
+        return next((r for r in act if r.form == self.shown), act[0] if act else None)
+
+    @property
+    def worker(self):
+        """The :class:`RunWorker` of the shown (else the first) running form, or None."""
+        r = self._current_run()
+        return None if r is None else r.worker
+
+    @property
+    def thread(self):
+        """That worker's ``QThread``, or None."""
+        r = self._current_run()
+        return None if r is None else r.thread
 
     def start_run(self, settings):
-        """Run the first form of ``settings`` (:meth:`run_settings`) in a worker thread;
-        returns the :class:`RunWorker` (None if a run is already going)."""
+        """Queue the forms of ``settings`` (:meth:`run_settings`), ``parallel`` at a time,
+        each in its own worker thread; returns the first form's :class:`RunWorker` (None
+        if a run is already going)."""
         if self.running() or settings["path"] is None or not settings["forms"]:
             return None
-        form = settings["forms"][0]
-        w = RunWorker(settings["path"], form, seed=settings["seed"],
-                      speed=settings["speed"], bestsplit=settings.get("bestsplit", False))
-        self.canvas.begin_run(f"Running {form}…")
-        self.stats.begin_run(f"Running {form} on {Path(settings['path']).stem}…")
-        w.frame.connect(self.canvas.push_frame)
-        w.depth_done.connect(self.stats.push_depth)
-        w.finished.connect(self.stats.show_result)
-        w.frame.connect(self._on_frame)
-        w.finished.connect(self._on_finished)
-        w.failed.connect(self._on_failed)
-        w.cancelled.connect(self._on_cancelled)
-        self.worker, self.last_result, self.last_error = w, None, None
-        self.status_label.setText(f"Running {form} on {Path(settings['path']).stem}…")
-        self.run_started.emit(w)
-        self.thread = start_worker(w, start=False)
-        self.thread.finished.connect(self._on_thread_finished)
-        self.thread.start()
+        forms = list(settings["forms"])
+        q = RunQueue(settings["path"], forms, seed=settings["seed"],
+                     speed=settings["speed"], bestsplit=settings.get("bestsplit", False),
+                     parallel=settings.get("parallel", 1), cap=self.frame_cap, parent=self)
+        q.run_started.connect(self._on_run_started)
+        q.frame.connect(self._on_frame)
+        q.depth_done.connect(self._on_depth)
+        q.form_ended.connect(self._on_form_ended)
+        q.all_done.connect(self._on_all_done)
+        if self.queue is not None:
+            self.queue.deleteLater()
+        self.queue, self.last_result, self.last_error = q, None, None
+        self.shown, self._follow, self._live = None, True, True
+        self.results.update_runs(q.runs)
+        self.status_label.setText(f"Running {', '.join(forms)} on "
+                                  f"{Path(settings['path']).stem}…")
+        q.start()
         self.stop_button.setEnabled(True)
         self._update_run_enabled()
-        return w
+        return q.runs[0].worker
 
     def stop_run(self):
-        """Ask the current run to stop (it ends with ``cancelled``)."""
-        if self.worker is not None:
-            self.worker.cancel()
+        """Ask the queue to stop (running forms end ``cancelled``, pending ones never
+        start)."""
+        if self.running():
+            self.queue.cancel()
             self.stop_button.setEnabled(False)
             self.status_label.setText("Stopping…")
 
     def wait_run(self, ms=60000):
-        """Block until the run's thread ends (tests, close); True if it ended."""
-        if self.thread is None:
+        """Run the event loop until the queue is done (tests, close); True if it is."""
+        if not self.running():
             return True
-        ok = self.thread.wait(ms)
-        if ok:
-            self._on_thread_finished()
-        return ok
+        return self.queue.wait(ms)
 
-    def _on_frame(self, event, adj, names, title, depth):
-        w = self.worker
-        if w is not None and not w.is_cancelled():
-            self.status_label.setText(f"{w.form}: {event}, depth {depth}, "
-                                      f"frame {w.frames}")
+    # --- what is shown ---------------------------------------------------------------
+    def select_form(self, form):
+        """Show ``form`` (a results table click): its final graph, or its latest frame
+        while it runs, its frames on the slider and its statistics. The display then
+        stops following the runs."""
+        self._follow = False
+        self.show_form(form)
 
-    def _on_finished(self, result):
-        self.last_result = result
-        self.status_label.setText(f"{result['form']}: ll = {result['ll']:.4f} "
-                                  f"({result['frames']} frames, {result['wall']:.1f} s)")
-        self.run_ended.emit("finished")
+    def show_form(self, form):
+        """Show ``form`` of the current queue in the canvas, slider and statistics."""
+        r = self.queue.run(form)
+        self.shown, self._live = form, True
+        self.results.select_form(form)
+        data = Path(self.queue.path).stem
+        msg = {"pending": f"{form}: waiting to start", "running": f"Running {form}…",
+               "cancelled": f"{form}: stopped", "failed": f"{form}: run failed"}
+        self.canvas.begin_run(msg.get(r.status, ""))
+        self._sync_slider()
+        last = r.history.last()
+        if r.status == "finished":
+            final = r.history.last("inferredgraph") or last
+            if final is not None:
+                self.canvas.draw_frame(*final.canvas_args())
+            self.stats.show_result(r.result)
+        else:
+            if last is not None:
+                self.canvas.draw_frame(*last.canvas_args())
+            if r.status in ("cancelled", "failed"):
+                self.canvas.set_status(msg[r.status] + (f" · last: {self.canvas.status}"
+                                                        if last is not None else ""))
+            self.stats.begin_run(f"{msg[r.status]} on {data}")
+            for lls in r.depths:
+                self.stats.push_depth(lls)
 
-    def _on_failed(self, tb):
-        self.last_error = tb
-        self.status_label.setText("Run failed: " + tb.strip().splitlines()[-1])
-        self.canvas.flush()
-        self.canvas.set_status("Run failed.")
-        self.run_ended.emit("failed")
+    def _sync_slider(self, keep=None):
+        """Slider range = the shown form's frames; at the end when live, else ``keep``."""
+        r = None if self.shown is None else self.queue.run(self.shown)
+        n = 0 if r is None else len(r.history)
+        sl = self.history_slider
+        sl.blockSignals(True)
+        try:
+            sl.setRange(0, max(0, n - 1))
+            sl.setEnabled(n > 1)
+            if self._live or keep is None:
+                sl.setValue(max(0, n - 1))
+            else:
+                sl.setValue(max(0, min(keep, n - 1)))
+        finally:
+            sl.blockSignals(False)
+        self._update_history_label()
 
-    def _on_cancelled(self):
-        self.status_label.setText("Run stopped.")
-        self.canvas.flush()
-        last = self.canvas.status
-        self.canvas.set_status("stopped" + (f" · last: {last}" if self.canvas.drawn else ""))
-        self.run_ended.emit("cancelled")
-
-    def _on_thread_finished(self):
-        if self.thread is None or self.thread.isRunning():
+    def _update_history_label(self):
+        r = None if self.shown is None else self.queue.run(self.shown)
+        if r is None or not len(r.history):
+            self.history_label.setText("no frames")
             return
-        self.thread.deleteLater()
-        self.worker.deleteLater()
-        self.thread = self.worker = None
+        h = r.history
+        f = h[self.history_slider.value()]
+        text = f"{f.number} / {h.received} · {f.event}"
+        if h.dropped:
+            text += f" ({h.dropped} oldest dropped)"
+        self.history_label.setText(text + ("" if self._live else " · paused"))
+
+    def _on_slider(self, value):
+        """The user moved the slider: draw that frame; the right end is live again."""
+        r = None if self.shown is None else self.queue.run(self.shown)
+        if r is None or not len(r.history):
+            return
+        self._live = value >= len(r.history) - 1
+        self.canvas.pending = None
+        self.canvas.draw_frame(*r.history[value].canvas_args())
+        self._update_history_label()
+
+    # --- queue signals ---------------------------------------------------------------
+    def _on_run_started(self, r):
+        self.results.update_runs(self.queue.runs)
+        if self.shown is None or (self._follow
+                                  and self.queue.run(self.shown).status != "running"):
+            self.show_form(r.form)
+        self.run_started.emit(r.worker)
+
+    def _on_frame(self, form, f):
+        r = self.queue.run(form)
+        if r.worker is not None and not r.worker.is_cancelled():
+            self.status_label.setText(f"{form}: {f.event}, depth {f.depth}, "
+                                      f"frame {f.number}")
+        if form != self.shown:
+            return
+        if self._live:
+            self._sync_slider()
+            self.canvas.push_entry(*f.canvas_args())
+        else:  # keep the chosen frame while older ones are dropped
+            keep = self.history_slider.value()
+            if r.history.dropped and len(r.history) == r.history.cap:
+                keep -= 1
+            self._sync_slider(max(0, keep))
+
+    def _on_depth(self, form, lls):
+        if form == self.shown:
+            self.stats.push_depth(lls)
+
+    def _on_form_ended(self, form, outcome):
+        r = self.queue.run(form)
+        if outcome == "failed":
+            self.last_error = r.error
+        self.results.update_runs(self.queue.runs)
+        if form == self.shown:
+            if outcome == "finished":
+                self.stats.show_result(r.result)
+            else:
+                self.canvas.flush()
+                if outcome == "failed":
+                    self.canvas.set_status("Run failed.")
+                else:
+                    last = self.canvas.status
+                    self.canvas.set_status(
+                        "stopped" + (f" · last: {last}" if self.canvas.drawn else ""))
+                self.stats.begin_run(f"{form}: " + ("run failed" if outcome == "failed"
+                                                    else "stopped"))
+            nxt = next((x for x in self.queue.runs if x.status == "running"), None)
+            if self._follow and nxt is not None and not self.queue.stopped:
+                self.show_form(nxt.form)
+
+    def _on_all_done(self, outcome):
+        q = self.queue
+        win = q.winner()
+        self.last_result = None if win is None else win.result
+        self.results.update_runs(q.runs)
+        if outcome == "finished" and win is not None and self._follow \
+                and win.form != self.shown:
+            self.show_form(win.form)
+        if self.shown is not None:
+            self.results.select_form(self.shown)
+        if outcome == "cancelled":
+            self.status_label.setText("Run stopped.")
+        elif outcome == "failed":
+            lines = (self.last_error or "").strip().splitlines()
+            self.status_label.setText("Run failed: " + lines[-1] if lines else "Run failed.")
+        elif len(q.runs) == 1:
+            res = win.result
+            self.status_label.setText(f"{res['form']}: ll = {res['ll']:.4f} "
+                                      f"({res['frames']} frames, {res['wall']:.1f} s)")
+        else:
+            self.status_label.setText(f"{len(q.runs)} forms in {q.wall:.1f} s; winner "
+                                      f"{win.form}: ll = {win.ll():.4f}")
         self.stop_button.setEnabled(False)
         self._update_run_enabled()
+        self.run_ended.emit(outcome)
 
     def closeEvent(self, event):
         """Cancel a running search and wait for its thread before closing."""
-        if self.worker is not None:
-            self.worker.cancel()
+        if self.running():
+            self.queue.cancel()
             self.wait_run()
         super().closeEvent(event)

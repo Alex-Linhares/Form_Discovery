@@ -154,8 +154,8 @@ formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat # start with 
 Open any `.mat` data file (the shipped ones or your own: `data` as features, a similarity
 matrix or a relational struct, optional `names`). The left column describes the data set
 and has the forms (chain, ring, tree preselected), seed, speed, drawing backend and "Draw
-best splits". Run fits the first selected form in a worker thread, so the window stays
-responsive and Stop works at any time. The middle canvas redraws the graph each time the
+best splits". Run fits every selected form, each in its own worker thread ("Parallel runs"
+at a time; one by default), so the window stays responsive and Stop works at any time. The middle canvas redraws the graph each time the
 model transforms it (pre-clean / post-clean per depth, best splits if chosen, then the
 inferred graph), with node positions kept between frames. When the run ends, the
 Statistics column shows the final score and its parts (log prior from `graph_prior`, log
@@ -164,7 +164,13 @@ likelihood from `graph_like`), the clusters and their members, the score per dep
 `.json` pair that `formdiscovery run` writes (read back with `load_results`), and "Save
 figure…" saves the graph as PNG or SVG.
 
-![The window after a chain run on demo_chain_feat](examples/gui/04_stats.png)
+The "Results" table under the graph ranks the forms by ll (the winner in bold, as
+masterrun's `modellike` would pick it); click a row to see that form's final graph and
+statistics. The slider under the graph scrubs back through the frames the shown form sent
+(the last 500 per form are kept); at its right end the canvas is live again. Parallel runs
+share one Python process, so they overlap little (the search holds the GIL; ANOMALIES A27).
+
+![Chain, ring and tree on demo_chain_feat, ranked](examples/gui/05_forms.png)
 
 The GUI is a thin shell over the port (`src/formdiscovery/gui/`); its only hook into the
 model is `search.run_hooks` (per-thread cancel and per-depth callbacks, off by default, so

@@ -129,11 +129,19 @@ class GraphCanvas(FigureCanvasQTAgg):
     def push_frame(self, event, adj, names, title, depth):
         """Store a frame (the worker's ``frame`` signal); it is drawn by the timer, at
         once for ``inferredgraph``."""
+        self.push_entry(event, adj, names, title, depth)
+
+    def push_entry(self, event, adj, names, title, depth, elapsed=None, number=None):
+        """:meth:`push_frame` with the status line's elapsed time and frame number given
+        (item 05: a frame recorded in a :class:`formdiscovery.gui.runs.FrameHistory`);
+        by default they are counted from :meth:`begin_run` and the frames received."""
         self.received += 1
         if self.pending is not None:
             self.dropped += 1
         self.pending = (str(event), np.asarray(adj, dtype=float), list(names), str(title),
-                        int(depth), time.perf_counter() - self._t0, self.received)
+                        int(depth),
+                        time.perf_counter() - self._t0 if elapsed is None else elapsed,
+                        self.received if number is None else number)
         if event == FINAL_EVENT:
             self.flush()
         elif not self._timer.isActive():
