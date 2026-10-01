@@ -18,7 +18,7 @@ from formdiscovery import cli  # noqa: E402
 from formdiscovery.gui import app as gui_app  # noqa: E402
 from formdiscovery.gui.dataset import NAMES_SHOWN, dataset_info  # noqa: E402
 from formdiscovery.gui.main_window import (  # noqa: E402
-    DEFAULT_SPEED, SPEEDS, MainWindow,
+    DEFAULT_SPEED, FEATURE_FORMS, REL_FORMS, SPEEDS, MainWindow, forms_for,
 )
 from formdiscovery.io import DATA_DIR, load_dataset  # noqa: E402
 from formdiscovery.params import STRUCTURES  # noqa: E402
@@ -83,7 +83,7 @@ def test_initial_state(win):
     assert [win.form_list.item(i).text() for i in range(win.form_list.count())] \
         == list(STRUCTURES)
     assert len(STRUCTURES) == 24
-    assert win.selected_forms() == ["chain", "ring", "tree"]
+    assert win.selected_forms() == list(FEATURE_FORMS)  # the eight basic forms
     assert win.seed_spin.value() == 1 and win.speed_spin.value() == DEFAULT_SPEED
 
 
@@ -120,7 +120,7 @@ def test_run_emits_settings(win, qtbot):
         qtbot.mouseClick(win.run_button, qtbot_left())
     s = sig.args[0]
     assert s["path"] == DATA_DIR / "demo_chain_feat.mat"
-    assert s["forms"] == ["chain", "ring", "tree"]
+    assert s["forms"] == list(FEATURE_FORMS)
     assert (s["seed"], s["speed"]) == (7, 5)
     assert s["info"].kind == "feat"
     win.stop_run()  # Run also started chain in a worker (item 02)
@@ -218,3 +218,14 @@ def test_app_main_runs_event_loop(qapp, qtbot):
     assert gui_app.main([str(DATA_DIR / "demo_tree_feat.mat")]) == 0
     assert "demo_tree_feat" in seen["stems"]
     qtbot.wait(1)  # and any posted event is consumed inside a loop (A24)
+
+
+def test_loading_selects_all_forms_for_the_data_type(win):
+    """The point of the model is to compare every applicable form, so a loaded file
+    selects masterrun.m's full set for its data type (feature/similarity: 8; relational: 18)."""
+    win.load_file(DATA_DIR / "demo_ring_rel_bin.mat")
+    assert win.selected_forms() == [f for f in STRUCTURES if f in REL_FORMS]  # list order
+    assert len(REL_FORMS) == 18
+    win.load_file(DATA_DIR / "colors.mat")
+    assert win.selected_forms() == list(FEATURE_FORMS) and len(FEATURE_FORMS) == 8
+    assert forms_for("feat") == forms_for("sim") == FEATURE_FORMS

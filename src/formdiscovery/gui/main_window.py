@@ -2,7 +2,7 @@
 
 Layout: an "Open data file…" button with the chosen path, the dataset info panel
 (:meth:`formdiscovery.gui.dataset.DatasetInfo.summary`), the form list (the 24
-``ps.structures`` of ``setps.m``, multi-select, chain/ring/tree preselected as in
+``ps.structures`` of ``setps.m``, multi-select, all forms for the data type preselected as in
 ``masterrun.m``'s ``thisstruct``), seed and speed spin boxes (speed defaults to
 ``defaultps.m``'s 54 and steps through :data:`SPEEDS` only: ``ps.speed`` is a mode code,
 not a count; 1 and 2 crash in ``best_split`` (``KNOWN_ISSUES.md`` KI-1) and 23 is
@@ -71,10 +71,23 @@ from .results import ResultsTable
 from .runs import FRAME_CAP, RunQueue
 from .stats import StatsPanel
 
-__all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "DEFAULT_SEED",
+__all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "FEATURE_FORMS",
+           "REL_FORMS", "forms_for", "DEFAULT_SEED",
            "DEFAULT_SPEED", "FILE_FILTER", "SHORTCUTS", "DEMO_FILE", "DEMO_FORM"]
 
-DEFAULT_FORMS = tuple(STRUCTURES[i] for i in MASTERRUN_STRUCT)  # chain, ring, tree
+# All forms that apply to a data type, as masterrun.m's analysis recipes list them:
+# feature and similarity data use the eight basic forms (option b, `thisstruct = 1:8`);
+# relational data use the directed/undirected/self-link variants (option c,
+# `[1,9,10:13,3,14:16,17:20,21:24]`). Loading a file selects the applicable set.
+FEATURE_FORMS = tuple(STRUCTURES[:8])
+REL_FORMS = tuple(STRUCTURES[i - 1] for i in
+                  [1, 9, 10, 11, 12, 13, 3, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
+DEFAULT_FORMS = FEATURE_FORMS  # before any file is loaded
+
+
+def forms_for(kind):
+    """The forms selected for a data set of ``kind`` ('feat', 'sim' or 'rel')."""
+    return REL_FORMS if kind == "rel" else FEATURE_FORMS
 DEFAULT_SEED = 1      # cli.py's --seed default
 DEFAULT_SPEED = 54    # defaultps.m
 FILE_FILTER = "MATLAB data (*.mat);;All files (*)"
@@ -332,6 +345,7 @@ class MainWindow(QMainWindow):
             return None
         self.info = info
         self.data_dir = path.parent
+        self.set_forms(forms_for(info.kind))  # all forms that apply to this data type
         self.settings.setValue(LAST_DIR_KEY, str(path.parent.resolve()))
         self.settings.sync()
         self.path_label.setText(str(path))
