@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 5/7 SOLVED
+- **Current**: 6/7 SOLVED
 
 ---
 
@@ -336,3 +336,145 @@
 - None. A19 (gibbs kept unpinned) is still open for a human.
 ### Next
 - Item 06: `tools/compare_live.py --pairs ... --jobs N` (Octave and Python side by side).
+
+---
+
+## Iteration 7 — 2026-10-01 03:48
+### Completed
+- Item 06, the side-by-side live comparison tool.
+  - New `tools/compare_live.py [--pairs S:D[:SEED] ...] [--set all|feat|rel] [--seed N]
+    --jobs N [--logdir D] [--json F]`. A pair is `structure:dataset[:seed]`, as names or
+    1-based `ps` indices. The default set is run_baseline's two grids in run order, 9
+    feature and then 54 relational pairs, all with seed 1. Each triple is one task in a
+    `ProcessPoolExecutor` (spawn context, workers pinned with `pin_blas_env` and
+    `pin_process_blas(1)`). A task does two things:
+    1. Octave: `run_baseline(kind, sind, dind, dir, seed)` in its own pinned `octave-cli`
+       (`gen_fixtures._run_octave`, per-triple log in `build/compare_live/<key>.log`). The
+       `randperm` shim runs in pass-through mode and logs every draw
+       (`randperm_config('', log)`). `kind` is `rel` (`reloutsideinit = 'overd'`) for
+       relational data.
+    2. Python: `runmodel` on the same pair and the same `ps`, replaying Octave's log with the
+       new `ReplayThenNumpy` provider. There are no oracles: Python uses its own scaled
+       data, scipy's optimizer and its own tie breaking. Once a draw no longer fits (wrong
+       length or queue exhausted), the provider goes on with `NumpyPermutations(seed)`, and
+       the row records `full` or `diverged@k`.
+
+    Octave and Python runs of different triples overlap. The table gives Octave and Python
+    ll, relative difference, ARI, clusters and nodes on each side, the draws, the replay
+    status, each side's wall time, and a §7.1 verdict: within 1e-3 rel, same cluster count,
+    ARI = 1 on a full replay and ≥ 0.9 on a diverged one. With seed 1, Octave's ll must also
+    equal the committed baseline exactly.
+  - `matlab/run_baseline.m` gets an optional 5th argument `seed`:
+    `rand('state', seed + rind - 1)`. The default of 1 gives the old `rand('state', rind)`.
+    The committed baselines are unchanged: the gate's live baseline tests pass, and all 63
+    Octave scores here equal the committed ones exactly.
+  - New `tests/test_compare_live.py` (7 tests). The unit tests cover `parse_pair`, the
+    default triples (against `gen_baselines.GRIDS` and the `EXPECTED_LL` keys),
+    `data_kind`, `ReplayThenNumpy` and the table. A live `octave` test in the gate (≈3 s)
+    runs 4 cheap relational triples, one of them seed 2: `--jobs 1` and `--jobs 4` give
+    identical rows, and all meet §7.1. A `slow` live test runs the 63 default triples with 16
+    workers. It checks §7.1 on every row, Octave = committed baseline, relational scores
+    exact to 1e-12, and at least 50 of 54 relational replays complete. It passes in 30 s.
+  - **Result: 63/63 rows pass §7.1.** Every Octave ll equals the committed baseline. All
+    54 relational pairs agree to ≤ 1.0e-15 rel with ARI 1. The 9 feature pairs agree to
+    ≤ 7.4e-6 rel with ARI 1 and Octave's cluster and node counts. All 9 feature replays
+    diverge (draws 20–201) where scipy's optimum differs from fminunc's (A3). 53 of 54
+    relational replays run to the end. The exception is `partitionnoself x
+    demo_hierarchy_rel_bin`, which diverges at draw 58 on a mirror-image tied split: after
+    the first split Python's clusters come out 19 | 7 against Octave's 7 | 19, and Python
+    then asks for `randperm(19)` where Octave drew `randperm(7)`. Python still reaches the
+    same partition and score. Logged as **ANOMALIES A21 (explained)**: these are the same
+    ties that `SplitOracle` absorbs in loop0001's exact replays. No KI entry, because the
+    scores are equal and either order is correct.
+  - Determinism: the `--jobs 1`, `--jobs 16` and `--jobs 32` JSON rows are identical apart
+    from the times (all numbers, replay status and verdicts).
+
+  | run (63 triples) | wall clock | CPU (user+sys) | workers |
+  |---|---|---|---|
+  | `compare_live.py --jobs 1` | 3 min 35 s | 216.6 s | 1 (Octave then Python, in turn) |
+  | `compare_live.py --jobs 16` | **25.7 s** (8.3×) | 257.4 s | 16 workers + their `octave-cli` |
+  | `compare_live.py --jobs 32` | 21.8 s | 375.7 s | 32 workers + their `octave-cli` |
+
+  Summed per-side wall times at `--jobs 1`: Octave 162.3 s, Python 51.7 s. Per run (`--jobs 1`,
+  Octave startup included), Python is 1.2–6.9× faster than Octave, except on
+  `tree x demo_tree_feat`, where it is 10 % slower. At `--jobs 16` the wall time is
+  set by the longest tasks (`dirhierarchy x demo_hierarchy_rel_bin`: 13.4 s Octave +
+  2.9 s Python). `--jobs 32` gains only 4 s for 46 % more CPU.
+
+  Full table (`--jobs 16`):
+
+  | structure | data | seed | Octave ll | Python ll | rel diff | ARI | clusters O/P | nodes O/P | draws | replay | Octave s | Python s | ok |
+  |---|---|---:|---:|---:|---:|---:|---|---|---:|---|---:|---:|---|
+  | chain | demo_chain_feat | 1 | -8247.204813 | -8247.192418 | 1.5e-06 | 1.000 | 4/4 | 4/4 | 121 | diverged@44 | 2.0 | 1.5 | yes |
+  | ring | demo_chain_feat | 1 | -8264.200371 | -8264.196320 | 4.9e-07 | 1.000 | 4/4 | 4/4 | 134 | diverged@44 | 2.2 | 1.6 | yes |
+  | tree | demo_chain_feat | 1 | -8252.886501 | -8252.947688 | 7.4e-06 | 1.000 | 4/4 | 6/6 | 255 | diverged@201 | 5.8 | 4.9 | yes |
+  | chain | demo_ring_feat | 1 | -8566.636517 | -8566.635937 | 6.8e-08 | 1.000 | 4/4 | 4/4 | 160 | diverged@20 | 2.6 | 1.4 | yes |
+  | ring | demo_ring_feat | 1 | -8500.520170 | -8500.518235 | 2.3e-07 | 1.000 | 4/4 | 4/4 | 160 | diverged@20 | 2.4 | 1.6 | yes |
+  | tree | demo_ring_feat | 1 | -8512.873765 | -8512.860034 | 1.6e-06 | 1.000 | 4/4 | 6/6 | 268 | diverged@28 | 5.8 | 3.7 | yes |
+  | chain | demo_tree_feat | 1 | -8764.165562 | -8764.171835 | 7.2e-07 | 1.000 | 4/4 | 4/4 | 134 | diverged@105 | 2.4 | 1.7 | yes |
+  | ring | demo_tree_feat | 1 | -8722.589004 | -8722.608739 | 2.3e-06 | 1.000 | 4/4 | 4/4 | 161 | diverged@90 | 2.9 | 1.7 | yes |
+  | tree | demo_tree_feat | 1 | -8707.813669 | -8707.808730 | 5.7e-07 | 1.000 | 4/4 | 6/6 | 239 | diverged@163 | 6.5 | 7.0 | yes |
+  | partition | demo_ring_rel_bin | 1 | -33.900480 | -33.900480 | 2.1e-16 | 1.000 | 2/2 | 2/2 | 34 | full | 0.6 | 0.1 | yes |
+  | partitionnoself | demo_ring_rel_bin | 1 | -34.770934 | -34.770934 | 0.0e+00 | 1.000 | 2/2 | 2/2 | 46 | full | 0.7 | 0.1 | yes |
+  | dirchain | demo_ring_rel_bin | 1 | -25.243492 | -25.243492 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 18 | full | 0.9 | 0.2 | yes |
+  | dirchainnoself | demo_ring_rel_bin | 1 | -20.509796 | -20.509796 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 18 | full | 0.9 | 0.2 | yes |
+  | undirchain | demo_ring_rel_bin | 1 | -36.180524 | -36.180524 | 0.0e+00 | 1.000 | 2/2 | 2/2 | 36 | full | 0.7 | 0.1 | yes |
+  | undirchainnoself | demo_ring_rel_bin | 1 | -24.108644 | -24.108644 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 19 | full | 0.7 | 0.1 | yes |
+  | order | demo_ring_rel_bin | 1 | -36.834862 | -36.834862 | 0.0e+00 | 1.000 | 2/2 | 2/2 | 48 | full | 0.8 | 0.1 | yes |
+  | ordernoself | demo_ring_rel_bin | 1 | -35.268000 | -35.268000 | 0.0e+00 | 1.000 | 2/2 | 2/2 | 48 | full | 0.8 | 0.1 | yes |
+  | connected | demo_ring_rel_bin | 1 | -35.617544 | -35.617544 | 0.0e+00 | 1.000 | 2/2 | 2/2 | 48 | full | 0.7 | 0.1 | yes |
+  | connectednoself | demo_ring_rel_bin | 1 | -31.710242 | -31.710242 | 1.1e-16 | 1.000 | 2/2 | 2/2 | 48 | full | 0.7 | 0.1 | yes |
+  | dirring | demo_ring_rel_bin | 1 | -22.187235 | -22.187235 | 3.2e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 1.0 | 0.2 | yes |
+  | dirringnoself | demo_ring_rel_bin | 1 | -16.571443 | -16.571443 | 6.4e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 0.9 | 0.2 | yes |
+  | undirring | demo_ring_rel_bin | 1 | -23.967559 | -23.967559 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 18 | full | 0.7 | 0.1 | yes |
+  | undirringnoself | demo_ring_rel_bin | 1 | -22.012007 | -22.012007 | 3.2e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 0.7 | 0.1 | yes |
+  | dirhierarchy | demo_ring_rel_bin | 1 | -25.697328 | -25.697328 | 1.4e-16 | 1.000 | 4/4 | 4/4 | 57 | full | 1.4 | 0.3 | yes |
+  | dirhierarchynoself | demo_ring_rel_bin | 1 | -20.963631 | -20.963631 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 57 | full | 1.3 | 0.3 | yes |
+  | undirhierarchy | demo_ring_rel_bin | 1 | -25.866105 | -25.866105 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 33 | full | 0.8 | 0.2 | yes |
+  | undirhierarchynoself | demo_ring_rel_bin | 1 | -24.182736 | -24.182736 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 81 | full | 1.2 | 0.3 | yes |
+  | partition | demo_hierarchy_rel_bin | 1 | -137.839985 | -137.839985 | 8.2e-16 | 1.000 | 3/3 | 3/3 | 174 | full | 5.8 | 1.0 | yes |
+  | partitionnoself | demo_hierarchy_rel_bin | 1 | -135.483933 | -135.483933 | 1.0e-15 | 1.000 | 3/3 | 3/3 | 232 | diverged@58 | 8.7 | 1.5 | yes |
+  | dirchain | demo_hierarchy_rel_bin | 1 | -67.166824 | -67.166824 | 4.2e-16 | 1.000 | 5/5 | 5/5 | 97 | full | 5.1 | 1.4 | yes |
+  | dirchainnoself | demo_hierarchy_rel_bin | 1 | -63.026923 | -63.026923 | 1.1e-16 | 1.000 | 5/5 | 5/5 | 182 | full | 6.9 | 1.8 | yes |
+  | undirchain | demo_hierarchy_rel_bin | 1 | -65.795092 | -65.795092 | 4.3e-16 | 1.000 | 5/5 | 5/5 | 97 | full | 5.6 | 1.4 | yes |
+  | undirchainnoself | demo_hierarchy_rel_bin | 1 | -63.046911 | -63.046911 | 2.3e-16 | 1.000 | 5/5 | 5/5 | 97 | full | 5.4 | 1.5 | yes |
+  | order | demo_hierarchy_rel_bin | 1 | -145.764105 | -145.764105 | 7.8e-16 | 1.000 | 3/3 | 3/3 | 236 | full | 10.9 | 1.7 | yes |
+  | ordernoself | demo_hierarchy_rel_bin | 1 | -145.270424 | -145.270424 | 9.8e-16 | 1.000 | 3/3 | 3/3 | 236 | full | 10.2 | 1.8 | yes |
+  | connected | demo_hierarchy_rel_bin | 1 | -136.720410 | -136.720410 | 1.0e-15 | 1.000 | 3/3 | 3/3 | 234 | full | 9.4 | 1.6 | yes |
+  | connectednoself | demo_hierarchy_rel_bin | 1 | -136.709061 | -136.709061 | 8.3e-16 | 1.000 | 3/3 | 3/3 | 234 | full | 9.4 | 1.7 | yes |
+  | dirring | demo_hierarchy_rel_bin | 1 | -66.900334 | -66.900334 | 2.1e-16 | 1.000 | 5/5 | 5/5 | 94 | full | 4.0 | 1.0 | yes |
+  | dirringnoself | demo_hierarchy_rel_bin | 1 | -65.153688 | -65.153688 | 0.0e+00 | 1.000 | 5/5 | 5/5 | 94 | full | 4.0 | 1.1 | yes |
+  | undirring | demo_hierarchy_rel_bin | 1 | -64.292369 | -64.292369 | 8.8e-16 | 1.000 | 5/5 | 5/5 | 94 | full | 4.2 | 1.0 | yes |
+  | undirringnoself | demo_hierarchy_rel_bin | 1 | -62.286278 | -62.286278 | 3.4e-16 | 1.000 | 5/5 | 5/5 | 94 | full | 4.3 | 0.9 | yes |
+  | dirhierarchy | demo_hierarchy_rel_bin | 1 | -70.246660 | -70.246660 | 2.0e-16 | 1.000 | 5/5 | 5/5 | 501 | full | 13.4 | 2.9 | yes |
+  | dirhierarchynoself | demo_hierarchy_rel_bin | 1 | -63.332757 | -63.332757 | 0.0e+00 | 1.000 | 5/5 | 5/5 | 253 | full | 7.8 | 1.7 | yes |
+  | undirhierarchy | demo_hierarchy_rel_bin | 1 | -71.815458 | -71.815458 | 4.0e-16 | 1.000 | 5/5 | 5/5 | 254 | full | 9.1 | 2.1 | yes |
+  | undirhierarchynoself | demo_hierarchy_rel_bin | 1 | -67.098305 | -67.098305 | 2.1e-16 | 1.000 | 5/5 | 5/5 | 254 | full | 8.5 | 1.9 | yes |
+  | partition | demo_order_rel_freq | 1 | -3685.662207 | -3685.662207 | 2.5e-16 | 1.000 | 4/4 | 4/4 | 50 | full | 0.4 | 0.1 | yes |
+  | partitionnoself | demo_order_rel_freq | 1 | -3683.781001 | -3683.781001 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 74 | full | 0.5 | 0.1 | yes |
+  | dirchain | demo_order_rel_freq | 1 | -3685.466330 | -3685.466330 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 19 | full | 0.4 | 0.1 | yes |
+  | dirchainnoself | demo_order_rel_freq | 1 | -3682.323096 | -3682.323096 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 19 | full | 0.4 | 0.1 | yes |
+  | undirchain | demo_order_rel_freq | 1 | -3685.851609 | -3685.851609 | 3.7e-16 | 1.000 | 4/4 | 4/4 | 19 | full | 0.5 | 0.1 | yes |
+  | undirchainnoself | demo_order_rel_freq | 1 | -3685.337243 | -3685.337243 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 19 | full | 0.5 | 0.1 | yes |
+  | order | demo_order_rel_freq | 1 | -3682.198532 | -3682.198532 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 76 | full | 0.9 | 0.2 | yes |
+  | ordernoself | demo_order_rel_freq | 1 | -3663.616277 | -3663.616277 | 8.7e-16 | 1.000 | 4/4 | 4/4 | 76 | full | 0.8 | 0.2 | yes |
+  | connected | demo_order_rel_freq | 1 | -3683.780622 | -3683.780622 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 76 | full | 0.7 | 0.2 | yes |
+  | connectednoself | demo_order_rel_freq | 1 | -3684.141544 | -3684.141544 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 76 | full | 0.8 | 0.2 | yes |
+  | dirring | demo_order_rel_freq | 1 | -3684.938153 | -3684.938153 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 18 | full | 0.4 | 0.1 | yes |
+  | dirringnoself | demo_order_rel_freq | 1 | -3683.447012 | -3683.447012 | 2.5e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 0.5 | 0.1 | yes |
+  | undirring | demo_order_rel_freq | 1 | -3685.126414 | -3685.126414 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 0.4 | 0.1 | yes |
+  | undirringnoself | demo_order_rel_freq | 1 | -3684.717571 | -3684.717571 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 18 | full | 0.4 | 0.1 | yes |
+  | dirhierarchy | demo_order_rel_freq | 1 | -3685.920165 | -3685.920165 | 1.2e-16 | 1.000 | 4/4 | 4/4 | 57 | full | 0.7 | 0.2 | yes |
+  | dirhierarchynoself | demo_order_rel_freq | 1 | -3682.776931 | -3682.776931 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 57 | full | 0.7 | 0.2 | yes |
+  | undirhierarchy | demo_order_rel_freq | 1 | -3685.925701 | -3685.925701 | 0.0e+00 | 1.000 | 4/4 | 4/4 | 35 | full | 0.5 | 0.1 | yes |
+  | undirhierarchynoself | demo_order_rel_freq | 1 | -3685.411335 | -3685.411335 | 2.5e-16 | 1.000 | 4/4 | 4/4 | 35 | full | 0.5 | 0.1 | yes |
+
+- Docs: `README.md` (bullet in "How it was verified" and the commands block), `CLAUDE.md`
+  (the command), the `PLAN.md` tree, and ANOMALIES A21.
+- Gate (fd env, strict, `-n 16`): **3648 passed, 3 skipped (the known sklearn/nbformat, no
+  Octave skips), exit 0**, in 6 min 07 s wall, 3596 s CPU.
+### Blockers
+- None. A19 (gibbs kept unpinned) is still open for a human.
+### Next
+- Item 07: wrap-up (consolidated before/after table in README, CLAUDE.md commands, the
+  loop0001 `-m slow` suite in the fd env, then verify every item and complete the loop).

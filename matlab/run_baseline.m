@@ -1,4 +1,4 @@
-function timings = run_baseline(kind, thisstruct, thisdata, outdir)
+function timings = run_baseline(kind, thisstruct, thisdata, outdir, seed)
 % Headless Octave baseline for formdiscovery1.0 (PLAN.md section 3, item 04).
 %
 % Mirrors masterrun.m (same loop, same rand('state', rind) seeding, same
@@ -21,6 +21,8 @@ function timings = run_baseline(kind, thisstruct, thisdata, outdir)
 %   thisstruct structure indices into ps.structures (optional override)
 %   thisdata   dataset indices into ps.data (optional override)
 %   outdir     output directory (default tests/fixtures/baseline/<kind>/)
+%   seed       rand('state', seed + rind - 1) before each run (default 1, i.e.
+%              masterrun's rand('state', rind)); used by tools/compare_live.py
 %
 % Run (fd env's bin first on PATH, OCTAVE_HOME set):
 %   cd matlab; octave-cli --eval "run_baseline('feat')"
@@ -67,6 +69,7 @@ switch kind
 end
 if nargin < 2 || isempty(thisstruct), thisstruct = defstruct; end
 if nargin < 3 || isempty(thisdata),   thisdata   = defdata;   end
+if nargin < 5 || isempty(seed),       seed       = 1;         end
 
 cd(outdir);            % runmodel mkdirs results/<struct>out/<data><rind> here
 masterfile = fullfile(outdir, 'resultsdemo.mat');
@@ -89,7 +92,7 @@ for rind = 1:repeats
     dind = dindpair(ind);
     sind = sindpair(ind);
     disp(['  ', ps.data{dind}, ' ', ps.structures{sind}]);
-    rand('state', rind);
+    rand('state', seed + rind - 1);
     t0 = tic;
     try
       [mtmp stmp ntmp ltmp gtmp] = runmodel(ps, sind, dind, rind);

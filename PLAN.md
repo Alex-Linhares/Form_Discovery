@@ -59,6 +59,7 @@ Kemp_Tanembaum_matlab_code/
 └── tools/
     ├── gen_fixtures.py            # runs every tests/octave/fx_*.m through Octave (--jobs N), writes tests/fixtures
     ├── gen_baselines.py           # run_baseline grid, one Octave per pair (--jobs N), merged into tests/fixtures/baseline
+    ├── compare_live.py            # Octave run_baseline + Python runmodel (replayed draws) per triple, side by side (--jobs N)
     └── compare_runs.py            # diff a Python run against an Octave run (scores, graphs, z)
 ```
 

@@ -25,7 +25,8 @@ new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCT
 (`tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
 `--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:
 `tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
-(one Octave per pair, then a merge).
+(one Octave per pair, then a merge). Octave vs Python side by side:
+`tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).
 
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices
 converted only in `io.py`, quirks of the original replicated by default.

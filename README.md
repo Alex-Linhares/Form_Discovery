@@ -186,6 +186,17 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   (`--maxschedchunk 1`). The gate then takes about 6 min (the longest test, gibbs
   `test_live_fresh_seeds`, alone takes about 6 min) against about 40 min serial. Three
   runs at `-n 16` and one at `-n 8` gave the same pass set.
+- `tools/compare_live.py --pairs S:D[:SEED] ... --jobs N` runs Octave and Python side by
+  side. For each (structure, dataset, seed) a worker runs `run_baseline` in its own
+  `octave-cli` with the `randperm` shim logging every draw. It then runs Python's
+  `runmodel` on the same pair, replaying those draws without oracles: Python uses its own
+  optimizer and tie breaking, and once a draw no longer fits it goes on with numpy. The
+  output is one table: Octave and Python ll, relative difference, ARI, cluster counts, how
+  far the replay went, and each side's wall time. The default set (the 9 feature and 54
+  relational baseline pairs, seed 1) passes PLAN §7.1 on all 63 rows. Octave reproduces the
+  committed baseline exactly. The relational scores agree to 1e-15, and the feature scores
+  to 7.4e-6 relative, with ARI 1 everywhere. This takes 26 s with `--jobs 16` against 3 min
+  35 s with `--jobs 1`, and the rows are identical apart from the times.
 
 ```bash
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # regression gate, Octave live (strict), ~6 min
@@ -197,6 +208,7 @@ python tools/gen_fixtures.py          # regenerate all fixtures through Octave (
 python tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
 python tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel
 python tools/mat_compare.py A B       # compare two directories of .mat outputs by content
+python tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline pairs (~30 s)
 ```
 
 ## Layout

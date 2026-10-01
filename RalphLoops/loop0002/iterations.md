@@ -31,7 +31,7 @@ Work on the first `[ ]` item only.
       worker. Fix any test that is not concurrency-safe (shared temp names, files written under
       `tests/`, image baselines). Run the gate 3× to check determinism (same pass set).
       Table: gate wall clock serial vs `-n 8` vs `-n 16`, and CPU time.
-- [ ] 06. **Side-by-side live comparison tool.** `tools/compare_live.py --pairs ... --jobs N`:
+- [x] 06. **Side-by-side live comparison tool.** `tools/compare_live.py --pairs ... --jobs N`:
       for a list of (structure, dataset, seed) triples, run Octave (`run_baseline` with the
       randperm-recording shim) and Python (`runmodel` replaying Octave's draws) concurrently in
       a process pool, then print one table: Octave ll, Python ll, rel diff, ARI, cluster
