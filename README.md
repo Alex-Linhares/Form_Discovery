@@ -172,6 +172,13 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   7 min 56 s with `--jobs 16` against 68 min 49 s with `--jobs 1`. The two runs and the
   committed fixtures have the same content (`--compare DIR`: loaded arrays to all digits,
   timing fields skipped, temp-directory names masked).
+- The baselines regenerate in parallel too: `tools/gen_baselines.py --kind feat|rel --jobs N`
+  runs one `octave-cli` per (structure, dataset) pair, each into its own directory. A merge
+  (`matlab/baseline_merge.m`, plus a copy of the `results/` trees) then writes what the
+  serial `run_baseline` writes. The merged output has the same file set and content as the
+  committed `tests/fixtures/baseline/{feat,rel}` (`--compare DIR`; only `timings.seconds`
+  is skipped). With `--jobs 16` feat takes 5.8 s and rel 14.6 s, against 33–46 s and
+  140–176 s for serial `run_baseline`.
 
 ```bash
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # regression gate, Octave live (strict)
@@ -180,6 +187,7 @@ python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 python -m pytest -q -m slow           # long runs
 python tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
 python tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
+python tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel
 python tools/mat_compare.py A B       # compare two directories of .mat outputs by content
 ```
 
@@ -192,7 +200,7 @@ python tools/mat_compare.py A B       # compare two directories of .mat outputs 
 | `examples/` | `formdiscovery_demo.ipynb`: the masterrun demo end to end, with figures |
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
 | `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources and data, plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
-| `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures |
+| `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `tools/gen_baselines.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
 | `tests/` | Fixture scripts (`tests/octave/`), fixtures, pytest parity tests, Octave baselines |

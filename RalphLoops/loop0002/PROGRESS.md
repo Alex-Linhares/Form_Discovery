@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 3/7 SOLVED
+- **Current**: 4/7 SOLVED
 
 ---
 
@@ -212,3 +212,67 @@
 ### Next
 - Item 04: `tools/gen_baselines.py --kind feat|rel --jobs N` with a merge step, compared
   with the committed `tests/fixtures/baseline/{feat,rel}`.
+
+---
+
+## Iteration 5 — 2026-09-30 23:43
+### Completed
+- Item 04, parallel baselines.
+  - New `tools/gen_baselines.py --kind feat|rel --jobs N` (default cores/2; also
+    `--struct`/`--data` sub-grids, `--outdir`, `--compare DIR`, `--logdir`). There is one
+    task per (structure, dataset) pair: `run_baseline(kind, sind, dind, pairdir)` in its
+    own `octave-cli` (`fixture_env('baseline')`, pinned), each into its own directory. It
+    reuses `gen_fixtures.run_tasks`: longest pair first (expected times from the committed
+    `timings.mat`), per-pair logs in `build/gen_baselines/<kind>/`, and the timing table.
+  - Merge: the new `matlab/baseline_merge.m` replays `run_baseline`'s accumulation over the
+    pairs in the serial run order (structure fastest, then dataset). `timings` is
+    concatenated. `modellike`, `structure`, `names`, `pss` and `llhistory` at
+    `(sind, dind, 1)` come from each pair's `resultsdemo.mat`, and a crashed pair adds only
+    its timings entry, as in the serial run. Python then copies each pair's `results/`
+    tree (it refuses a file written by two pairs). Everything is built in a staging
+    directory next to `--outdir` and swapped in by rename. `--compare` checks the full
+    file set (all files, not only `.mat`) and then `.mat` content to all digits
+    (`mat_compare.compare_dirs`, skipping `timings.seconds` only).
+  - Result: `--jobs 1`, `--jobs 16` and `--jobs 32` (and 9 for feat) all give **0
+    differences** against the committed `tests/fixtures/baseline/feat` (21 files) and
+    `rel` (56 files). They also give 0 differences against a fresh serial
+    `run_baseline(kind)` in one pinned `octave-cli`, and `--jobs 1` vs `--jobs 16` has 0
+    differences. So all ll values, graph structs, `pss`, `llhistory`, growth histories
+    and timings (except seconds) match, with the same file sets.
+  - Found and fixed a race, **ANOMALIES A20 (handled)**. Octave's `mkdir` of a nested path
+    is check-then-create (`mkdir_recur`), so one of 9 simultaneous `run_baseline`s failed
+    with "mkdir: operation failed: File exists" when a sibling created the shared
+    `pairs/` parent first. The tool now creates each pair directory before starting
+    Octave. No KI entry, because it is an environment issue (as for A18/A19).
+  - New `tests/test_gen_baselines.py` (11 tests). The grids and pair order are checked
+    against `run_baseline.m` and against the committed `timings.mat` order. Also task
+    planning, the results-overlap guard, and file-set comparison. Live `octave` tests:
+    all 9 feat pairs in parallel, merged, equal the committed baseline (≈8 s, in the gate;
+    it failed before the A20 fix and passed 3 of 3 after), and merging with a synthetic
+    crashed pair. A `slow` live test does the same for the 54 rel pairs with 16 processes
+    (15 s).
+
+  | run | wall clock | CPU (user+sys) | workers |
+  |---|---|---|---|
+  | loop0001: serial `run_baseline('feat'); run_baseline('rel')` | 2 min 45 s | – | 1 Octave |
+  | serial `run_baseline('feat')`, pinned (this iteration, 2 runs) | 33.5–46.3 s | 33.5–46.3 s | 1 Octave |
+  | serial `run_baseline('rel')`, pinned (2 runs) | 139.7–176.3 s | 139.7–176.0 s | 1 Octave |
+  | `gen_baselines.py --kind feat --jobs 1` | 27.4 s | 29.3 s | 1 `octave-cli` at a time (9 + merge) |
+  | `gen_baselines.py --kind feat --jobs 16` | **5.8 s** | 31.3 s | 9 `octave-cli` |
+  | `gen_baselines.py --kind rel --jobs 1` | 145.7 s | 147.3 s | 1 at a time (54 + merge) |
+  | `gen_baselines.py --kind rel --jobs 16` | **14.6 s** | 161.7 s | 16 `octave-cli` |
+  | `gen_baselines.py --kind rel --jobs 32` | 15.3 s | 204.1 s | 32 `octave-cli` |
+
+  Both grids together: about 20 s with `--jobs 16`, against 2 min 45 s serial (≈8×). The
+  feat wall time is set by the three tree runs (5–10 s each). Other jobs shared the machine
+  (load average 8–11), which is why the serial times vary between runs. The earlier
+  pre-fix runs were slower for the same reason (feat 10.8 s, rel 30.8 s at 16 jobs).
+- Docs: `README.md` (bullet in "How it was verified", the commands block, the layout row),
+  `CLAUDE.md` (the baseline command), the `PLAN.md` tree, and ANOMALIES A20.
+- Gate (fd env, strict): **3637 passed, 3 skipped (the known sklearn/nbformat, no Octave
+  skips), 79 deselected, exit 0**, in 40 min 37 s wall, 2892 s CPU. A first attempt was
+  stopped at 10 min by a tool time limit I set too low; it is not a test result.
+### Blockers
+- None. A19 (gibbs kept unpinned) is still open for a human.
+### Next
+- Item 05: parallel gate with pytest-xdist (`-n 16`, one Octave per worker).

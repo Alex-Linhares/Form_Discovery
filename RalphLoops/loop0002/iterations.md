@@ -20,7 +20,7 @@ Work on the first `[ ]` item only.
       Regenerate all fixtures with `--jobs 16` and with `--jobs 1`; assert every `.mat` is
       content-identical (compare loaded arrays, not bytes; the header carries a timestamp).
       Table: serial vs parallel wall clock.
-- [ ] 04. **Parallel baselines.** `tools/gen_baselines.py --kind feat|rel --jobs N`: one
+- [x] 04. **Parallel baselines.** `tools/gen_baselines.py --kind feat|rel --jobs N`: one
       Octave process per (structure, dataset) pair, each writing to its own directory, then a
       merge step that assembles `resultsdemo.mat`, `timings.mat` and the `results/` growth
       histories exactly as the serial `run_baseline` does. Verify the merged output is

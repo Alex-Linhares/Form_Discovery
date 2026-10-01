@@ -58,6 +58,7 @@ Kemp_Tanembaum_matlab_code/
 │   └── parity/                    # live Octave-vs-Python tests (skipped if Octave missing)
 └── tools/
     ├── gen_fixtures.py            # runs every tests/octave/fx_*.m through Octave (--jobs N), writes tests/fixtures
+    ├── gen_baselines.py           # run_baseline grid, one Octave per pair (--jobs N), merged into tests/fixtures/baseline
     └── compare_runs.py            # diff a Python run against an Octave run (scores, graphs, z)
 ```
 

@@ -22,7 +22,9 @@ and pygraphviz. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m
 (in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Fixtures are regenerated only through Octave
 (`tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
-`--outdir` with `--compare tests/fixtures` rather than over the committed files).
+`--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:
+`tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
+(one Octave per pair, then a merge).
 
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices
 converted only in `io.py`, quirks of the original replicated by default.
