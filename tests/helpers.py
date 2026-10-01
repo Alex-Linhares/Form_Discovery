@@ -125,3 +125,25 @@ def adjusted_rand_index(a, b):
     if top == expected:  # both trivial (one cluster each, or all singletons)
         return 1.0
     return (sum_ij - expected) / (top - expected)
+
+
+def xdist_shared(name, tmp_path_factory, compute):
+    """``compute()`` once per test run, also under pytest-xdist (loop0002 item 07).
+
+    Serially this is just ``compute()``. Under xdist every worker that runs a test using a
+    module fixture would run the fixture again; here the first worker computes it under a
+    lock and writes it as JSON to the run's shared temp directory, and the others read that
+    file. ``compute`` must return a list of JSON values (floats round-trip exactly).
+    """
+    import fcntl
+    import json
+    import os
+
+    if not os.environ.get("PYTEST_XDIST_WORKER"):
+        return compute()
+    shared = tmp_path_factory.getbasetemp().parent / f"{name}.json"
+    with open(shared.with_suffix(".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not shared.exists():
+            shared.write_text(json.dumps(compute()))
+        return json.loads(shared.read_text())

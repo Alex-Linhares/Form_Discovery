@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 6/7 SOLVED
+- **Current**: 7/7 SOLVED
 
 ---
 
@@ -478,3 +478,67 @@
 ### Next
 - Item 07: wrap-up (consolidated before/after table in README, CLAUDE.md commands, the
   loop0001 `-m slow` suite in the fd env, then verify every item and complete the loop).
+
+---
+
+## Iteration 8 — 2026-10-01 04:43
+### Completed
+- Item 07, wrap-up.
+  - `README.md` "How it was verified" now has a before/after table for fixtures,
+    baselines, the gate, the live comparison and the slow suite, plus the note that the old
+    gate skipped every live Octave test. The commands block has the fd-env slow command.
+    `CLAUDE.md` points to `loopNNNN` (loop0001 = port, loop0002 = harness) and gives the
+    slow command.
+  - **loop0001's `-m slow` suite in the fd env (strict, `-n 16`)**: the first run gave
+    1 failed, 78 passed, 1 skipped in 37 min 41 s, using 62 794 CPU-s (2776 % CPU). The
+    failure was `test_perf.py::test_fast_mode_within_octave_budget` (`chain:synthchain`
+    over 1.5× Octave's time), a wall-clock budget test that failed because the machine was
+    overloaded. The overload came from `test_paperlevel.py`'s module fixture
+    `python_runs`, a 32-process pool for the 45 paperlevel runs. Under xdist each of the
+    6 workers that got one of its 7 tests ran it again, so about 190 processes shared
+    32 cores and each setup took 2050–2240 s.
+    Fix: new `tests/helpers.xdist_shared(name, tmp_path_factory, compute)`. Serially it
+    just calls `compute()`. Under xdist the first worker computes the value under an
+    `fcntl` lock and writes it as JSON to the run's shared basetemp, and the other workers
+    read it (JSON floats round-trip exactly). `python_runs` uses it. Serial-equivalence
+    test: `test_gate_env.py::test_xdist_shared` (8 concurrent "workers": one computation,
+    every one gets the serial value to all digits).
+    The rerun gave **79 passed, 1 skipped (nbclient, not an Octave test), exit 0, in
+    9 min 02 s**, using 6100 CPU-s. The perf budget test passes. No anomaly: this is test
+    scheduling, not formdiscovery1.0 or Octave (as with item 05's image-diff file).
+
+  | run | wall clock | CPU (user+sys) | workers |
+  |---|---|---|---|
+  | `-m slow -n 16`, before the fix | 37 min 41 s (1 failed) | 62 794 s (2776 %) | 16 (+16 Octave, +≈190 pool processes) |
+  | `-m slow -n 16`, after | **9 min 02 s** | 6 100 s (1124 %) | 16 (+16 Octave, one 32-process pool) |
+  | gate `-m "not slow" -n 16`, this iteration | 6 min 02 s | 3517 s | 16 (+16 Octave) |
+
+  A serial `-m slow` run was not timed. Its long parts alone add up to more than an
+  hour: the paperlevel pool is about 8 min on 32 cores, and gibbs speed4, masterrun
+  no-replay, glslow and dpmiss run serially.
+  - Consolidated before/after (all on this machine, parallel = serial content):
+
+  | task | before | after |
+  |---|---|---|
+  | 31 fixtures | 68 min 49 s (`--jobs 1`) | 7 min 56 s (`--jobs 16`) |
+  | feat + rel baselines | 2 min 45 s (serial `run_baseline`) | 20 s (`--jobs 16`) |
+  | gate, Octave live, strict | 38 min 18 s (serial, unpinned) | ≈ 6 min (`-n 16`) |
+  | 63-pair Octave vs Python | 3 min 35 s (`--jobs 1`) | 26 s (`--jobs 16`) |
+  | slow suite | 37 min 41 s (`-n 16`, fixture rerun per worker) | 9 min 02 s |
+
+  - Checked items 01–06 again: `tests/test_gate_env.py` (strict mode, pinning,
+    one Octave per worker), `tests/test_gen_fixtures.py`, `tests/test_gen_baselines.py`
+    and `tests/test_compare_live.py` exist and pass in the gate, and their serial-vs-parallel
+    live tests pass (the rel-baseline and 63-pair ones in the slow run above).
+    `environment.yml`/`pyproject.toml` list pytest-xdist, and `loop.py` runs
+    `-n 16` with `RALPH_REQUIRE_OCTAVE=1`. A19 is still open (a human decision, not a
+    blocker for the loop), and A20/A21 are logged.
+- Gate (fd env, strict, `-n 16`): **3649 passed, 3 skipped (sklearn 1, nbformat 2; no
+  Octave skips), exit 0**, in 6 min 01 s wall.
+### Blockers
+- None. A19 (`gibbs.mat` kept unpinned) still needs a human decision.
+### Next
+- Loop complete. Possible follow-ups: split the gibbs/spr live tests to bring the gate
+  below 6 min, and decide A19.
+
+LOOP_COMPLETE

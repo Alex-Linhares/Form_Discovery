@@ -203,3 +203,29 @@ def test_new_file_under_tests_fails(tmp_path):
     assert res.returncode == 1, res.stdout + res.stderr
     assert "2 passed" in res.stdout
     assert "wrote new files under tests/" in res.stderr and "stray.png" in res.stderr
+
+
+def test_xdist_shared(tmp_path, monkeypatch):
+    """``helpers.xdist_shared`` (item 07): computed once across concurrent "workers", and
+    every worker gets the serial value to all digits."""
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+
+    from tests.helpers import xdist_shared
+    value = [[-8247.204813441429, 4, 0.1 + 0.2], [1e-300, 0, -0.0]]
+    calls = []
+
+    def compute():
+        calls.append(1)
+        return [list(v) for v in value]
+
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    assert xdist_shared("x", None, compute) == value and len(calls) == 1
+    calls.clear()
+    monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
+    factories = [SimpleNamespace(getbasetemp=lambda i=i: tmp_path / f"popen-gw{i}")
+                 for i in range(8)]
+    with ThreadPoolExecutor(8) as ex:
+        outs = list(ex.map(lambda f: xdist_shared("x", f, compute), factories))
+    assert len(calls) == 1
+    assert all(o == value for o in outs)

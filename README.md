@@ -198,12 +198,26 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   to 7.4e-6 relative, with ARI 1 everywhere. This takes 26 s with `--jobs 16` against 3 min
   35 s with `--jobs 1`, and the rows are identical apart from the times.
 
+Before and after the parallel harness (`RalphLoops/loop0002`, 32-core machine; every
+parallel run gives the same contents as the serial one):
+
+| task | before | after | CPU (user+sys) before → after | workers after |
+|---|---|---|---|---|
+| all 31 fixtures (`gen_fixtures.py`) | 68 min 49 s (`--jobs 1`; paperlevel alone ≈ 81 min in one process before) | **7 min 56 s** (`--jobs 16`) | 4530 s → 5310 s | 16 `octave-cli` |
+| both baseline grids (`gen_baselines.py`) | 2 min 45 s (serial `run_baseline` feat + rel) | **20 s** (feat 5.8 s + rel 14.6 s, `--jobs 16`) | 176 s → 193 s (`--jobs 1` → 16) | 9 / 16 `octave-cli` |
+| gate, Octave live (strict) | 38 min 18 s (serial, unpinned BLAS) | **≈ 6 min** (`-n 16`, 6:01–6:12 over three runs) | 4482 s → ≈ 3570 s | 16 pytest workers + 16 Octave |
+| Octave vs Python, 63 pairs (`compare_live.py`) | 3 min 35 s (`--jobs 1`) | **26 s** (`--jobs 16`) | 217 s → 257 s | 16 workers + their `octave-cli` |
+| slow suite (`-m slow -n 16`, 80 tests) | 37 min 41 s, 1 timing failure (each worker reran the 45 paperlevel Python runs on all cores) | **9 min 02 s** (run once, shared through a file: `tests/helpers.xdist_shared`) | 62 794 s → 6 100 s | 16 pytest workers + 16 Octave |
+
+Before this work the gate ran under a Python without oct2py, so the live Octave tests were
+skipped; it now runs them all and fails if one is skipped.
+
 ```bash
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # regression gate, Octave live (strict), ~6 min
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
-python -m pytest -q -m slow           # long runs
+~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
 python tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
 python tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
 python tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel

@@ -38,7 +38,7 @@ Work on the first `[ ]` item only.
       counts, wall times of each side. Default set: the 9 feature demo pairs + the 54
       relational pairs. Add a `slow` test that runs the default set and asserts the loop0001
       criteria (§7.1) still hold. Record the full table in PROGRESS.md.
-- [ ] 07. **Wrap-up.** Consolidated before/after table (fixtures, baselines, gate, live
+- [x] 07. **Wrap-up.** Consolidated before/after table (fixtures, baselines, gate, live
       comparison) in README "How it was verified"; `CLAUDE.md` commands updated; confirm
       `loop0001`'s `-m slow` suite still passes in the fd env. Then verify every item above,
       update the status header and add the completion line.

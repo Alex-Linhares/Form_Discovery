@@ -91,9 +91,16 @@ def _job(spec):
 
 
 @pytest.fixture(scope="module")
-def python_runs():
+def python_runs(tmp_path_factory):
     """All fixture runs in Python, in parallel (one BLAS thread per process):
-    ``{(form, data, seed): (ll, nclusters, seconds)}``."""
+    ``{(form, data, seed): (ll, nclusters, seconds)}``. Computed once per test run, also
+    under xdist, where each worker would otherwise rerun all 45 on every core."""
+    from tests.helpers import xdist_shared
+    out = xdist_shared("paperlevel_python_runs", tmp_path_factory, _python_runs)
+    return {_key(r): (float(o[0]), int(o[1]), float(o[2])) for r, o in zip(RUNS, out)}
+
+
+def _python_runs():
     specs = [(int(r["sind"]) - 1, int(r["dind"]) - 1, int(r["speed"]), int(r["seed"]))
              for r in RUNS]
     old = {k: os.environ.get(k) for k in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS")}
@@ -109,7 +116,7 @@ def python_runs():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-    return {_key(r): o for r, o in zip(RUNS, out)}
+    return [[float(ll), int(ncl), float(t)] for ll, ncl, t in out]
 
 
 OCTAVE = {_key(r): (float(r["ll"]), int(r["ncl"])) for r in RUNS}

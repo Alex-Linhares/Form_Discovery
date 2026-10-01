@@ -14,14 +14,16 @@ Read first, in this order:
   `PATCH(octave)` in the source.
 - `src/formdiscovery/CONVENTIONS.md`: index, ordering and dtype rules for the port.
 
-Work is driven by the Ralph loop in `RalphLoops/loop0001/` (`TASK.md`, `iterations.md`,
-`PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`.
+Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.md`,
+`PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`. `loop0001` did the port,
+`loop0002` the Octave-backed parallel harness (before/after timings in README "How it was verified").
 
 Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py,
 pygraphviz and pytest-xdist. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
 (about 6 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
 new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
-`RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Fixtures are regenerated only through Octave
+`RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module
+fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are regenerated only through Octave
 (`tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
 `--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:
 `tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
