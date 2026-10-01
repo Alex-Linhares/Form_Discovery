@@ -38,7 +38,11 @@ fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are 
 Legacy: everything Octave-specific (MATLAB sources, shims, `run_baseline.m`, fixture scripts,
 Octave tools) is under `legacy/` (`legacy/matlab/`, `legacy/tests_octave/`, `legacy/tools/`);
 `tests/conftest.py` has one `LEGACY_DIR` and derives `MATLAB_DIR`, `SHIM_DIR`, `OCTAVE_TESTS_DIR`
-from it; tests import the tools as `legacy.tools.<name>` (loop0004 item 02).
+from it; tests import the tools as `legacy.tools.<name>` (loop0004 item 02). Tests that need the
+`.m` files or the Octave tools live in `legacy/tests/` (`testpaths = ["tests", "legacy/tests"]`,
+dropped by pytest when absent; `legacy/tests/conftest.py` re-exports `octave`, `replay` and the
+strict-mode hook); without `legacy/`, `octave` tests skip (fail in strict mode) and
+`-m "not slow and not octave"` runs with no Octave (loop0004 item 03).
 
 Data: the 20 data sets live in `data/` (`io.DATA_DIR`, override `$FORMDISCOVERY_DATA`);
 `legacy/matlab/formdiscovery1.0/data` is a committed symlink to `../../../data` so `setps.m` still works

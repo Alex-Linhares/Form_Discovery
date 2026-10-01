@@ -259,6 +259,7 @@ skipped; it now runs them all and fails if one is skipped.
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # regression gate, Octave live (strict), ~6 min
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
+python -m pytest -q -m "not slow and not octave" -n 16   # fixture-only: needs neither Octave nor legacy/ (~1.5 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
 python legacy/tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
@@ -280,6 +281,7 @@ python legacy/tools/compare_live.py --jobs 16   # Octave vs Python on the 63 bas
 | `legacy/matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources (its `data` is a symlink to `../../../data`), plus 16 documented Octave-compatibility edits (`legacy/matlab/PATCHES.md`) |
 | `legacy/matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `legacy/tools/gen_baselines.py`) |
 | `legacy/tests_octave/` | The Octave fixture scripts (`fx_<name>.m`), spies and shims |
+| `legacy/tests/` | pytest tests that need the MATLAB sources or the Octave tools (patches, toolchain, the `legacy/tools` scripts, KNOWN_ISSUES line pins); collected only when `legacy/` exists (`testpaths`, `legacy/tests/conftest.py`) |
 | `legacy/tools/` | Octave-driven tools: fixture and baseline generation (`gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`), Octave vs Python side by side (`compare_live.py`), `.mat` content comparison (`mat_compare.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |

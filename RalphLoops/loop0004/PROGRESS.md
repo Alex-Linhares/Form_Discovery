@@ -3,7 +3,7 @@
 ## Ralph Loop 0004 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 2/6 SOLVED
+- **Current**: 3/6 SOLVED
 
 ---
 
@@ -95,3 +95,52 @@
 - Item 03: move the Octave-only tests to `legacy/tests/` and make their collection
   conditional on `legacy/` existing. Note: `test_gen_baselines.py` now also has an
   Octave-free test (`test_compare_baselines_masks_data_dir_prefix`) that moves with it.
+
+## Iteration 3 — 2026-10-01 18:20
+### Completed
+- Item 03 (Phase 2, tests). `git mv` to `legacy/tests/`: `test_patches.py`,
+  `test_toolchain.py`, `test_gen_fixtures.py`, `test_gen_baselines.py`, `test_mat_compare.py`
+  and also `test_compare_live.py` (it tests `legacy/tools/compare_live.py`; not in the item's
+  list, found by the no-`legacy/` run). `test_known_issues.py` split: `QUIRKS` and
+  `test_every_entry_documented` stay; `test_quirk_at_cited_line`,
+  `test_zinit_rel_is_unreferenced`, `test_dijkstra_called_with_one_output` (all read `.m`
+  files) are in `legacy/tests/test_known_issues_sources.py`, importing `QUIRKS`.
+- Collection mechanism (documented in `pyproject.toml`, `legacy/tests/conftest.py`,
+  `tests/conftest.py` docstrings, README Layout, CLAUDE.md): `testpaths = ["tests",
+  "legacy/tests"]`; pytest drops a `testpaths` glob that matches nothing, so without
+  `legacy/` only `tests/` is collected. `legacy/tests/` has no `__init__.py` (prepend mode
+  would name it `tests`); its conftest puts the repo root on `sys.path` and re-exports
+  `octave`, `replay`, `pytest_configure` and `pytest_runtest_makereport` (per-item hooks are
+  path-scoped, so strict mode needs its own copy there) and runs the top conftest's
+  `pytest_collection_modifyitems` only when `legacy/tests` is run alone.
+- `tests/conftest.py`: `octave` tests are skipped at collection when
+  `legacy/matlab/formdiscovery1.0` is absent (strict mode turns that into a failure, checked
+  in a no-`legacy/` copy: `RALPH_REQUIRE_OCTAVE=1` -> errors with the reason,
+  `=0` -> skips).
+- A33 (ANOMALIES): `tests/test_gibbs.py` imported `legacy.tools.gen_fixtures` at module
+  level, so it and the four modules that import from it (`test_runmodel`, `test_structurefit`,
+  `test_masterrun`, `test_viz_draw`) failed to collect without `legacy/`. The import is now
+  inside the live test.
+- New tests in `tests/test_gate_env.py`: `test_legacy_tests_collected_only_when_present`
+  (mini project, with and without `legacy/tests`), `test_octave_tests_skip_without_legacy`,
+  `test_legacy_conftest_reexports` (skips without `legacy/`).
+- Moved-test paths updated in ANOMALIES (A20, A21, A30, A32), KNOWN_ISSUES (intro, KI-5,
+  KI-6, KI-15 pins), PATCHES.md, and the `legacy/tools` docstrings. README gains the
+  fixture-only command `python -m pytest -q -m "not slow and not octave" -n 16`.
+- Proof without `legacy/` (a copy of the working tree via `git ls-files -co`, `legacy/`
+  deleted): `-m "not slow and not octave" -n 16` under the fd env: 3575 passed, 3 skipped,
+  103 s; under the base interpreter (`~/anaconda3/bin/python`, no oct2py; pytest-xdist added
+  in a throwaway `--system-site-packages` venv because the base env lacks it): 3305 passed,
+  188 skipped (GUI modules without PySide6, etc.), 94 s. `legacy/tests` alone under the
+  base interpreter: 93 passed (octave tests skip with `RALPH_REQUIRE_OCTAVE=0`).
+- Strict gate (`RALPH_REQUIRE_OCTAVE=1`, `-n 16`): 3746 passed, 3 skipped (= 3743 + the 3
+  new tests; collected count with `-m "not slow"` unchanged at 3746 before the new tests),
+  522.5 s (the machine had another 6-worker job running, load ~25). No file under
+  `tests/fixtures/` modified.
+### Blockers
+- None.
+### Next
+- Item 04: environment split (`environment.yml` Python-only, `legacy/environment-octave.yml`),
+  `pyproject.toml` extras, README/CLAUDE.md/CONVENTIONS.md/`legacy/README.md`. Note: the base
+  interpreter has no pytest-xdist, so the documented fixture-only `-n 16` command needs the
+  `test` extra installed.

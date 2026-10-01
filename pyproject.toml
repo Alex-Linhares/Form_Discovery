@@ -32,7 +32,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests"]
+# legacy/tests: collected only when legacy/ exists (a glob that matches nothing is
+# dropped; legacy/tests/conftest.py, loop0004 item 03)
+testpaths = ["tests", "legacy/tests"]
 pythonpath = ["src"]
 addopts = "--strict-markers"
 # pytest-qt (loop0003): the fd env also has PyQt5; the GUI is PySide6

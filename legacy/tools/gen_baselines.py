@@ -14,7 +14,7 @@ writes:
   (the trees do not overlap).
 
 Every run starts with ``rand('state', 1)`` and no state carries from one run to the next,
-so the merged output equals the serial one (``--compare``; ``tests/test_gen_baselines.py``;
+so the merged output equals the serial one (``--compare``; ``legacy/tests/test_gen_baselines.py``;
 PROGRESS.md loop0002 iteration 5). The merged output is built in a staging directory next
 to ``--outdir`` and swapped in at the end.
 

@@ -17,7 +17,7 @@ For each triple, one pool worker:
 
 Up to ``--jobs`` workers run at once, so Octave and Python runs of different triples
 overlap. Every worker and every ``octave-cli`` is pinned to one BLAS/OpenMP thread. The
-rows do not depend on ``--jobs`` (``tests/test_compare_live.py``), apart from the times.
+rows do not depend on ``--jobs`` (``legacy/tests/test_compare_live.py``), apart from the times.
 
 The table has, per triple: Octave and Python final ll, relative difference, ARI of the
 two partitions (``tests/helpers.py::adjusted_rand_index``), cluster counts (occupied

@@ -36,7 +36,6 @@ from formdiscovery.rng import ReplayError, ReplayPermutations, parse_queue
 from formdiscovery.search import gibbs_clean, graphsig, nearmissopts
 from tests.conftest import BLAS_DEFAULT_FIXTURES, OCTAVE_TESTS_DIR, find_octave
 from tests.helpers import graph_diff
-from legacy.tools import gen_fixtures
 from tests.test_baseline import EXPECTED_LL as FEAT_LL
 from tests.test_baseline_rel import EXPECTED_LL as REL_LL
 from tests.test_glslow import LOGI_RTOL
@@ -442,6 +441,7 @@ def test_live_fixture_regenerates(octave, tmp_path):
     with OpenBLAS's default thread count, as the committed fixture was made. The
     ``grid x synthgrid`` run does not reproduce under the session's one-thread pin
     (ANOMALIES A19; ``BLAS_DEFAULT_FIXTURES``)."""
+    from legacy.tools import gen_fixtures  # lazy: legacy/ may be absent (loop0004 item 03)
     assert "gibbs" in BLAS_DEFAULT_FIXTURES
     assert gen_fixtures.run_one(find_octave(), "gibbs",
                                 OCTAVE_TESTS_DIR / "fx_gibbs.m", tmp_path)

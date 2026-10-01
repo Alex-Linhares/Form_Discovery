@@ -229,3 +229,67 @@ def test_xdist_shared(tmp_path, monkeypatch):
         outs = list(ex.map(lambda f: xdist_shared("x", f, compute), factories))
     assert len(calls) == 1
     assert all(o == value for o in outs)
+
+
+def test_legacy_tests_collected_only_when_present(tmp_path):
+    """``testpaths`` (loop0004 item 03): ``legacy/tests`` is collected when it exists and
+    silently dropped when it does not, with this pytest."""
+    import tomllib
+    ini = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())["tool"]["pytest"]
+    paths = ini["ini_options"]["testpaths"]
+    assert paths == ["tests", "legacy/tests"]
+    (tmp_path / "pytest.ini").write_text("[pytest]\ntestpaths = " + " ".join(paths) + "\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("def test_a():\n    pass\n")
+
+    def collected():
+        res = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
+                              "-p", "no:cacheprovider", "-o", "addopts="], cwd=tmp_path,
+                             capture_output=True, text=True, timeout=120)
+        assert res.returncode == 0, res.stdout + res.stderr
+        return sorted(ln for ln in res.stdout.splitlines() if "::" in ln)
+
+    assert collected() == ["tests/test_a.py::test_a"]
+    (tmp_path / "legacy" / "tests").mkdir(parents=True)
+    (tmp_path / "legacy" / "tests" / "test_b.py").write_text("def test_b():\n    pass\n")
+    assert collected() == ["legacy/tests/test_b.py::test_b", "tests/test_a.py::test_a"]
+
+
+class _Marked:
+    def __init__(self):
+        self.keywords = {"octave": True}
+        self.markers = []
+
+    def add_marker(self, m):
+        self.markers.append(m)
+
+
+def test_octave_tests_skip_without_legacy(monkeypatch, tmp_path):
+    """Without ``legacy/`` (no MATLAB sources) ``octave`` tests are skipped at collection
+    (a failure in strict mode, ``pytest_runtest_makereport``) even where Octave exists."""
+    import types
+    monkeypatch.setitem(sys.modules, "oct2py", types.ModuleType("oct2py"))
+    monkeypatch.setattr(conftest, "find_octave", lambda: "/bin/true")
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    item = _Marked()
+    monkeypatch.setattr(conftest, "MATLAB_DIR", tmp_path / "absent")
+    conftest.pytest_collection_modifyitems(None, [item])
+    assert [m.kwargs["reason"] for m in item.markers] == [
+        f"legacy/ (the MATLAB sources) not present: {tmp_path / 'absent'}"]
+    item = _Marked()
+    monkeypatch.setattr(conftest, "MATLAB_DIR", tmp_path)
+    conftest.pytest_collection_modifyitems(None, [item])
+    assert item.markers == []
+
+
+def test_legacy_conftest_reexports():
+    """``legacy/tests/conftest.py`` hands the legacy tests this conftest's fixtures and its
+    strict-mode hook (conftest hooks are path-scoped)."""
+    path = LEGACY_DIR / "tests" / "conftest.py"
+    if not path.is_file():
+        pytest.skip("legacy/ not present")
+    spec = importlib.util.spec_from_file_location("legacy_tests_conftest", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for name in ("octave", "replay", "pytest_runtest_makereport", "pytest_configure"):
+        assert getattr(mod, name) is getattr(conftest, name), name

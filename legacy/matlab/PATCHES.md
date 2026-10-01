@@ -2,7 +2,7 @@
 
 These are the only edits made to the original MATLAB sources (items 03 and 03b of loop0001).
 Every edited line has a `PATCH(octave)` comment, and the original line is kept as a
-comment where the change is more than a token swap. `tests/test_patches.py` checks that the
+comment where the change is more than a token swap. `legacy/tests/test_patches.py` checks that the
 removed/undefined calls are gone from live code, that every file with a marker is listed
 here, and that CRLF files kept CRLF line endings (`dijkstra.m`, `dot_to_graph.m` and
 `draw_dot.m` use CRLF; the edits keep it).
@@ -94,7 +94,7 @@ or uses the result only in shape-agnostic ways (`length`, `isempty`, `ismember`,
 - `filloutrelgraph.m:12` (the other `find_descendants` caller) indexes with
   `descendants{i}`, which is shape-agnostic; it was unaffected before and after the patch.
 
-Pinned by `tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and the
+Pinned by `legacy/tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and the
 tree / `undirhierarchy` entries in `tests/test_baseline.py` and `tests/test_baseline_rel.py`.
 
 ## Known Octave warnings (not patched, harmless)

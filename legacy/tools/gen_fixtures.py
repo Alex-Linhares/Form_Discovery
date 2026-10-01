@@ -25,7 +25,7 @@ after that fixture is written when both are regenerated, as in the serial alphab
 order. Each output is written to a staging directory and moved into ``--outdir`` in one
 ``os.replace``, so a reader never sees a half-written file. Every task's output goes to
 ``<logdir>/<task>.log``; a table of wall and CPU seconds per task ends the run. The output
-does not depend on N (``tests/test_gen_fixtures.py``; PROGRESS.md loop0002 iteration 4).
+does not depend on N (``legacy/tests/test_gen_fixtures.py``; PROGRESS.md loop0002 iteration 4).
 
 ``--compare DIR`` then compares every regenerated ``.mat`` with ``DIR/<name>.mat`` by
 content (:func:`compare_fixture`: loaded arrays, not bytes; the header has a timestamp),
@@ -69,7 +69,7 @@ from legacy.tools.mat_compare import DEFAULT_IGNORE, compare_mat  # noqa: E402
 DEFAULT_LOGDIR = REPO_ROOT / "build" / "gen_fixtures"
 
 # fixture -> fixtures its script loads from tests/fixtures (checked against the scripts
-# by tests/test_gen_fixtures.py)
+# by legacy/tests/test_gen_fixtures.py)
 DEPENDS = {
     "glslow": ("dataprob", "dpmiss"),
     "graphlike": ("dataprob", "dpmiss"),

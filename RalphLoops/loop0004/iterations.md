@@ -19,7 +19,7 @@ Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
       `tests/conftest.py`; `MATLAB_DIR`, `SHIM_DIR`, `OCTAVE_TESTS_DIR` derive from it. Fix
       every import and path (tools import each other; tests import tools). Strict gate green
       with the same counts.
-- [ ] 03. **Octave-only tests to `legacy/tests/` (Phase 2, tests).** Move `test_patches.py`,
+- [x] 03. **Octave-only tests to `legacy/tests/` (Phase 2, tests).** Move `test_patches.py`,
       `test_toolchain.py`, `test_gen_fixtures.py`, `test_gen_baselines.py`,
       `test_mat_compare.py`, and split `test_known_issues.py` so the `.m` line-pin test lives
       in `legacy/tests/` while the decision/pin checks stay. Collection rule: `legacy/tests/`

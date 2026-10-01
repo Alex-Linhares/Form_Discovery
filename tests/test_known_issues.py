@@ -1,14 +1,14 @@
 """Static pins for KNOWN_ISSUES.md (item 05).
 
-Each quirk must still be at the cited line of the original source, and every
-entry must be present in KNOWN_ISSUES.md. The behavioural pins are added by
-the items that port each function (see the "Pin:" line of each entry).
+Every entry must be present in KNOWN_ISSUES.md with a decision and a pin. The behavioural
+pins are added by the items that port each function (see the "Pin:" line of each entry).
+The checks that read the original ``.m`` sources (each quirk still at its cited line,
+``zinit_rel``, ``dijkstra``) live in ``legacy/tests/test_known_issues_sources.py``
+(loop0004 item 03) and use :data:`QUIRKS` from here.
 """
 import re
 
-import pytest
-
-from tests.conftest import MATLAB_DIR, REPO_ROOT
+from tests.conftest import REPO_ROOT
 
 KNOWN_ISSUES = REPO_ROOT / "KNOWN_ISSUES.md"
 
@@ -58,16 +58,6 @@ QUIRKS = {
 }
 
 
-def source_lines(name):
-    return (MATLAB_DIR / name).read_text().splitlines()
-
-
-@pytest.mark.parametrize("key", sorted(QUIRKS))
-def test_quirk_at_cited_line(key):
-    name, line, text = QUIRKS[key]
-    assert text in source_lines(name)[line - 1]
-
-
 def test_every_entry_documented():
     doc = KNOWN_ISSUES.read_text()
     ids = set(re.findall(r"^### (KI-\d+) ", doc, flags=re.M))
@@ -77,22 +67,3 @@ def test_every_entry_documented():
     for entry in re.split(r"^### ", doc, flags=re.M)[1:]:
         assert "**Decision:**" in entry and "**Pin:**" in entry, entry[:40]
 
-
-def test_zinit_rel_is_unreferenced():
-    for f in MATLAB_DIR.glob("*.m"):
-        if f.name != "zinit_rel.m":
-            assert "zinit_rel" not in f.read_text(errors="replace"), f.name
-
-
-def test_dijkstra_called_with_one_output():
-    calls = []
-    for f in MATLAB_DIR.glob("*.m"):
-        if f.name == "dijkstra.m":
-            continue
-        for ln in f.read_text(errors="replace").splitlines():
-            code = ln.split("%", 1)[0]
-            if "dijkstra(" in code:
-                calls.append((f.name, code))
-    assert calls
-    for name, code in calls:
-        assert re.match(r"\s*\w+\s*=\s*dijkstra\(", code), (name, code)

@@ -1,5 +1,13 @@
 """Shared pytest fixtures.
 
+Legacy tests (loop0004 item 03): the tests that only make sense with the MATLAB sources and
+the Octave tools live in ``legacy/tests/``. ``testpaths = ["tests", "legacy/tests"]``
+collects them only when that directory exists (pytest drops a ``testpaths`` glob that
+matches nothing); ``legacy/tests/conftest.py`` re-exports the fixtures and the strict-mode
+hook from here. Without ``legacy/``, ``octave`` tests in ``tests/`` are skipped (a failure in
+strict mode, below), and ``pytest -q -m "not slow and not octave"`` needs neither Octave nor
+``legacy/``.
+
 The ``octave`` session fixture starts one oct2py session with the original MATLAB
 sources (``legacy/matlab/formdiscovery1.0``) on the Octave path. Tests marked
 ``@pytest.mark.octave`` are skipped when oct2py or an Octave executable is not
@@ -216,7 +224,7 @@ def pytest_sessionfinish(session, exitstatus):
 
 def pytest_collection_modifyitems(config, items):
     """Under xdist, long tests first (``long_first``); skip octave-marked tests up front
-    when the toolchain is missing."""
+    when the toolchain or ``legacy/`` (the MATLAB sources) is missing."""
     if os.environ.get("PYTEST_XDIST_WORKER"):
         items[:] = long_first(items)
     reason = None
@@ -227,6 +235,8 @@ def pytest_collection_modifyitems(config, items):
     else:
         if find_octave() is None:
             reason = "Octave executable not found"
+        elif not MATLAB_DIR.is_dir():
+            reason = f"legacy/ (the MATLAB sources) not present: {MATLAB_DIR}"
     if reason is None:
         return
     skip = pytest.mark.skip(reason=reason)

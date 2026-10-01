@@ -11,8 +11,8 @@ The default is *replicate* (PLAN.md §3.5, TASK.md "Faithful first").
 Each entry gives the source location, what goes wrong, whether any run can reach it,
 the decision, and the test that pins it. Tests marked *(item NN)* do not exist yet; the item
 that ports the function must add them under that name. Right now,
-`tests/test_known_issues.py` checks that every quirk is still at the cited line and that
-every entry below is present.
+`legacy/tests/test_known_issues_sources.py` checks that every quirk is still at the cited line
+and `tests/test_known_issues.py` that every entry below is present with a decision and a pin.
 
 Octave-vs-MATLAB compatibility edits to the sources are documented separately in
 `legacy/matlab/PATCHES.md`. KI-9 and KI-10 are listed here as well because the port also has to
@@ -90,7 +90,7 @@ deal with them.
   output from `ps.relinitdir`).
 - **Decision:** not ported. The `'external'` branch of `runmodel` is ported, and
   users supply the `*_bestz` files themselves.
-- **Pin:** `tests/test_known_issues.py::test_zinit_rel_is_unreferenced` (exists).
+- **Pin:** `legacy/tests/test_known_issues_sources.py::test_zinit_rel_is_unreferenced` (exists).
 
 ### KI-6 `dijkstra.m:111`: call to a missing `pred2path`
 - **Code:** `if nargout > 1 & length(s) == 1 & length(t) == 1, P = pred2path(P,s,t);`.
@@ -100,7 +100,7 @@ deal with them.
 - **Decision:** replicate the single-output behaviour. The Python `dijkstra` returns only the
   distance matrix and raises `NotImplementedError` when paths are requested.
 - **Pin:** `tests/test_l0b.py::test_dijkstra_matches_octave`, `::test_dijkstra_errors_and_paths` and
-  `tests/test_known_issues.py::test_dijkstra_called_with_one_output` (exists).
+  `legacy/tests/test_known_issues_sources.py::test_dijkstra_called_with_one_output` (exists).
 
 ## Other issues found during Phase 0
 
@@ -145,7 +145,7 @@ deal with them.
   there. The other 36 set-operation call sites were audited (`legacy/matlab/PATCHES.md`, "Set-operation
   orientation audit"): none receives a 0×0 operand whose result shape is later relied on.
   Python returns 1-D arrays, so the port does not have the problem.
-- **Pin:** `tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and
+- **Pin:** `legacy/tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and
   `::test_find_descendants_patch_present`; the tree entries in `tests/test_baseline.py` and the
   `undirhierarchy × demo_hierarchy_rel_bin` entry in `tests/test_baseline_rel.py`, regenerated
   with the patch applied.
