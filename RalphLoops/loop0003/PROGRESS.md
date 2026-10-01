@@ -3,7 +3,7 @@
 ## Ralph Loop 0003 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 2/6 SOLVED
+- **Current**: 3/6 SOLVED
 
 ---
 
@@ -103,3 +103,55 @@
   `frame` signal (connect a `QObject` method, A23), coalescing with a timer (latest wins, never drop
   `inferredgraph`), status line from `frame`'s `depth` and the title's score; stable positions (`draw_dot
   pos=`). Stop already works through `MainWindow.stop_run`.
+
+## Iteration 3 — 2026-10-01 13:19
+### Completed
+- Item 03 (live canvas) solved.
+- `gui/canvas.py`: `GraphCanvas(FigureCanvasQTAgg)`. `push_frame(event, adj, names, title, depth)` (a `Slot`
+  on a GUI-thread `QObject`, so the worker's `frame` connection is queued, A23) stores the frame; a
+  single-shot timer (100 ms) draws the latest stored one (older ones counted in `dropped`); an
+  `inferredgraph` frame is drawn at once and never dropped; `flush()` draws a pending frame now. Each frame
+  is drawn with `viz.draw.draw_dot(adj, names, backend, pos=..., ax=...)`, backend `pygraphviz` (default) or
+  `networkx` (`CANVAS_BACKENDS`), titled with the model's title, and a status line under the graph:
+  `event · depth d · score S (the title's last word) · elapsed s · frame k`. `frame_drawn(event, title)` is
+  emitted after each drawing. A frame draw_dot cannot draw (no edges) shows the error in the axes.
+  `begin_run`/`clear`/`set_status` reset or annotate it.
+- Layout stability (what was possible): neato honours a node's `pos` attribute as its *initial* position.
+  With `stable=True` (default, needs pygraphviz) the canvas lays each frame out with draw_dot's neato
+  attributes, giving every node `k` of the previous frame that frame's point as start (not pinned), and
+  passes the result (normalised by `dot_positions`) to `draw_dot(pos=)`, for both backends. The first frame
+  of a run is exactly draw_dot's layout (tested). Object nodes `1..nobj` are matched exactly; cluster nodes
+  by index (a split/clean may reassign them; neato then moves them). On the recorded demo run the object
+  nodes move 2.3 (sum of |Δ| in normalised units over the post-clean/inferred frames) vs 7.5 with fresh
+  layouts (`test_stable_positions`). Cost: draw_dot still runs its own neato when given `pos`, so two neato
+  runs per frame (milliseconds here). `stable=False` gives draw_dot's fresh layout each frame. No change to
+  `viz/`.
+- `MainWindow`: the canvas fills the right half ("Graph"), the left column has data set, settings (new:
+  "Drawing" backend combo, "Draw best splits" check box → the worker's `bestsplit`) and forms;
+  `run_settings()` adds `backend`/`bestsplit`. `start_run` calls `canvas.begin_run` and connects
+  `worker.frame` → `canvas.push_frame`. Stop: the canvas flushes and its status becomes `stopped · last:
+  <last status>`; a failed run says `Run failed.`. Window 1100×720.
+- `tests/test_gui_canvas.py` (13 tests, ~5 s): frames recorded from a `RunWorker` run (chain ×
+  demo_chain_feat, best splits, 33 frames) fed to the canvas: one frame (title, status text, frame_drawn,
+  positions == draw_dot's layout); a burst is coalesced to 1 drawing (the `inferredgraph`, last title ==
+  inferred title, `dropped == received - 1`); the timer draws the latest; `inferredgraph` is never dropped;
+  with event processing between frames >1 drawings and the inferred title last; stable vs fresh positions;
+  both backends unstable, networkx stable; bad backend raises; undrawable frame; set_status/clear; window
+  Run (networkx, best splits) → canvas got every frame, last title the inferred graph's, ll equal; window
+  Stop on the first frame → cancelled, canvas status `stopped · last: …`.
+- Screenshots (`tools/gui_screenshots.py`, offscreen): `examples/gui/03_live_mid.png` (first frame the
+  canvas drew during the run: pre-clean, depth 4, frame 17 — the first 17 frames came within 0.1 s and
+  were coalesced) and `examples/gui/03_live_end.png` (inferred graph, ll -8247.19, 33 frames, 1.6 s; nodes
+  in the same places as mid-run). `01_picker.png`/`02_run.png` regenerated with the new layout.
+- Anomaly A25 (explained): cluster nodes are small ovals in pre/post-clean frames (names padded `' '`,
+  structurefit.m:89-91) but bare points in the inferred graph (padded `''`, runmodel.m:184-186; an empty
+  label measures `[0 0]`), as in MATLAB's figures; no KI entry (KI-38 covers the padding).
+- CLAUDE.md lists `canvas.py`.
+- Gate: `pytest -q -m "not slow" -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 3691 passed, 3 skipped (the existing
+  non-Octave skips), 367 s, exit 0. No model or viz code changed, so parity is untouched.
+### Blockers
+- None.
+### Next
+- Item 04: `gui/stats.py` statistics panel on `finished` (ll, prior/likelihood via `graph_prior` +
+  `graph_like`, clusters and members, per-depth `bestgraphlls` chart, wall time, frames), export
+  (`.npz`/`.json`, PNG/SVG of the canvas figure), README "GUI" section.

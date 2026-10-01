@@ -21,7 +21,7 @@ Work on the first `[ ]` item only.
       `demo_chain_feat × chain` in a worker under pytest-qt (`qtbot.waitSignal`), count
       frames ≥ depths, cancel after the first frame and assert the thread ends cleanly;
       parity tests untouched (gate).
-- [ ] 03. **Live canvas.** `gui/canvas.py`: `GraphCanvas(FigureCanvasQTAgg)` drawing a frame
+- [x] 03. **Live canvas.** `gui/canvas.py`: `GraphCanvas(FigureCanvasQTAgg)` drawing a frame
       with `viz.draw.draw_dot` (backend selectable: pygraphviz default, networkx), title
       and a status line (event, depth, score, elapsed). Coalesce frames (timer, latest
       wins, never drop `inferredgraph`). Keep positions stable between frames where the

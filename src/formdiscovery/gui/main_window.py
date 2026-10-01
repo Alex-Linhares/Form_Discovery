@@ -15,6 +15,11 @@ queue of several forms is item 05) and emits :attr:`MainWindow.run_started` with
 worker; Stop calls :meth:`RunWorker.cancel`. Run is disabled while a run goes; a status
 line shows the frames received and the outcome. Closing the window cancels the run and
 waits for its thread.
+
+Item 03: the right half is a :class:`formdiscovery.gui.canvas.GraphCanvas` fed by the
+worker's ``frame`` signal (coalesced, stable positions); the settings add the drawing
+backend (pygraphviz/networkx) and "Draw best splits" (the worker's ``bestsplit`` frames).
+A stopped or failed run says so in the canvas status line.
 """
 
 from pathlib import Path
@@ -22,13 +27,15 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QValidator
 from PySide6.QtWidgets import (
-    QAbstractItemView, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
-    QListWidget, QMainWindow, QPushButton, QSpinBox, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
+    QHBoxLayout, QLabel, QListWidget, QMainWindow, QPushButton, QSpinBox, QVBoxLayout,
+    QWidget,
 )
 
 from ..io import DATA_DIR
 from ..params import STRUCTURES
 from ..run import MASTERRUN_STRUCT
+from .canvas import CANVAS_BACKENDS, GraphCanvas
 from .dataset import dataset_info
 from .worker import RunWorker, start_worker
 
@@ -110,10 +117,22 @@ class MainWindow(QMainWindow):
         self.speed_spin.setToolTip("ps.speed (defaultps.m): when branch lengths are "
                                    "optimised; 3 per split, 4 per depth, 5 approximate, "
                                    "54 = 5 then 4. Relational data always uses 5.")
+        self.backend_combo = QComboBox()
+        self.backend_combo.addItems(list(CANVAS_BACKENDS))
+        self.bestsplit_check = QCheckBox("Draw best splits")
+        self.bestsplit_check.setToolTip("Also show each depth's best split (ps.showbestsplit)")
         settings = QGroupBox("Settings")
         sform = QFormLayout(settings)
         sform.addRow("Seed", self.seed_spin)
         sform.addRow("Speed", self.speed_spin)
+        sform.addRow("Drawing", self.backend_combo)
+        sform.addRow("", self.bestsplit_check)
+
+        self.canvas = GraphCanvas()
+        self.canvas.setMinimumSize(420, 360)
+        self.backend_combo.currentTextChanged.connect(self.canvas.set_backend)
+        graph_box = QGroupBox("Graph")
+        QVBoxLayout(graph_box).addWidget(self.canvas)
 
         self.run_button = QPushButton("Run")
         self.run_button.setEnabled(False)
@@ -130,9 +149,10 @@ class MainWindow(QMainWindow):
         left = QVBoxLayout()
         left.addWidget(info_box, 1)
         left.addWidget(settings)
+        left.addWidget(form_box, 1)
         middle = QHBoxLayout()
-        middle.addLayout(left, 1)
-        middle.addWidget(form_box, 1)
+        middle.addLayout(left, 2)
+        middle.addWidget(graph_box, 3)
         root = QVBoxLayout()
         root.addLayout(top)
         root.addLayout(middle, 1)
@@ -140,7 +160,7 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setLayout(root)
         self.setCentralWidget(central)
-        self.resize(760, 520)
+        self.resize(1100, 720)
 
         self.form_list.itemSelectionChanged.connect(self._update_run_enabled)
         self.run_requested.connect(self.start_run)
@@ -199,7 +219,9 @@ class MainWindow(QMainWindow):
                 "info": self.info,
                 "forms": self.selected_forms(),
                 "seed": self.seed_spin.value(),
-                "speed": self.speed_spin.value()}
+                "speed": self.speed_spin.value(),
+                "backend": self.backend_combo.currentText(),
+                "bestsplit": self.bestsplit_check.isChecked()}
 
     def _update_run_enabled(self):
         self.run_button.setEnabled(self.info is not None and bool(self.selected_forms())
@@ -220,7 +242,9 @@ class MainWindow(QMainWindow):
             return None
         form = settings["forms"][0]
         w = RunWorker(settings["path"], form, seed=settings["seed"],
-                      speed=settings["speed"])
+                      speed=settings["speed"], bestsplit=settings.get("bestsplit", False))
+        self.canvas.begin_run(f"Running {form}…")
+        w.frame.connect(self.canvas.push_frame)
         w.frame.connect(self._on_frame)
         w.finished.connect(self._on_finished)
         w.failed.connect(self._on_failed)
@@ -266,10 +290,15 @@ class MainWindow(QMainWindow):
     def _on_failed(self, tb):
         self.last_error = tb
         self.status_label.setText("Run failed: " + tb.strip().splitlines()[-1])
+        self.canvas.flush()
+        self.canvas.set_status("Run failed.")
         self.run_ended.emit("failed")
 
     def _on_cancelled(self):
         self.status_label.setText("Run stopped.")
+        self.canvas.flush()
+        last = self.canvas.status
+        self.canvas.set_status("stopped" + (f" · last: {last}" if self.canvas.drawn else ""))
         self.run_ended.emit("cancelled")
 
     def _on_thread_finished(self):
