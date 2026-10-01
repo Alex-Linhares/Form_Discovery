@@ -20,9 +20,10 @@ dependencies = [
 formdiscovery = "formdiscovery.cli:main"
 
 [project.optional-dependencies]
-test = ["pytest>=7", "hypothesis>=6", "pytest-xdist>=3"]
+test = ["pytest>=7", "hypothesis>=6", "pytest-xdist>=3", "pytest-qt>=4.4"]
 octave = ["oct2py>=5.6"]
 graphviz = ["pygraphviz>=1.11"]
+gui = ["PySide6>=6.6"]
 interactive = ["plotly>=5.18", "pyvis>=0.3.2"]
 notebook = ["plotly>=5.18", "pyvis>=0.3.2", "jupyter", "nbformat>=5", "nbclient>=0.8"]
 
@@ -34,6 +35,8 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "--strict-markers"
+# pytest-qt (loop0003): the fd env also has PyQt5; the GUI is PySide6
+qt_api = "pyside6"
 markers = [
     "slow: long-running tests (large synthetic/real data sets); excluded from the regression gate",
     "octave: live parity tests that run the original MATLAB code through Octave (oct2py); skipped when Octave is unavailable, a failure in strict mode (fd env or RALPH_REQUIRE_OCTAVE=1)",

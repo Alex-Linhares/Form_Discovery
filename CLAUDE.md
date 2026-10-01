@@ -16,10 +16,14 @@ Read first, in this order:
 
 Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.md`,
 `PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`. `loop0001` did the port,
-`loop0002` the Octave-backed parallel harness (before/after timings in README "How it was verified").
+`loop0002` the Octave-backed parallel harness (before/after timings in README "How it was verified"),
+`loop0003` the PySide6 GUI: package `src/formdiscovery/gui/` (`app.py` `main()`, `main_window.py`,
+`dataset.py`; `formdiscovery gui [FILE]`), a thin shell over the port with offscreen pytest-qt tests
+(`tests/test_gui_*.py`, `QT_QPA_PLATFORM=offscreen` set in conftest) and screenshots in `examples/gui/`
+(`tools/gui_screenshots.py`).
 
 Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py,
-pygraphviz and pytest-xdist. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
+pygraphviz, pytest-xdist, PySide6 and pytest-qt. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
 (about 6 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
 new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module

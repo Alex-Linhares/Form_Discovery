@@ -10,6 +10,10 @@ gate) or the interpreter is the ``fd`` env's, a skipped ``octave`` test is repor
 failure instead, so the gate cannot pass without exercising Octave live.
 ``RALPH_REQUIRE_OCTAVE=0`` turns strict mode off explicitly.
 
+GUI tests (loop0003): ``pytest_configure`` sets ``QT_QPA_PLATFORM=offscreen`` before any
+``QApplication`` exists, so no test opens a window; pytest-qt uses PySide6
+(``qt_api`` in ``pyproject.toml``).
+
 Octave is located in this order: ``$OCTAVE_EXECUTABLE``; ``octave-cli`` next to the
 running Python (the ``fd`` env); ``octave-cli``/``octave`` on ``PATH``; the conda env
 ``fd`` under ``~/anaconda3``/``~/miniconda3``/``~/miniforge3``. conda-forge Octave
@@ -149,6 +153,7 @@ def pytest_configure(config):
     """Pin BLAS threads and point oct2py at Octave before it is first imported (its
     import creates a session)."""
     pin_blas_env()
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"  # GUI tests never open a window
     exe = find_octave()
     if exe is not None:
         _configure_octave_env(exe)

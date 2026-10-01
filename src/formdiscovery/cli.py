@@ -1,10 +1,12 @@
-"""Command line interface: ``formdiscovery run`` (``masterrun.m``, item 29) and
-``formdiscovery draw`` (``draw_dot.m``, item 32).
+"""Command line interface: ``formdiscovery run`` (``masterrun.m``, item 29),
+``formdiscovery draw`` (``draw_dot.m``, item 32) and ``formdiscovery gui [FILE]`` (the
+PySide6 desktop app, :mod:`formdiscovery.gui`, loop0003; extra ``gui``).
 
 Usage::
 
     formdiscovery run --structures chain,ring,tree --datasets 1,2,3 --seed 1 --out results/
     formdiscovery draw results/resultsdemo.npz --out fig.png
+    formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat
     python -m formdiscovery run ...
 
 ``--structures`` and ``--datasets`` take names or MATLAB's 1-based indices into
@@ -165,7 +167,13 @@ def main(argv=None):
     d.add_argument("--graphviz", action="store_true",
                    help="render one run with Graphviz instead of matplotlib")
     d.add_argument("-q", "--quiet", action="store_true")
+    from .gui.app import build_parser as gui_parser
+    gui_parser(sub.add_parser("gui", help="desktop GUI: pick a data file, watch the "
+                                          "search, see the statistics (needs PySide6)"))
     args = ap.parse_args(argv)
+    if args.command == "gui":
+        from .gui.app import main as gui_main
+        return gui_main(args=args)
     try:
         if args.command == "draw":
             return _cmd_draw(args)

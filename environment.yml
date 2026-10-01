@@ -20,6 +20,8 @@ dependencies:
   - pygraphviz=2.0.2
   - graphviz=14.1.2
   - threadpoolctl=3.7.0  # item 35: BLAS thread limit (formdiscovery.threads)
+  - pyside6=6.10.1  # loop0003: the GUI (extra "gui")
+  - pytest-qt=4.5.0  # loop0003 item 01: offscreen GUI tests
   - pip=26.2.1
   - pip:
       # item 34: optional interactive display backends (extra "interactive")

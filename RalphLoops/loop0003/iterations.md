@@ -3,7 +3,7 @@
 Legend: `[ ]` pending · `[x]` solved · `[~]` blocked (details in PROGRESS.md).
 Work on the first `[ ]` item only.
 
-- [ ] 01. **Skeleton and data picker.** New package `src/formdiscovery/gui/` (PySide6):
+- [x] 01. **Skeleton and data picker.** New package `src/formdiscovery/gui/` (PySide6):
       `app.py` (`main()`), `main_window.py`. Window: a "Open data file…" button + path
       label (QFileDialog, `*.mat`, default dir `matlab/formdiscovery1.0/data`), a dataset
       info panel (type feat/sim/rel, objects, features or relation type, first names),

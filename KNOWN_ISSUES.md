@@ -33,6 +33,9 @@ deal with them.
   candidate split) is not ported.
 - **Pin:** `tests/test_search.py::test_best_split_speed_1_2_raises` and `::test_speed_errors`
   (Octave fails with "'mind' undefined near line 141" for speeds 1, 2 and 54).
+  The GUI (loop0003 item 01) offers only the working speeds 3, 4, 5 and 54
+  (`gui.main_window.SpeedSpinBox`; 23 is runmodel's "Unknown speed value"), pinned by
+  `tests/test_gui_picker.py::test_speed_codes`.
 
 ### KI-2 `combinegraphs.m:48,66`: operator precedence in the product-graph `illegal` indices
 - **Code:** `illegal = na*0:(nb-1)+illegal;` and `illind(nb*0:(na-1)+newillegal) = 1;`.
