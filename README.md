@@ -254,6 +254,7 @@ parallel run gives the same contents as the serial one):
 | all 31 fixtures (`gen_fixtures.py`) | 68 min 49 s (`--jobs 1`; paperlevel alone ≈ 81 min in one process before) | **7 min 56 s** (`--jobs 16`) | 4530 s → 5310 s | 16 `octave-cli` |
 | both baseline grids (`gen_baselines.py`) | 2 min 45 s (serial `run_baseline` feat + rel) | **20 s** (feat 5.8 s + rel 14.6 s, `--jobs 16`) | 176 s → 193 s (`--jobs 1` → 16) | 9 / 16 `octave-cli` |
 | gate, Octave live (strict) | 38 min 18 s (serial, unpinned BLAS) | **≈ 6 min** (`-n 16`, 6:01–6:12 over three runs) | 4482 s → ≈ 3570 s | 16 pytest workers + 16 Octave |
+| gate, fixture-only (`make test`, loop0004; no Octave) | — | **52 s** (`-n 16`, 3792 tests) | — | 16 pytest workers |
 | Octave vs Python, 63 pairs (`compare_live.py`) | 3 min 35 s (`--jobs 1`) | **26 s** (`--jobs 16`) | 217 s → 257 s | 16 workers + their `octave-cli` |
 | slow suite (`-m slow -n 16`, 80 tests) | 37 min 41 s, 1 timing failure (each worker reran the 45 paperlevel Python runs on all cores) | **9 min 02 s** (run once, shared through a file: `tests/helpers.xdist_shared`) | 62 794 s → 6 100 s | 16 pytest workers + 16 Octave |
 
@@ -261,10 +262,11 @@ Before this work the gate ran under a Python without oct2py, so the live Octave 
 skipped; it now runs them all and fails if one is skipped.
 
 ```bash
-~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # regression gate, Octave live (strict), ~6 min
+python -m pytest -q -m "not slow and not octave" -n 16   # default gate (make test): fixture-only, no Octave or legacy/ (~1 min)
+make fixture-sums                     # tests/fixtures against tests/fixtures/SHA256SUMS (also checked by the gate)
+make legacy-check                     # strict live gate: Octave runs, a skipped octave test fails (~6.5 min)
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # the same, without make (fd env is strict by default)
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
-python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
-python -m pytest -q -m "not slow and not octave" -n 16   # fixture-only: needs neither Octave nor legacy/ (~1.5 min)
 python -m pytest -q -m octave         # live Octave parity (fd env + legacy/environment-octave.yml)
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
 python legacy/tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
@@ -283,7 +285,11 @@ comparison tools (`legacy/tools/`), the tests that need them (`legacy/tests/`) a
 environment file (`legacy/environment-octave.yml`). The package, the data and the
 committed fixtures do not depend on it: without `legacy/`, or without Octave,
 `python -m pytest -q -m "not slow and not octave" -n 16` runs every fixture-based test, and
-pytest skips `legacy/tests/`.
+pytest skips `legacy/tests/`. `tests/fixtures/SHA256SUMS` pins every committed fixture
+(`tests/test_fixture_integrity.py`), so a fixture edited without the oracle fails the default
+gate. A change that alters a fixture value needs the oracle rerun first (`make legacy-check`
+and `legacy/tools/gen_fixtures.py --compare`; after the planned freeze, from the
+`octave-oracle-final` tag), and updates the fixture and its hash line together.
 
 ```bash
 conda env update -f legacy/environment-octave.yml   # add Octave 10.3 and oct2py to env fd
@@ -312,11 +318,12 @@ remove it from `main`.
 | `legacy/tools/` | Octave-driven tools: fixture and baseline generation (`gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`), Octave vs Python side by side (`compare_live.py`), `.mat` content comparison (`mat_compare.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
-| `tests/` | Fixtures (produced by `legacy/tests_octave/`), pytest parity tests, Octave baselines |
+| `tests/` | Fixtures (produced by `legacy/tests_octave/`, hashes in `tests/fixtures/SHA256SUMS`), pytest parity tests, Octave baselines |
+| `Makefile` | `make test` (default fixture-only gate), `make legacy-check` (strict live gate), `make slow`, `make fixture-sums` |
 | `environment.yml`, `pyproject.toml` | Python-only conda env `fd`; package metadata and extras (`test`, `gui`, `graphviz`, `interactive`, `notebook`; `octave` = oct2py, legacy only) |
 | `tools/` | Python-side tools: true-graph score comparison (`compare_runs.py`), benchmark (`bench_perf.py`; `--live` needs `legacy/`), notebook, GUI screenshots and viz baselines |
 | `PLAN.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
-| `RalphLoops/` | The fresh-context iteration loop that carried out the plan |
+| `RalphLoops/` | The fresh-context iteration loops that carried out the plan (`loop_template/loop.py` for new loops, fixture-only gate) |
 
 ## Conventions
 

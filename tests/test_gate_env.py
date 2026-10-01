@@ -293,3 +293,25 @@ def test_legacy_conftest_reexports():
     spec.loader.exec_module(mod)
     for name in ("octave", "replay", "pytest_runtest_makereport", "pytest_configure"):
         assert getattr(mod, name) is getattr(conftest, name), name
+
+
+def _loop_test_cmd(path, monkeypatch):
+    monkeypatch.delenv("RALPH_TEST_CMD", raising=False)
+    spec = importlib.util.spec_from_file_location(f"_loop_{path.parent.name}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.TEST_CMD
+
+
+def test_gate_commands(monkeypatch):
+    """loop0004 item 05: future loops default to the fixture-only gate (``make test``);
+    loop0004 and ``make legacy-check`` keep the strict live gate."""
+    loops = REPO_ROOT / "RalphLoops"
+    template = _loop_test_cmd(loops / "loop_template" / "loop.py", monkeypatch)
+    assert template.endswith('-m pytest -q -m "not slow and not octave" -n 16')
+    if (loops / "loop0004" / "loop.py").is_file():
+        strict = _loop_test_cmd(loops / "loop0004" / "loop.py", monkeypatch)
+        assert strict.endswith('-m pytest -q -m "not slow" -n 16')
+    makefile = (REPO_ROOT / "Makefile").read_text()
+    assert '$(PY) -m pytest -q -m "not slow and not octave" -n $(JOBS)' in makefile
+    assert 'RALPH_REQUIRE_OCTAVE=1 $(PY) -m pytest -q -m "not slow" -n $(JOBS)' in makefile

@@ -21,7 +21,8 @@ Ralph Loops solve this by resetting to 0% context at each iteration while preser
 
 ```
 RalphLoops/
-├── RALPH_LOOP_GUIDE.md    # This file
+├── ralph_loop_guide.md    # This file
+├── loop_template/loop.py  # Copy into each new loop folder (fixture-only gate)
 └── loop0001/              # First loop instance
     ├── TASK.md            # Immutable goal definition (read-only)
     ├── PROGRESS.md        # Mutable state (updated each iteration)
@@ -141,7 +142,7 @@ LOOP_COMPLETE
 
 ### Option 2: Automated Script (`loop.py`)
 
-Each loop folder contains a `loop.py` script that handles the full iteration cycle: spawning a fresh Claude session, running regression tests, auto-fixing regressions (up to 3 attempts), and committing results.
+Each loop folder contains a `loop.py` script (copy `RalphLoops/loop_template/loop.py` for a new loop) that handles the full iteration cycle: spawning a fresh Claude session, running regression tests, auto-fixing regressions (up to 3 attempts), and committing results.
 
 ```bash
 # Run from the loop folder:
@@ -167,6 +168,22 @@ python3 loop.py 20 /path/to/TASK.md /path/to/PROGRESS.md
 4. If tests pass: commits all changes
 5. If tests fail: asks Claude to fix (up to 3 attempts), then reverts code but keeps PROGRESS.md findings
 6. Checks for `LOOP_COMPLETE` sentinel and exits if found
+
+### The regression gate (this repo)
+
+`loop.py` runs `TEST_CMD` after every iteration (override with `RALPH_TEST_CMD`). Since
+loop0004 item 05 the template's default is the **fixture-only gate**:
+
+```bash
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow and not octave" -n 16   # = make test
+```
+
+It needs neither Octave nor `legacy/`; `tests/test_fixture_integrity.py` checks every
+committed fixture against `tests/fixtures/SHA256SUMS`, so an edited fixture fails it.
+Use the **strict live gate** instead (`RALPH_TEST_CMD='make legacy-check'`, i.e.
+`RALPH_REQUIRE_OCTAVE=1 ... -m "not slow" -n 16`, about 6 min) for a loop that changes
+fixture values, regenerates fixtures, or edits anything under `legacy/`. loop0001–loop0004
+ran the strict gate (their own `loop.py` copies keep it).
 
 ---
 

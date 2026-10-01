@@ -39,18 +39,26 @@ interpreter in a conda env named `fd`) turns a skipped `octave` test into a fail
 missing Octave cannot pass silently; `RALPH_REQUIRE_OCTAVE=0` allows skips.
 
 ```bash
-~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # full gate, Octave live (strict), ~6 min
+make legacy-check                                                 # strict live gate, ~6.5 min
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # the same without make
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m octave -n 16       # live Octave parity only
 ~/anaconda3/envs/fd/bin/python -m pytest -q legacy/tests          # this directory alone
-python -m pytest -q -m "not slow and not octave" -n 16            # no Octave needed (works without legacy/)
+python -m pytest -q -m "not slow and not octave" -n 16            # default gate (make test), no Octave, ~1 min
 ```
+
+Since loop0004 item 05 the default gate (and `RalphLoops/loop_template/loop.py`) is the
+fixture-only command; `make legacy-check` is the explicit job, run before any fixture is
+touched and for any change under `legacy/`.
 
 Without `legacy/` (or without Octave) the `octave` tests skip, or fail in strict mode.
 
 ## Regenerating fixtures and baselines
 
 Regenerate into another directory and compare with the committed files; never write over
-`tests/fixtures/` unless a change is meant to alter a fixture.
+`tests/fixtures/` unless a change is meant to alter a fixture. When one is, rewrite the
+hash list in the same commit (`tests/test_fixture_integrity.py` fails otherwise):
+`cd tests/fixtures && git ls-files ':!SHA256SUMS' | LC_ALL=C sort | xargs sha256sum > SHA256SUMS`
+(add new files to git first).
 
 ```bash
 python legacy/tools/gen_fixtures.py --list                              # the fixture scripts

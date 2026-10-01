@@ -4,7 +4,9 @@ These rules come from PLAN.md §2 and §4.3. Every module in `formdiscovery` fol
 that a line of Python can be matched to its `.m` source and compared with Octave.
 The package itself never needs Octave: the `.m` sources, the Octave fixture scripts and
 tools, and the Octave environment (`legacy/environment-octave.yml`) live under `legacy/`
-(`legacy/README.md`); the port reads only `data/` and the tests only `tests/fixtures/`.
+(`legacy/README.md`); the port reads only `data/` and the tests only `tests/fixtures/`. The default gate
+(`make test`) is fixture-only; every fixture's hash is pinned in `tests/fixtures/SHA256SUMS`,
+and a change that alters a fixture value needs the oracle rerun first (`make legacy-check`).
 
 ## Names and structure
 - Function names are the MATLAB names (already snake_case). Local variable names follow the

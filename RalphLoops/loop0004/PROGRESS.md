@@ -3,7 +3,7 @@
 ## Ralph Loop 0004 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 4/6 SOLVED
+- **Current**: 5/6 SOLVED
 
 ---
 
@@ -178,3 +178,42 @@
   `legacy-check`), time the fixture-only gate, `RalphLoops/loop_template/loop.py`,
   ralph_loop_guide.md, CLAUDE.md post-freeze policy line. Consider whether the fixture-only
   default should also relax the fd-env strict default (A34).
+
+## Iteration 5 — 2026-10-01 18:43
+### Completed
+- Item 05 (Phase 3). `tests/fixtures/SHA256SUMS` (115 files, `sha256sum` format, paths
+  relative to `tests/fixtures`, C-sorted, the list itself excluded). New
+  `tests/test_fixture_integrity.py` (118 tests: every file listed and every listed file
+  present, list sorted/well formed, one hash test per fixture, a tmp_path check that an
+  edit and an extra file are caught). Verified by appending a byte to `graph.mat`: exactly
+  `test_fixture_hash[graph.mat]` failed; file restored. Rewrite command documented in the
+  test docstring and `legacy/README.md`
+  (`git ls-files ':!SHA256SUMS' | LC_ALL=C sort | xargs sha256sum > SHA256SUMS`).
+- `Makefile` (chose it over `tools/legacy_check.sh`): `make test` = default gate
+  `-m "not slow and not octave" -n $(JOBS)`; `make legacy-check` =
+  `RALPH_REQUIRE_OCTAVE=1 ... -m "not slow" -n $(JOBS)` (the strict live gate);
+  `make slow`; `make fixture-sums` (`sha256sum -c`). `PY` defaults to the fd env.
+- `RalphLoops/loop_template/loop.py`: copy of loop0004's runner with
+  `TEST_CMD` default `-m "not slow and not octave" -n 16` and docstring on when to set
+  `RALPH_TEST_CMD='make legacy-check'`. `loop0004/loop.py` unchanged (strict).
+  New `tests/test_gate_env.py::test_gate_commands` pins the template, loop0004 and Makefile
+  commands. `ralph_loop_guide.md`: "The regression gate (this repo)" section, template in
+  the folder tree.
+- A34 follow-up: no change needed. The fixture-only gate deselects `octave` tests, so the
+  fd env's strict default never sees one; the template still sets
+  `RALPH_REQUIRE_OCTAVE=1` so an overridden live command stays strict.
+- Docs: CLAUDE.md (default gate, strict live gate, post-freeze policy line: a change that
+  alters a fixture value needs the oracle rerun first, from the `octave-oracle-final` tag
+  after the freeze, and updates fixture + hash line in one commit), README (command block,
+  verification table row, Legacy section policy, Layout rows `Makefile`, `tests/`,
+  `RalphLoops/`), `legacy/README.md`, CONVENTIONS.md intro.
+- Timings (machine shared with another 6-worker job, load ~10–15):
+  `make test` 52 s, 3792 passed, 3 skipped (target < 2 min met);
+  `make legacy-check` 382 s, 3866 passed, 3 skipped (= 3747 + 119 new tests). No file
+  under `tests/fixtures/` modified (only the new `SHA256SUMS`). No new anomaly.
+### Blockers
+- None.
+### Next
+- Item 06: wrap-up (grep audit, strict + fixture-only gates in fd env and base interpreter
+  and without `legacy/`, slow suite, `legacy/README.md` final, PLAN_LEGACY.md M1–M3 with
+  numbers: M3 = 52 s fixture-only, `make legacy-check` green 3866 passed).

@@ -25,13 +25,18 @@ Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.
 
 Environment: conda env `fd` has Python, numpy/scipy, pygraphviz, pytest-xdist, PySide6 and pytest-qt
 (`environment.yml`, Python-only) plus Octave 10.3 and oct2py (`conda env update -f legacy/environment-octave.yml`;
-loop0004 item 04; `legacy/README.md`). Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
-(about 6 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
+loop0004 item 04; `legacy/README.md`). Default gate (`make test`, loop0004 item 05):
+`~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow and not octave" -n 16` (about 1 min, fixture-only, no
+Octave or `legacy/` needed; `tests/test_fixture_integrity.py` checks every fixture against `tests/fixtures/SHA256SUMS`).
+Strict live gate (`make legacy-check`; loop0001–0004 ran it): `RALPH_REQUIRE_OCTAVE=1 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
+(about 6.5 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
 new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module
 fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are regenerated only through Octave
 (`legacy/tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
-`--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:
+`--outdir` with `--compare tests/fixtures` rather than over the committed files). Policy: a change that alters a
+fixture value needs the oracle rerun first (`make legacy-check` while `legacy/` exists; after the freeze, from the
+`octave-oracle-final` tag), then the fixture and its line in `tests/fixtures/SHA256SUMS` are updated in the same commit. Baselines:
 `legacy/tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
 (one Octave per pair, then a merge). Octave vs Python side by side:
 `legacy/tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).

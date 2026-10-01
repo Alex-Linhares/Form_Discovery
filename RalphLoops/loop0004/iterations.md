@@ -34,7 +34,7 @@ Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
       removed). README ("How it was verified", "Layout", a new "Legacy: the Octave oracle"
       section), CLAUDE.md, CONVENTIONS.md, `legacy/README.md` (what is there, how to run the
       live suite, how to regenerate fixtures and baselines). Strict gate green.
-- [ ] 05. **Fixture-only default gate + integrity (Phase 3).** `tests/fixtures/SHA256SUMS`
+- [x] 05. **Fixture-only default gate + integrity (Phase 3).** `tests/fixtures/SHA256SUMS`
       committed and a test that verifies every fixture's hash (fails on any edit, no Octave
       needed). `tools/legacy_check.sh` (or a `Makefile` target `legacy-check`) = the strict
       live gate. Document the default gate as `pytest -q -m "not slow and not octave" -n 16`
