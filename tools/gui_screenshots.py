@@ -11,11 +11,16 @@ the canvas draws, so earlier ones are coalesced away); ``03_live_end.png``: the 
 ``04_stats.png``: the statistics panel filled after a chain run (score and its parts,
 clusters, per-depth score chart). ``05_forms.png``: chain, ring and tree run two at a
 time, the results table ranked by ll with the winner highlighted and shown.
+``06_demo.png``: the window after ``--demo`` (``MainWindow.start_demo``: demo_chain_feat,
+chain), with the File/Run menu bar; ``06_error.png``: the warning box a file that is not a
+.mat file opens. The window's saved preferences (``QSettings``) go to a temporary file, not
+the user's.
 """
 
 import argparse
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -27,6 +32,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--outdir", default=str(REPO / "examples" / "gui"))
     args = ap.parse_args(argv)
+    tmp = tempfile.TemporaryDirectory()
+    os.environ["FORMDISCOVERY_GUI_SETTINGS"] = str(Path(tmp.name) / "gui.ini")
     from PySide6.QtWidgets import QApplication
 
     from formdiscovery.gui.app import screenshot
@@ -94,6 +101,24 @@ def main(argv=None):
         raise RuntimeError("the three forms did not finish: " + str(win.last_error))
     print(screenshot(win, out / "05_forms.png"))
     win.close()
+
+    win = MainWindow()
+    win.show()
+    win.start_demo()
+    win.wait_run(120000)
+    app.processEvents()
+    if win.last_result is None:
+        raise RuntimeError("the demo run did not finish: " + str(win.last_error))
+    print(screenshot(win, out / "06_demo.png"))
+    bad = Path(tmp.name) / "notes.mat"
+    bad.write_text("not a MATLAB file")
+    win.load_file(bad)
+    box = win.error_dialog
+    box.adjustSize()
+    print(screenshot(box, out / "06_error.png"))
+    box.close()
+    win.close()
+    tmp.cleanup()
     return 0
 
 

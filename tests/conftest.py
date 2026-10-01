@@ -12,7 +12,10 @@ failure instead, so the gate cannot pass without exercising Octave live.
 
 GUI tests (loop0003): ``pytest_configure`` sets ``QT_QPA_PLATFORM=offscreen`` before any
 ``QApplication`` exists, so no test opens a window; pytest-qt uses PySide6
-(``qt_api`` in ``pyproject.toml``).
+(``qt_api`` in ``pyproject.toml``). The autouse ``gui_settings_file`` fixture points the
+GUI's ``QSettings`` (``$FORMDISCOVERY_GUI_SETTINGS``, item 06) at a fresh file under the
+test's ``tmp_path`` in ``tests/test_gui_*.py``, so no test reads or writes the user's
+preferences and tests do not see each other's last directory.
 
 Octave is located in this order: ``$OCTAVE_EXECUTABLE``; ``octave-cli`` next to the
 running Python (the ``fd`` env); ``octave-cli``/``octave`` on ``PATH``; the conda env
@@ -147,6 +150,15 @@ def _configure_octave_env(exe):
     prefix = Path(exe).resolve().parent.parent
     if "OCTAVE_HOME" not in os.environ and (prefix / "conda-meta").is_dir():
         os.environ["OCTAVE_HOME"] = str(prefix)
+
+
+@pytest.fixture(autouse=True)
+def gui_settings_file(request, monkeypatch):
+    """GUI tests: the window's QSettings live in the test's ``tmp_path`` (item 06)."""
+    if request.node.path.name.startswith("test_gui"):
+        path = request.getfixturevalue("tmp_path") / "gui_settings.ini"
+        monkeypatch.setenv("FORMDISCOVERY_GUI_SETTINGS", str(path))
+    yield
 
 
 def pytest_configure(config):

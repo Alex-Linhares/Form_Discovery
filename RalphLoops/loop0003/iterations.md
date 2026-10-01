@@ -42,7 +42,7 @@ Work on the first `[ ]` item only.
       form's final graph; a slider to scrub back through the frames recorded during a run
       (frames kept in memory with a cap, oldest dropped). Tests offscreen on chain+ring+tree
       × demo_chain_feat. Screenshot `examples/gui/05_forms.png`.
-- [ ] 06. **Polish and wrap-up.** Error dialogs (bad file, Octave-free: the GUI needs no
+- [x] 06. **Polish and wrap-up.** Error dialogs (bad file, Octave-free: the GUI needs no
       Octave), remember last directory (QSettings), window title with file name, keyboard
       shortcuts, a `--demo` flag that opens `demo_chain_feat` and starts chain; a short
       `examples/gui/README.md` with the screenshots; verify the gate and the `slow` suite;

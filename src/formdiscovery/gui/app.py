@@ -2,7 +2,8 @@
 
 :func:`main` creates (or reuses) the ``QApplication``, opens
 :class:`formdiscovery.gui.main_window.MainWindow` with ``FILE`` loaded if given, and runs
-the event loop. :func:`screenshot` saves a widget as an image (offscreen ``grab()``), for
+the event loop; with ``--demo`` (item 06) it opens ``demo_chain_feat`` and runs chain as
+soon as the loop starts (:meth:`MainWindow.start_demo`). :func:`screenshot` saves a widget as an image (offscreen ``grab()``), for
 the ``examples/gui/`` pictures.
 """
 
@@ -20,6 +21,8 @@ def build_parser(parser=None):
                    help="a .mat data file to open (data, optional names)")
     p.add_argument("--data-dir", default=None,
                    help="where the file dialog starts (default: the shipped data sets)")
+    p.add_argument("--demo", action="store_true",
+                   help="open demo_chain_feat and run chain at once (no FILE)")
     return p
 
 
@@ -38,6 +41,9 @@ def main(argv=None, args=None):
     takes precedence over ``argv``."""
     if args is None:
         args = build_parser().parse_args(argv)
+    if getattr(args, "demo", False) and args.file is not None:
+        raise SystemExit("formdiscovery gui: --demo opens its own file; give no FILE")
+    from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
     from .main_window import MainWindow
@@ -45,6 +51,8 @@ def main(argv=None, args=None):
     app = QApplication.instance() or QApplication(sys.argv[:1])
     win = MainWindow(path=args.file, data_dir=args.data_dir)
     win.show()
+    if getattr(args, "demo", False):
+        QTimer.singleShot(0, win.start_demo)
     return app.exec()
 
 

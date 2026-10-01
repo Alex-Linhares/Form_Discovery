@@ -3,7 +3,7 @@
 ## Ralph Loop 0003 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 5/6 SOLVED
+- **Current**: 6/6 SOLVED
 
 ---
 
@@ -251,3 +251,50 @@
 ### Next
 - Item 06: polish and wrap-up (error dialogs, QSettings last directory, title, shortcuts, `--demo`,
   `examples/gui/README.md`, gate + `slow` suite, verify every item, `LOOP_COMPLETE`).
+
+## Iteration 6 — 2026-10-01 14:33
+### Completed
+- Item 06 (polish and wrap-up) solved.
+- Error dialogs: `gui/dialogs.py` `error_box(parent, title, text, detail)` opens a warning `QMessageBox`
+  with `open()` (window-modal, non-blocking; `exec()` would block, A29). A file that cannot be loaded (not a
+  .mat, missing, no `data`) shows the error plus what a data file must hold; a failed run shows the forms,
+  the file and the last traceback line, with the full traceback under "Show Details…"; a failed export
+  (`StatsPanel._try`) says which path could not be written. `MainWindow.error_dialog` /
+  `StatsPanel.error_dialog` keep the last box.
+- Octave-free: nothing in `src/formdiscovery` imports oct2py; `test_gui_needs_no_octave` runs `--demo`'s
+  chain search in a subprocess with oct2py unimportable and no Octave on `PATH` (ll == masterrun's).
+- Last directory: `gui_settings()` (`QSettings`, ini; `~/.config/formdiscovery/gui.ini`, or
+  `$FORMDISCOVERY_GUI_SETTINGS`). A successful load saves the file's directory; a new window's file dialog
+  starts there (explicit `--data-dir` wins; a directory that no longer exists falls back to the shipped
+  data). conftest's autouse `gui_settings_file` points it at `tmp_path` in `tests/test_gui_*`;
+  `tools/gui_screenshots.py` uses a temporary file.
+- Window title: `formdiscovery — FILE.mat`, `· running chain, ring` while forms run.
+- Menus File (Open, Export results, Save figure, Quit) and Run (Run, Stop), `SHORTCUTS`: Ctrl+O, Ctrl+R/F5,
+  Esc/Ctrl+., Ctrl+E, Ctrl+Shift+S, Ctrl+Q; actions enabled/disabled with their buttons (`StatsPanel.
+  exportable` signal for the export ones).
+- `formdiscovery gui --demo` (`MainWindow.start_demo`: opens `demo_chain_feat`, selects chain, runs; with a
+  FILE it exits with an error).
+- `tests/test_gui_polish.py` (14 tests, ~13 s alone): isolated settings file; bad/missing file boxes; failed
+  run box with traceback (runmodel monkeypatched); failed export box then a good export; last directory
+  (saved, used by a new window and its dialog, `--data-dir` wins, failed load keeps it, deleted dir); title;
+  shortcuts and actions; real key events Ctrl+R starts and Esc stops a run; Quit closes; `start_demo` ll ==
+  masterrun's; missing demo file; `app.main(["--demo"])` in the event loop; CLI `--demo` parsing; Octave-free
+  subprocess.
+- Screenshots: `examples/gui/06_demo.png` (after `--demo`, with the menu bar) and `examples/gui/06_error.png`
+  (the box for a non-.mat file); 01-05 regenerated. `examples/gui/README.md` describes every screenshot.
+- README "GUI": `--demo`, shortcuts, error boxes, remembered directory, no Octave needed, link to
+  `examples/gui/README.md`. CLAUDE.md lists `dialogs.py`, menus, `--demo`.
+- Anomaly A29 (handled): offscreen key shortcuts need the active window (the test waits for
+  `isActiveWindow()`); modal `exec()` would block tests, so boxes use `open()`. No KI entry (GUI code only).
+- Verified every item: 01-05 modules, tests (`test_gui_picker/worker/canvas/stats/forms`, 89 GUI tests with
+  this item's) and screenshots present; no change outside `gui/` except the documented `search.run_hooks`
+  hook and the `gui` CLI subcommand.
+- Gate: `pytest -q -m "not slow" -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 3738 passed, 3 skipped (the existing
+  non-Octave skips), 369 s, exit 0. Slow suite: `pytest -q -m slow -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 79
+  passed, 1 skipped (`test_viz_interactive.py`: no `nbclient`, existing), 577 s, exit 0.
+### Blockers
+- None.
+### Next
+- Loop complete: all 6 items solved.
+
+LOOP_COMPLETE

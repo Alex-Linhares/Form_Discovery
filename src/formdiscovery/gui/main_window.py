@@ -37,13 +37,24 @@ is kept (:class:`formdiscovery.gui.runs.FrameHistory`, at most :attr:`MainWindow
 frame_cap` per form, oldest dropped); the slider under the canvas scrubs back through the
 shown form's frames. At its right end the canvas is live; moved back, it stays on the
 chosen frame while the run goes on.
+
+Item 06: a file that cannot be loaded, a failed run and a failed export open a warning
+box (:func:`formdiscovery.gui.dialogs.error_box`, non-blocking, the traceback behind "Show
+Details…"); :attr:`MainWindow.error_dialog` is the last one. The last directory a file was
+loaded from is remembered (``QSettings``, :func:`formdiscovery.gui.dialogs.gui_settings`)
+and the file dialog starts there next time. The window title names the file (and the
+forms while they run). Menus with keyboard shortcuts (:data:`SHORTCUTS`): Ctrl+O open,
+Ctrl+R / F5 run, Esc / Ctrl+. stop, Ctrl+E export results, Ctrl+Shift+S save figure,
+Ctrl+Q quit. :meth:`MainWindow.start_demo` (``formdiscovery gui --demo``) opens
+``demo_chain_feat`` and runs chain. The GUI never needs Octave (only the tests compare
+with it).
 """
 
 import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QValidator
+from PySide6.QtGui import QAction, QKeySequence, QValidator
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QListWidget, QMainWindow, QPushButton, QSlider, QSpinBox,
@@ -55,12 +66,13 @@ from ..params import STRUCTURES
 from ..run import MASTERRUN_STRUCT
 from .canvas import CANVAS_BACKENDS, GraphCanvas
 from .dataset import dataset_info
+from .dialogs import LAST_DIR_KEY, error_box, gui_settings
 from .results import ResultsTable
 from .runs import FRAME_CAP, RunQueue
 from .stats import StatsPanel
 
 __all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "DEFAULT_SEED",
-           "DEFAULT_SPEED", "FILE_FILTER"]
+           "DEFAULT_SPEED", "FILE_FILTER", "SHORTCUTS", "DEMO_FILE", "DEMO_FORM"]
 
 DEFAULT_FORMS = tuple(STRUCTURES[i] for i in MASTERRUN_STRUCT)  # chain, ring, tree
 DEFAULT_SEED = 1      # cli.py's --seed default
@@ -68,6 +80,17 @@ DEFAULT_SPEED = 54    # defaultps.m
 FILE_FILTER = "MATLAB data (*.mat);;All files (*)"
 # defaultps.m's speed codes that run (1, 2: KI-1; 23: runmodel's "Unknown speed value")
 SPEEDS = (3, 4, 5, 54)
+# the menu actions' keyboard shortcuts (attribute of MainWindow -> keys)
+SHORTCUTS = {
+    "open_action": ("Ctrl+O",),
+    "run_action": ("Ctrl+R", "F5"),
+    "stop_action": ("Esc", "Ctrl+."),
+    "export_action": ("Ctrl+E",),
+    "figure_action": ("Ctrl+Shift+S",),
+    "quit_action": ("Ctrl+Q",),
+}
+DEMO_FILE = "demo_chain_feat.mat"  # --demo: this shipped file, fitted with DEMO_FORM
+DEMO_FORM = "chain"
 
 
 class SpeedSpinBox(QSpinBox):
@@ -93,7 +116,8 @@ class SpeedSpinBox(QSpinBox):
 
 class MainWindow(QMainWindow):
     """The form discovery window. ``path`` (optional) is loaded at start; ``data_dir`` is
-    where the file dialog opens (default :data:`formdiscovery.io.DATA_DIR`)."""
+    where the file dialog opens (default: the last directory a file was loaded from, if
+    it still exists, else :data:`formdiscovery.io.DATA_DIR`)."""
 
     run_requested = Signal(dict)
     dataset_changed = Signal(object)  # DatasetInfo
@@ -102,9 +126,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self, path=None, data_dir=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("formdiscovery")
-        self.data_dir = Path(data_dir or DATA_DIR)
+        self.settings = gui_settings()
+        self.data_dir = Path(data_dir or self._last_dir() or DATA_DIR)
         self.info = None
+        self.error_dialog = None  # the last error box (item 06)
         self.queue = None         # RunQueue of the last Run
         self.shown = None         # form shown in the canvas and statistics
         self._follow = True       # the display follows the runs (until a row is clicked)
@@ -218,10 +243,65 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.resize(1440, 900)
 
+        self._build_menus()
         self.form_list.itemSelectionChanged.connect(self._update_run_enabled)
         self.run_requested.connect(self.start_run)
+        self._update_title()
         if path is not None:
             self.load_file(path)
+
+    def _build_menus(self):
+        """File and Run menus; their actions carry the :data:`SHORTCUTS`."""
+        def action(name, text, slot, menu, tip=""):
+            a = QAction(text, self)
+            a.setShortcuts([QKeySequence(k) for k in SHORTCUTS[name]])
+            a.setShortcutContext(Qt.WindowShortcut)
+            a.setStatusTip(tip)
+            a.triggered.connect(slot)
+            menu.addAction(a)
+            setattr(self, name, a)
+            return a
+
+        bar = self.menuBar()
+        file_menu = bar.addMenu("&File")
+        action("open_action", "&Open data file…", self.open_dialog, file_menu)
+        file_menu.addSeparator()
+        action("export_action", "&Export results…", self.stats.export_results_dialog,
+               file_menu, ".npz + .json, as formdiscovery run writes")
+        action("figure_action", "Save &figure…", self.stats.export_figure_dialog,
+               file_menu, "the graph as PNG or SVG")
+        file_menu.addSeparator()
+        action("quit_action", "&Quit", self.close, file_menu)
+        run_menu = bar.addMenu("&Run")
+        action("run_action", "&Run selected forms", self._on_run, run_menu)
+        action("stop_action", "&Stop", self.stop_run, run_menu)
+        self.stats.exportable.connect(lambda _: self._sync_actions())
+        self._sync_actions()
+
+    def _sync_actions(self):
+        """Menu actions follow the buttons they stand for."""
+        self.run_action.setEnabled(self.run_button.isEnabled())
+        self.stop_action.setEnabled(self.stop_button.isEnabled())
+        self.export_action.setEnabled(self.stats.results_button.isEnabled())
+        self.figure_action.setEnabled(self.stats.figure_button.isEnabled())
+
+    def _update_title(self):
+        """``formdiscovery — FILE`` (``· running FORMS`` during a run)."""
+        title = "formdiscovery"
+        if self.info is not None:
+            title += f" — {Path(self.info.path).name}"
+        if self.running():
+            title += " · running " + ", ".join(r.form for r in self.queue.runs)
+        self.setWindowTitle(title)
+
+    def _last_dir(self):
+        d = self.settings.value(LAST_DIR_KEY, "")
+        return Path(d) if d and Path(d).is_dir() else None
+
+    def show_error(self, title, text, detail=None):
+        """Open a non-blocking warning box (kept in :attr:`error_dialog`)."""
+        self.error_dialog = error_box(self, title, text, detail)
+        return self.error_dialog
 
     # --- data file -------------------------------------------------------------------
     def open_dialog(self):
@@ -241,14 +321,22 @@ class MainWindow(QMainWindow):
         except Exception as e:  # any unreadable or unsuitable user file
             self.info = None
             self.path_label.setText(str(path))
-            self.info_label.setText(f"Could not load {path.name}:\n{type(e).__name__}: {e}")
+            msg = f"Could not load {path.name}:\n{type(e).__name__}: {e}"
+            self.info_label.setText(msg)
             self._update_run_enabled()
+            self._update_title()
+            self.show_error("Could not load data file",
+                            msg + "\n\nA data file is a MATLAB .mat file with a variable "
+                            "'data' (features, similarities or a relational struct) and "
+                            "optionally 'names'.")
             return None
         self.info = info
         self.data_dir = path.parent
+        self.settings.setValue(LAST_DIR_KEY, str(path.parent.resolve()))
+        self.settings.sync()
         self.path_label.setText(str(path))
         self.info_label.setText(info.summary())
-        self.setWindowTitle(f"formdiscovery — {path.name}")
+        self._update_title()
         self._update_run_enabled()
         self.dataset_changed.emit(info)
         return info
@@ -283,10 +371,21 @@ class MainWindow(QMainWindow):
     def _update_run_enabled(self):
         self.run_button.setEnabled(self.info is not None and bool(self.selected_forms())
                                    and not self.running())
+        if hasattr(self, "run_action"):
+            self._sync_actions()
 
     def _on_run(self):
         if self.run_button.isEnabled():
             self.run_requested.emit(self.run_settings())
+
+    def start_demo(self, data_dir=None):
+        """``formdiscovery gui --demo``: open :data:`DEMO_FILE` (from ``data_dir``,
+        default the shipped data) and run :data:`DEMO_FORM`; returns its worker (None if
+        the file could not be loaded or a run is going)."""
+        if self.load_file(Path(data_dir or DATA_DIR) / DEMO_FILE) is None:
+            return None
+        self.set_forms([DEMO_FORM])
+        return self.start_run(self.run_settings())
 
     # --- runs (items 02, 05) ---------------------------------------------------------
     def running(self):
@@ -336,6 +435,7 @@ class MainWindow(QMainWindow):
         q.start()
         self.stop_button.setEnabled(True)
         self._update_run_enabled()
+        self._update_title()
         return q.runs[0].worker
 
     def stop_run(self):
@@ -344,6 +444,7 @@ class MainWindow(QMainWindow):
         if self.running():
             self.queue.cancel()
             self.stop_button.setEnabled(False)
+            self._sync_actions()
             self.status_label.setText("Stopping…")
 
     def wait_run(self, ms=60000):
@@ -428,6 +529,7 @@ class MainWindow(QMainWindow):
     # --- queue signals ---------------------------------------------------------------
     def _on_run_started(self, r):
         self.results.update_runs(self.queue.runs)
+        self._update_title()
         if self.shown is None or (self._follow
                                   and self.queue.run(self.shown).status != "running"):
             self.show_form(r.form)
@@ -499,6 +601,13 @@ class MainWindow(QMainWindow):
                                       f"{win.form}: ll = {win.ll():.4f}")
         self.stop_button.setEnabled(False)
         self._update_run_enabled()
+        self._update_title()
+        if outcome == "failed":
+            failed = [r.form for r in q.runs if r.status == "failed"]
+            self.show_error("Run failed",
+                            f"The search failed for {', '.join(failed)} on "
+                            f"{Path(q.path).name}:\n{lines[-1] if lines else 'unknown error'}",
+                            self.last_error)
         self.run_ended.emit(outcome)
 
     def closeEvent(self, event):

@@ -28,7 +28,8 @@ with the final ll as a dashed line) when ``finished`` arrives, draws the current
 from ``depth_done``, and exports the run with :func:`export_results` (``.npz`` + ``.json``,
 what ``formdiscovery run`` writes, :func:`formdiscovery.run.save_results`; read back
 with :func:`formdiscovery.run.load_results`) and the final graph figure with
-:func:`export_figure` (PNG or SVG).
+:func:`export_figure` (PNG or SVG). A failed export (e.g. a directory that cannot be
+written) opens a warning box (item 06, :func:`formdiscovery.gui.dialogs.error_box`).
 """
 
 from pathlib import Path
@@ -48,6 +49,7 @@ from ..params import graph_prior, setrunps, structcounts
 from ..preprocess import scaledata
 from ..run import MasterResults, graph_summary, save_results
 from ..threads import limit_blas_threads
+from .dialogs import error_box
 from .worker import run_ps
 
 __all__ = ["StatsPanel", "run_stats", "stats_text", "score_parts", "history_stages",
@@ -197,6 +199,7 @@ class StatsPanel(QWidget):
     (the window's :class:`formdiscovery.gui.canvas.GraphCanvas`)."""
 
     exported = Signal(str, object)  # 'results' / 'figure', path(s)
+    exportable = Signal(bool)       # the export buttons were enabled / disabled
 
     def __init__(self, figure_source=None, parent=None):
         super().__init__(parent)
@@ -204,6 +207,7 @@ class StatsPanel(QWidget):
         self.result = self.stats = None
         self.live = []          # stages of the running search (from depth_done)
         self.export_dir = Path.cwd()
+        self.error_dialog = None
 
         self.text = QPlainTextEdit()
         self.text.setReadOnly(True)
@@ -293,6 +297,7 @@ class StatsPanel(QWidget):
         self.results_button.setEnabled(self.result is not None)
         self.figure_button.setEnabled(self.result is not None
                                       and self.figure_source is not None)
+        self.exportable.emit(self.result is not None)
 
     # --- export --------------------------------------------------------------------
     def export_results(self, path):
@@ -313,7 +318,7 @@ class StatsPanel(QWidget):
         start = self.export_dir / f"results_{self.stats['form']}_{self.stats['data']}.npz"
         path, _ = QFileDialog.getSaveFileName(self, "Export results", str(start),
                                               RESULTS_FILTER)
-        return self.export_results(path) if path else None
+        return self._try(self.export_results, path) if path else None
 
     def export_figure_dialog(self):
         if self.result is None or self.figure_source is None:
@@ -325,4 +330,13 @@ class StatsPanel(QWidget):
             return None
         if not Path(path).suffix:
             path += ".svg" if flt.startswith("SVG") else ".png"
-        return self.export_figure(path)
+        return self._try(self.export_figure, path)
+
+    def _try(self, export, path):
+        """Run ``export(path)``; on failure open a warning box and return None."""
+        try:
+            return export(path)
+        except Exception as e:
+            self.error_dialog = error_box(self, "Export failed",
+                                          f"Could not write {path}:\n{type(e).__name__}: {e}")
+            return None

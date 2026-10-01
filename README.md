@@ -149,6 +149,7 @@ A PySide6 desktop app (`pip install -e .[gui]`; in the fd env it is already inst
 ```bash
 formdiscovery gui                                                  # pick a file with "Open data file…"
 formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat # start with a data set loaded
+formdiscovery gui --demo                                           # open demo_chain_feat and run chain
 ```
 
 Open any `.mat` data file (the shipped ones or your own: `data` as features, a similarity
@@ -170,11 +171,19 @@ statistics. The slider under the graph scrubs back through the frames the shown 
 (the last 500 per form are kept); at its right end the canvas is live again. Parallel runs
 share one Python process, so they overlap little (the search holds the GIL; ANOMALIES A27).
 
+Keyboard shortcuts (also in the File and Run menus): Ctrl+O open, Ctrl+R or F5 run,
+Esc or Ctrl+. stop, Ctrl+E export results, Ctrl+Shift+S save figure, Ctrl+Q quit. A file
+that cannot be read, a failed run or a failed export opens a warning box (a failed run's
+traceback is under "Show Details…"). The file dialog starts in the last directory a file
+was loaded from (`~/.config/formdiscovery/gui.ini`). The window title names the file. The
+GUI needs no Octave (only the tests compare against it).
+
 ![Chain, ring and tree on demo_chain_feat, ranked](examples/gui/05_forms.png)
 
 The GUI is a thin shell over the port (`src/formdiscovery/gui/`); its only hook into the
 model is `search.run_hooks` (per-thread cancel and per-depth callbacks, off by default, so
-results are unchanged). Screenshots: `QT_QPA_PLATFORM=offscreen python tools/gui_screenshots.py`.
+results are unchanged). Screenshots, with a description of each: [`examples/gui/`](examples/gui/README.md)
+(`QT_QPA_PLATFORM=offscreen python tools/gui_screenshots.py`).
 
 ## How it was verified
 
