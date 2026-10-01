@@ -13,6 +13,7 @@ dependencies:
   - networkx=3.7
   - matplotlib=3.11.2
   - pytest=9.1.1
+  - pytest-xdist=3.8.0  # loop0002 item 05: parallel gate (-n 16, one Octave per worker)
   - hypothesis=6.168.3
   - octave=10.3.0
   - oct2py=6.1.1

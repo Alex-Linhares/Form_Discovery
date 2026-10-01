@@ -20,7 +20,7 @@ dependencies = [
 formdiscovery = "formdiscovery.cli:main"
 
 [project.optional-dependencies]
-test = ["pytest>=7", "hypothesis>=6"]
+test = ["pytest>=7", "hypothesis>=6", "pytest-xdist>=3"]
 octave = ["oct2py>=5.6"]
 graphviz = ["pygraphviz>=1.11"]
 interactive = ["plotly>=5.18", "pyvis>=0.3.2"]

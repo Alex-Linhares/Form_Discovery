@@ -16,6 +16,7 @@ backend reads whole node names, so there it equals a whole-name parse of Octave'
 """
 import math
 import re
+import shutil
 import subprocess
 import warnings
 
@@ -524,11 +525,13 @@ def test_image_regression_networkx(name, tmp_path):
 
 def test_networkx_differs_from_graph_draw_render(tmp_path):
     """The two backends' baselines are distinct images (the per-backend sets are not
-    copies)."""
+    copies). The networkx one is compared from a copy in ``tmp_path``: compare_images
+    writes ``<actual>-failed-diff.png`` next to its second argument, which must not land
+    in ``tests/baseline_images`` (loop0002 item 05: parallel workers)."""
     name = "feat_tree_demo_tree_feat"
+    actual = shutil.copy(BACKEND_DIRS["networkx"] / f"{name}_notext.png", tmp_path)
     err = compare_images(str(BACKEND_DIRS["pygraphviz"] / f"{name}_notext.png"),
-                         str(BACKEND_DIRS["networkx"] / f"{name}_notext.png"), tol=2,
-                         in_decorator=True)
+                         str(actual), tol=2, in_decorator=True)
     assert err is not None
 
 

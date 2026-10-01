@@ -24,6 +24,15 @@ does the same for the tools). The exceptions are ``BLAS_DEFAULT_FIXTURES``, whic
 ``fixture_env`` regenerates unpinned (ANOMALIES A19). ``pytest_sessionstart`` limits any
 BLAS Python has already loaded to one thread (``pin_process_blas``) until the session ends.
 
+Parallel gate (loop0002 item 05): the gate runs under pytest-xdist (``-n 16``); each worker
+is its own pytest session with its own ``octave`` fixture, i.e. its own Octave process.
+xdist hands out tests in contiguous chunks, which put both 300 s gibbs tests on one worker
+(10 min wall for 3.5 min of work per worker). So under xdist the tests of
+``LONG_TESTS`` run first, longest first, each followed by one short test
+(``long_first``), and ``--maxschedchunk`` defaults to 1: every worker starts with one long
+test and then takes tests one at a time. The order within a worker does not matter (each
+test is independent). Without xdist the order is pytest's.
+
 The ``replay`` fixture (item 22, PLAN §4.2) puts the ``randperm`` shim
 (``matlab/octave_shims``) in front of the session's path and returns a
 :class:`ReplayControl`. Its methods set the Octave and Python sides up to draw the same
@@ -49,6 +58,44 @@ SHIM_DIR = REPO_ROOT / "matlab" / "octave_shims"
 # they were generated with OpenBLAS's default (one thread per core, 32 here) and a
 # pinned Octave does not reproduce them, so they are regenerated unpinned.
 BLAS_DEFAULT_FIXTURES = frozenset({"gibbs"})
+
+
+# Gate tests taking 30 s or more under ``-n 16`` (``--durations``, loop0002 item 05),
+# with those seconds: scheduled first under xdist (``long_first``).
+LONG_TESTS = {
+    "tests/test_gibbs.py::test_live_fresh_seeds": 358,
+    "tests/test_spr.py::test_live_fresh_seeds": 307,
+    "tests/test_gibbs.py::test_live_fixture_regenerates": 290,
+    "tests/test_spr.py::test_live_fixture_regenerates": 239,
+    "tests/test_dpmiss.py::test_live_fresh_seeds": 189,
+    "tests/test_swap.py::test_live_fresh_seeds": 98,
+    "tests/test_dpmiss.py::test_live_fixture_regenerates": 95,
+    "tests/test_simplify.py::test_live_fresh_sequences": 80,
+    "tests/test_swap.py::test_live_fixture_regenerates": 76,
+    "tests/test_runmodel.py::test_live_fresh_seeds": 73,
+    "tests/test_simplify.py::test_fixture_regenerates": 72,
+    "tests/test_search.py::test_live_fresh_seeds": 67,
+    "tests/test_runmodel.py::test_live_fixture_regenerates": 65,
+    "tests/test_glslow.py::test_live_fresh_seeds": 56,
+    "tests/test_search.py::test_live_fixture_regenerates": 50,
+    "tests/test_glslow.py::test_live_fixture_regenerates": 47,
+    "tests/test_masterrun.py::test_live_fixture_regenerates": 39,
+    "tests/test_rellike.py::test_live_fresh_seeds": 34,
+    "tests/test_rellike.py::test_live_fixture_regenerates": 33,
+}
+
+
+def long_first(items, long_tests=LONG_TESTS):
+    """``items`` with those in ``long_tests`` first, longest first, each followed by the
+    next other item; the other items keep their order."""
+    longs = sorted((it for it in items if it.nodeid in long_tests),
+                   key=lambda it: -long_tests[it.nodeid])
+    rest = [it for it in items if it.nodeid not in long_tests]
+    out = []
+    for k, it in enumerate(longs):
+        out.append(it)
+        out.extend(rest[k:k + 1])
+    return out + rest[len(longs):]
 
 
 def fixture_env(name):
@@ -105,27 +152,54 @@ def pytest_configure(config):
     exe = find_octave()
     if exe is not None:
         _configure_octave_env(exe)
+    if (not hasattr(config, "workerinput") and getattr(config.option, "numprocesses", None)
+            and getattr(config.option, "maxschedchunk", 0) is None):
+        config.option.maxschedchunk = 1  # with long_first: one long test per worker
 
 
 _blas_limit = None
+_tests_files = None
+TESTS_DIR = Path(__file__).resolve().parent  # tests/
+
+
+def tests_tree_files():
+    """Files under ``tests/``, except Python caches (``__pycache__``)."""
+    return {p for p in TESTS_DIR.rglob("*")
+            if p.is_file() and "__pycache__" not in p.relative_to(TESTS_DIR).parts}
 
 
 def pytest_sessionstart(session):
     """One BLAS thread for the Python side too (a BLAS loaded before
-    ``pytest_configure`` did not see the environment variables)."""
-    global _blas_limit
+    ``pytest_configure`` did not see the environment variables). Outside xdist workers,
+    record the files under ``tests/`` for the check in ``pytest_sessionfinish``."""
+    global _blas_limit, _tests_files
     _blas_limit = pin_process_blas(1)
+    if not hasattr(session.config, "workerinput"):
+        _tests_files = tests_tree_files()
 
 
 def pytest_sessionfinish(session, exitstatus):
-    global _blas_limit
+    """Fail the run if a test left a new file under ``tests/`` (tests write to
+    ``tmp_path``, so parallel workers cannot collide on a shared file; item 05)."""
+    global _blas_limit, _tests_files
     if _blas_limit is not None:
         _blas_limit.restore_original_limits()
         _blas_limit = None
+    if _tests_files is not None:
+        new = sorted(str(p.relative_to(REPO_ROOT)) for p in tests_tree_files() - _tests_files)
+        _tests_files = None
+        if new:
+            sys.stderr.write("\nERROR: the test run wrote new files under tests/ "
+                             "(tests must write to tmp_path):\n  " + "\n  ".join(new) + "\n")
+            if session.exitstatus == pytest.ExitCode.OK:
+                session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip octave-marked tests up front when the toolchain is missing."""
+    """Under xdist, long tests first (``long_first``); skip octave-marked tests up front
+    when the toolchain is missing."""
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        items[:] = long_first(items)
     reason = None
     try:
         import oct2py  # noqa: F401

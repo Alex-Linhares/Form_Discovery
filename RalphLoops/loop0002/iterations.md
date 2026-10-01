@@ -26,7 +26,7 @@ Work on the first `[ ]` item only.
       histories exactly as the serial `run_baseline` does. Verify the merged output is
       identical to the committed `tests/fixtures/baseline/{feat,rel}` (all `ll` values,
       graph structs, file sets). Table: serial 2 min 45 s vs parallel.
-- [ ] 05. **Parallel gate with pytest-xdist.** Add `pytest-xdist` to `environment.yml` and
+- [x] 05. **Parallel gate with pytest-xdist.** Add `pytest-xdist` to `environment.yml` and
       `pyproject.toml[test]`; make the gate `-n 16` (loop.py `TEST_CMD`), one Octave per
       worker. Fix any test that is not concurrency-safe (shared temp names, files written under
       `tests/`, image baselines). Run the gate 3× to check determinism (same pass set).

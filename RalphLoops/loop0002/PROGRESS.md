@@ -3,7 +3,7 @@
 ## Ralph Loop 0002 Status
 - **Started**: 2026-09-30
 - **Target**: 7 items (see iterations.md)
-- **Current**: 4/7 SOLVED
+- **Current**: 5/7 SOLVED
 
 ---
 
@@ -276,3 +276,63 @@
 - None. A19 (gibbs kept unpinned) is still open for a human.
 ### Next
 - Item 05: parallel gate with pytest-xdist (`-n 16`, one Octave per worker).
+
+---
+
+## Iteration 6 — 2026-10-01 01:45
+### Completed
+- Item 05, parallel gate with pytest-xdist.
+  - Installed `pytest-xdist=3.8.0` (and `execnet` 2.1.2) from conda-forge in the fd env.
+    Added it to `environment.yml` and to `pyproject.toml` `[test]` (`pytest-xdist>=3`).
+    `loop.py`'s default `TEST_CMD` is now `<fd python> -m pytest -q -m "not slow" -n 16`.
+  - One Octave per worker: each xdist worker is its own pytest session, so the
+    session-scoped `octave` fixture starts one Oct2Py per worker. New live
+    `test_gate_env.py::test_xdist_one_octave_per_worker` runs an inner `-n 2` session and
+    checks two workers with two distinct Octave PIDs, one PID per worker.
+  - Concurrency check. The first `-n 16` run passed, but
+    `test_viz_networkx.py::test_networkx_differs_from_graph_draw_render` left
+    `tests/baseline_images/networkx/feat_tree_demo_tree_feat_notext-failed-diff.png`.
+    matplotlib's `compare_images` writes `<actual>-failed-diff.png` next to its second
+    argument, which there was a committed baseline (gitignored, so `git status` did not
+    show it). Fixed: the test compares a copy in `tmp_path`. To keep this from coming
+    back, `conftest.py` records the files under `tests/` at session start (controller or
+    serial session only) and fails the run if a new one appears
+    (`test_new_file_under_tests_fails`). There are no other shared names: `_GtDout.dot`/
+    `_LAYout.dot` are not written by the Python side, and the live Octave `draw_dot` test
+    `cd`s to `tmp_path`. The `randperm` logs are in `tmp_path`, and the tools' Octave runs
+    use temporary directories or the test's `tmp_path` for logs and outputs. The Oct2Py
+    cwd is the repo root, and `git status --ignored` shows nothing new after the runs.
+    No anomaly: this was a test-hygiene bug, not a formdiscovery1.0 or Octave issue.
+  - Scheduling. xdist's `load` hands out contiguous chunks, so the first run put both
+    gibbs live tests (≈300 s each) on one worker: 10:22 wall at 533 % CPU. Under xdist,
+    `conftest.long_first` now puts the `LONG_TESTS` (19 tests ≥ 30 s, timings from
+    `--durations`) first, longest first, each followed by one short test. `pytest_configure`
+    defaults `--maxschedchunk` to 1 on the controller, so every worker starts with one
+    long test. A serial run keeps pytest's order. Tests: `test_long_first`,
+    `test_long_tests_exist`, `test_maxschedchunk_default`. The wall clock is now the
+    longest single test (gibbs `test_live_fresh_seeds`, 358 s at `-n 16`).
+  - Determinism: three `-n 16` runs, one `-n 8` run and one serial run (JUnit XML,
+    `build/xdist/`) have **identical (nodeid, outcome) sets**: 3642 passed, 3 skipped
+    (sklearn 1, nbformat 2; no Octave skips) each. All exit 0.
+
+  | gate run (fd env, strict, this tree) | wall clock | CPU (user+sys) | workers |
+  |---|---|---|---|
+  | serial (no `-n`) | 38 min 16 s | 2754 s (119 %) | 1 (+1 Octave) |
+  | `-n 16`, before scheduling fix | 10 min 22 s | 3319 s (533 %) | 16 (+16 Octave) |
+  | `-n 8` | **6 min 03 s** | 3255 s (895 %) | 8 (+8 Octave) |
+  | `-n 16`, run a | 6 min 12 s | 3604 s (969 %) | 16 (+16 Octave) |
+  | `-n 16`, run b | 6 min 05 s | 3560 s (975 %) | 16 (+16 Octave) |
+  | `-n 16`, run c | **6 min 01 s** | 3572 s (989 %) | 16 (+16 Octave) |
+
+  6.3× faster than serial. `-n 8` is as fast as `-n 16` because both are limited by the
+  358 s gibbs test. `-n 16` keeps the requested setting and leaves headroom. The parallel
+  runs use about 30 % more CPU than serial: 16 Octave startups, contention for memory
+  bandwidth, and the unpinned gibbs regeneration (A19) running 32 BLAS threads beside 15
+  other workers. Going below about 6 min would mean splitting the gibbs and spr live
+  tests (per-run parametrisation), which this item did not do.
+- Docs: `README.md` ("How it was verified" bullet and the commands block) and `CLAUDE.md`
+  (the gate command, pytest-xdist in the env).
+### Blockers
+- None. A19 (gibbs kept unpinned) is still open for a human.
+### Next
+- Item 06: `tools/compare_live.py --pairs ... --jobs N` (Octave and Python side by side).

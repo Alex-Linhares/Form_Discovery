@@ -17,9 +17,10 @@ Read first, in this order:
 Work is driven by the Ralph loop in `RalphLoops/loop0001/` (`TASK.md`, `iterations.md`,
 `PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`.
 
-Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py
-and pygraphviz. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"`
-(in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
+Environment: conda env `fd` (`environment.yml`) has Python, numpy/scipy, Octave 10.3, oct2py,
+pygraphviz and pytest-xdist. Regression gate: `~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
+(about 6 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
+new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Fixtures are regenerated only through Octave
 (`tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
 `--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:

@@ -179,9 +179,17 @@ malformed (KI-32/35); use `flags='intended'` for the documented ones. See
   committed `tests/fixtures/baseline/{feat,rel}` (`--compare DIR`; only `timings.seconds`
   is skipped). With `--jobs 16` feat takes 5.8 s and rel 14.6 s, against 33–46 s and
   140–176 s for serial `run_baseline`.
+- The gate runs in parallel with pytest-xdist (`-n 16`). Each worker has its own Octave
+  process (its own session-scoped `octave` fixture), and tests write only to `tmp_path`.
+  A run that leaves a new file under `tests/` fails. Under xdist the tests that take 30 s
+  or more (`LONG_TESTS` in `tests/conftest.py`) start first, one per worker
+  (`--maxschedchunk 1`). The gate then takes about 6 min (the longest test, gibbs
+  `test_live_fresh_seeds`, alone takes about 6 min) against about 40 min serial. Three
+  runs at `-n 16` and one at `-n 8` gave the same pass set.
 
 ```bash
-~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # regression gate, Octave live (strict)
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # regression gate, Octave live (strict), ~6 min
+~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 python -m pytest -q -m slow           # long runs

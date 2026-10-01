@@ -20,7 +20,8 @@ Usage (from this folder):
 Environment overrides:
   RALPH_CLAUDE_ARGS   extra args for `claude -p`
                       (default: --dangerously-skip-permissions, required for unattended runs)
-  RALPH_TEST_CMD      regression command (default: python -m pytest -q -m "not slow")
+  RALPH_TEST_CMD      regression command (default: fd-env python -m pytest -q -m "not slow" -n 16,
+                      pytest-xdist with one Octave per worker; item 05)
   RALPH_TIMEOUT_MIN   per-Claude-call timeout in minutes (default 240; a hang guard, not a budget)
 """
 from __future__ import annotations
@@ -41,7 +42,7 @@ LOOP_ID = LOOP_DIR.name  # e.g. loop0002
 MAX_FIX_ATTEMPTS = 3
 CLAUDE_ARGS = shlex.split(os.environ.get("RALPH_CLAUDE_ARGS", "--dangerously-skip-permissions"))
 FD_PY = os.path.expanduser("~/anaconda3/envs/fd/bin/python")
-TEST_CMD = os.environ.get("RALPH_TEST_CMD", f'{FD_PY} -m pytest -q -m "not slow"')
+TEST_CMD = os.environ.get("RALPH_TEST_CMD", f'{FD_PY} -m pytest -q -m "not slow" -n 16')
 TIMEOUT_S = int(float(os.environ.get("RALPH_TIMEOUT_MIN", "240")) * 60)
 PYTEST_NO_TESTS_COLLECTED = 5
 print = functools.partial(print, flush=True)  # keep log ordered when redirected

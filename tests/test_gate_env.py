@@ -6,6 +6,10 @@ they fail instead.
 
 BLAS pinning (item 02): the Oct2Py session, an ``octave-cli`` started the way the tools
 start it, and the Python side all run one BLAS/OpenMP thread.
+
+Parallel gate (item 05): under pytest-xdist every worker has its own Octave, the long
+tests are scheduled first (``conftest.long_first``, ``--maxschedchunk 1``), and a run that
+leaves a new file under ``tests/`` fails.
 """
 
 import importlib.util
@@ -114,3 +118,88 @@ def test_strict_mode_turns_skip_into_failure(tmp_path, flag):
         assert "Octave test skipped in strict mode (" in out
     else:
         assert res.returncode == 0 and "2 skipped" in out, out
+
+
+class _Item:
+    def __init__(self, nodeid):
+        self.nodeid = nodeid
+
+
+def test_long_first():
+    items = [_Item(n) for n in ("a", "L2", "b", "c", "L1", "d", "L3")]
+    out = conftest.long_first(items, {"L1": 9, "L2": 5, "L3": 7})
+    assert [it.nodeid for it in out] == ["L1", "a", "L3", "b", "L2", "c", "d"]
+    assert conftest.long_first(items[:2], {"L1": 9, "L2": 5}) == [items[1], items[0]]
+    assert conftest.long_first(items, {}) == items
+
+
+def test_long_tests_exist():
+    """Every ``LONG_TESTS`` entry names a test function that exists."""
+    for nodeid in conftest.LONG_TESTS:
+        path, name = nodeid.split("::")
+        assert f"\ndef {name}(" in (REPO_ROOT / path).read_text(), nodeid
+
+
+def _inner_run(tmp_path, test_src, *args):
+    """pytest in ``tmp_path/run`` with a copy of this conftest and ``test_src``."""
+    run = tmp_path / "run"
+    run.mkdir()
+    shutil.copy(conftest.__file__, run / "conftest.py")
+    (run / "pytest.ini").write_text(
+        f"[pytest]\npythonpath = {REPO_ROOT / 'src'}\nmarkers =\n    octave: live\n")
+    (run / "test_x.py").write_text(test_src)
+    return subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                           "-o", "addopts=", *args], cwd=run,
+                          capture_output=True, text=True, timeout=300)
+
+
+@pytest.mark.octave
+def test_xdist_one_octave_per_worker(tmp_path):
+    """``-n 2``: two workers, each with its own Octave process."""
+    pytest.importorskip("xdist")
+    out = tmp_path / "seen"
+    out.mkdir()
+    src = ("import os\nimport pytest\n"
+           "@pytest.mark.parametrize('k', range(6))\n"
+           "def test_pid(octave, k):\n"
+           "    import time; time.sleep(0.3)\n"
+           "    pid = int(octave.eval('getpid();'))\n"
+           "    w = os.environ['PYTEST_XDIST_WORKER']\n"
+           f"    (__import__('pathlib').Path({str(out)!r}) / f'{{k}}').write_text(\n"
+           "        f'{w} {pid}')\n")
+    res = _inner_run(tmp_path, src, "-n", "2")
+    assert res.returncode == 0 and "6 passed" in res.stdout, res.stdout + res.stderr
+    seen = [p.read_text().split() for p in out.iterdir()]
+    assert len(seen) == 6
+    workers = {w: pid for w, pid in seen}
+    assert sorted(workers) == ["gw0", "gw1"]
+    assert len(set(workers.values())) == 2  # one Octave per worker
+    assert all(pid == workers[w] for w, pid in seen)  # and one only
+
+
+def test_maxschedchunk_default(monkeypatch):
+    """The controller of an xdist run gets ``--maxschedchunk 1`` unless one was given;
+    serial runs and workers are left alone."""
+    import types
+    monkeypatch.setattr(conftest, "find_octave", lambda: None)
+    for numprocesses, given, worker, want in ((16, None, False, 1), (16, 4, False, 4),
+                                              (None, None, False, None),
+                                              (16, None, True, None)):
+        cfg = types.SimpleNamespace(option=types.SimpleNamespace(
+            numprocesses=numprocesses, maxschedchunk=given))
+        if worker:
+            cfg.workerinput = {}
+        conftest.pytest_configure(cfg)
+        assert cfg.option.maxschedchunk == want
+
+
+def test_new_file_under_tests_fails(tmp_path):
+    """A test that leaves a new file next to the conftest fails the run (serial)."""
+    src = ("from pathlib import Path\n"
+           "def test_ok():\n    pass\n"
+           "def test_writes():\n"
+           "    (Path(__file__).parent / 'stray.png').write_bytes(b'x')\n")
+    res = _inner_run(tmp_path, src)
+    assert res.returncode == 1, res.stdout + res.stderr
+    assert "2 passed" in res.stdout
+    assert "wrote new files under tests/" in res.stderr and "stray.png" in res.stderr
