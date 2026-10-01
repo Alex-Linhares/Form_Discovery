@@ -7,8 +7,14 @@ Layout: an "Open data file…" button with the chosen path, the dataset info pan
 ``defaultps.m``'s 54 and steps through :data:`SPEEDS` only: ``ps.speed`` is a mode code,
 not a count; 1 and 2 crash in ``best_split`` (``KNOWN_ISSUES.md`` KI-1) and 23 is
 runmodel's "Unknown speed value") and Run/Stop buttons. Run emits
-:attr:`MainWindow.run_requested` with :meth:`MainWindow.run_settings`; the worker that consumes it is item 02, so Stop
-stays disabled for now.
+:attr:`MainWindow.run_requested` with :meth:`MainWindow.run_settings`.
+
+Item 02: :meth:`MainWindow.start_run` (connected to ``run_requested``) runs the first
+selected form in a :class:`formdiscovery.gui.worker.RunWorker` on its own thread (the
+queue of several forms is item 05) and emits :attr:`MainWindow.run_started` with the
+worker; Stop calls :meth:`RunWorker.cancel`. Run is disabled while a run goes; a status
+line shows the frames received and the outcome. Closing the window cancels the run and
+waits for its thread.
 """
 
 from pathlib import Path
@@ -24,6 +30,7 @@ from ..io import DATA_DIR
 from ..params import STRUCTURES
 from ..run import MASTERRUN_STRUCT
 from .dataset import dataset_info
+from .worker import RunWorker, start_worker
 
 __all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "DEFAULT_SEED",
            "DEFAULT_SPEED", "FILE_FILTER"]
@@ -63,12 +70,16 @@ class MainWindow(QMainWindow):
 
     run_requested = Signal(dict)
     dataset_changed = Signal(object)  # DatasetInfo
+    run_started = Signal(object)      # RunWorker (connect before its thread runs on)
+    run_ended = Signal(str)           # 'finished' / 'failed' / 'cancelled'
 
     def __init__(self, path=None, data_dir=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("formdiscovery")
         self.data_dir = Path(data_dir or DATA_DIR)
         self.info = None
+        self.worker = self.thread = None
+        self.last_result = self.last_error = None
 
         self.open_button = QPushButton("Open data file…")
         self.open_button.clicked.connect(self.open_dialog)
@@ -109,8 +120,10 @@ class MainWindow(QMainWindow):
         self.run_button.clicked.connect(self._on_run)
         self.stop_button = QPushButton("Stop")
         self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self.stop_run)
+        self.status_label = QLabel("")
         buttons = QHBoxLayout()
-        buttons.addStretch(1)
+        buttons.addWidget(self.status_label, 1)
         buttons.addWidget(self.run_button)
         buttons.addWidget(self.stop_button)
 
@@ -130,6 +143,7 @@ class MainWindow(QMainWindow):
         self.resize(760, 520)
 
         self.form_list.itemSelectionChanged.connect(self._update_run_enabled)
+        self.run_requested.connect(self.start_run)
         if path is not None:
             self.load_file(path)
 
@@ -188,8 +202,88 @@ class MainWindow(QMainWindow):
                 "speed": self.speed_spin.value()}
 
     def _update_run_enabled(self):
-        self.run_button.setEnabled(self.info is not None and bool(self.selected_forms()))
+        self.run_button.setEnabled(self.info is not None and bool(self.selected_forms())
+                                   and not self.running())
 
     def _on_run(self):
         if self.run_button.isEnabled():
             self.run_requested.emit(self.run_settings())
+
+    # --- runs (item 02) --------------------------------------------------------------
+    def running(self):
+        return self.thread is not None
+
+    def start_run(self, settings):
+        """Run the first form of ``settings`` (:meth:`run_settings`) in a worker thread;
+        returns the :class:`RunWorker` (None if a run is already going)."""
+        if self.running() or settings["path"] is None or not settings["forms"]:
+            return None
+        form = settings["forms"][0]
+        w = RunWorker(settings["path"], form, seed=settings["seed"],
+                      speed=settings["speed"])
+        w.frame.connect(self._on_frame)
+        w.finished.connect(self._on_finished)
+        w.failed.connect(self._on_failed)
+        w.cancelled.connect(self._on_cancelled)
+        self.worker, self.last_result, self.last_error = w, None, None
+        self.status_label.setText(f"Running {form} on {Path(settings['path']).stem}…")
+        self.run_started.emit(w)
+        self.thread = start_worker(w, start=False)
+        self.thread.finished.connect(self._on_thread_finished)
+        self.thread.start()
+        self.stop_button.setEnabled(True)
+        self._update_run_enabled()
+        return w
+
+    def stop_run(self):
+        """Ask the current run to stop (it ends with ``cancelled``)."""
+        if self.worker is not None:
+            self.worker.cancel()
+            self.stop_button.setEnabled(False)
+            self.status_label.setText("Stopping…")
+
+    def wait_run(self, ms=60000):
+        """Block until the run's thread ends (tests, close); True if it ended."""
+        if self.thread is None:
+            return True
+        ok = self.thread.wait(ms)
+        if ok:
+            self._on_thread_finished()
+        return ok
+
+    def _on_frame(self, event, adj, names, title, depth):
+        w = self.worker
+        if w is not None and not w.is_cancelled():
+            self.status_label.setText(f"{w.form}: {event}, depth {depth}, "
+                                      f"frame {w.frames}")
+
+    def _on_finished(self, result):
+        self.last_result = result
+        self.status_label.setText(f"{result['form']}: ll = {result['ll']:.4f} "
+                                  f"({result['frames']} frames, {result['wall']:.1f} s)")
+        self.run_ended.emit("finished")
+
+    def _on_failed(self, tb):
+        self.last_error = tb
+        self.status_label.setText("Run failed: " + tb.strip().splitlines()[-1])
+        self.run_ended.emit("failed")
+
+    def _on_cancelled(self):
+        self.status_label.setText("Run stopped.")
+        self.run_ended.emit("cancelled")
+
+    def _on_thread_finished(self):
+        if self.thread is None or self.thread.isRunning():
+            return
+        self.thread.deleteLater()
+        self.worker.deleteLater()
+        self.thread = self.worker = None
+        self.stop_button.setEnabled(False)
+        self._update_run_enabled()
+
+    def closeEvent(self, event):
+        """Cancel a running search and wait for its thread before closing."""
+        if self.worker is not None:
+            self.worker.cancel()
+            self.wait_run()
+        super().closeEvent(event)

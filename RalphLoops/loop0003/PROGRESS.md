@@ -3,7 +3,7 @@
 ## Ralph Loop 0003 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 1/6 SOLVED
+- **Current**: 2/6 SOLVED
 
 ---
 
@@ -49,3 +49,57 @@
 - Item 02: `gui/worker.py` (`RunWorker` on a `QThread`, `ProgressFigures.enable` events, signals) and
   the documented cancel hook (`RunCancelled`) in `search.show_graph` / `structurefit`. Wire
   `MainWindow.run_requested` and enable Stop while a run is going.
+
+## Iteration 2 — 2026-10-01 12:50
+### Completed
+- Item 02 (worker thread and cancel hook) solved.
+- Model hook (the only change outside `gui/`), `search.py`: `run_hooks(cancel=None, on_depth=None)`, a
+  context manager installing per-thread (`threading.local`) hooks; `RunCancelled` (an `Exception`, not a
+  `FormDiscoveryError`); `check_cancel()`; `current_depth()`. `cancel()` is checked at the top of every
+  `show_graph` call (whatever the `ps.show*` flags, so a run is stoppable without frames) and at the start
+  of each `structurefit` depth (`_hook_depth`, which also records the depth); `on_depth(bestgraphlls,
+  bestgraph)` is called after each accepted depth, next to `callback`. Without `run_hooks` nothing is
+  checked or called: results and draws unchanged (the gate's parity tests; the worker's ll equals
+  masterrun's bit for bit). Documented in the search module docstring and `structurefit`'s.
+- `gui/worker.py`: `RunWorker(QObject)` with signals `frame(event, adj, names, title, depth)`,
+  `depth_done(lls)`, `finished(result dict: ll, graph, names, bestglls, bestgraph, form, sind, dind, path,
+  seed, speed, frames, wall)`, `failed(traceback)`, `cancelled()`, then `done()`. `run()` builds `ps`
+  with `run_ps(path, form, speed)` (masterrun_ps; a shipped file keeps its `ps.data` index, any other file
+  is appended to `ps.data`/`dlocs`/`simdim`), `ProgressFigures.enable(ps, preclean/postclean/
+  inferredgraph [+bestsplit])`, `NumpyPermutations(seed)` (masterrun's repeat-1 seed) and runs
+  `runmodel(..., show=)` inside `run_hooks`. Frames are copies (`np.array(adj, copy=True)`, str names and
+  title). `start_worker(worker, parent, start=True)` moves it to a `QThread`; `done` → `thread.quit`
+  (direct connection).
+- `MainWindow`: `run_requested` → `start_run` (first selected form; the queue is item 05), `run_started(
+  worker)` for item 03's canvas, `run_ended(outcome)`, Stop → `stop_run` (`worker.cancel()`), Run disabled
+  while running, a status line (frame/depth during the run; `chain: ll = -8247.1924 (11 frames, 1.3 s)` at
+  the end), `wait_run(ms)`, and `closeEvent` cancels and joins the thread.
+- `tests/test_gui_worker.py` (13 tests, ~6 s): `run_ps` for shipped/user files; the demo run in a worker
+  (ll == masterrun's `modellike[1,0,0]`, slots run in the GUI thread, last frame `inferredgraph` with the
+  final adj, postclean count == accepted depths, frames ≥ depths, `depth_done` histories grow by one per
+  stage, frame depth == accepted depth); bestsplit frames; cancel after the first frame (`cancelled`, no
+  `finished`, thread finished); cancel before start; failure traceback; `run_hooks` unit (flags off still
+  checked, nesting, per-thread); `structurefit` with hooks gives the same result, `on_depth` == `callback`,
+  per-depth cancel at depth 2 without any `show`; window Run → finished, Stop → cancelled, close joins.
+- Screenshot: `examples/gui/02_run.png` (window after a chain run on demo_chain_feat, status line with
+  the score, 11 frames, 1.3 s), from `tools/gui_screenshots.py` (01_picker.png regenerates unchanged).
+- Anomalies: A23 (PySide6 calls a plain function/lambda connected to a cross-thread signal in the emitting
+  thread; only `QObject` methods get queued; documented in `worker.py`), A24 (`QApplication.quit()` in item
+  01's `test_app_main_runs_event_loop` posted a deferred Quit event that pytest-qt's teardown delivered after
+  `exec()` returned, leaving every later `QEventLoop.exec()` in that process returning -1 at once; in the
+  first gate run the worker tests on that xdist worker timed out instantly, their orphan thread ran into
+  `test_structurefit`'s monkeypatched oracle and the worker aborted. Fixed in the test with `qapp.exit(0)`
+  + `qtbot.wait(1)`; `run_worker` in the tests now cancels and joins on any timeout). Both are
+  environment/test issues, not original-code lines, so no KI entry (as A22).
+- `test_gui_picker.py::test_run_emits_settings` now stops and joins the run its Run click starts.
+- CLAUDE.md lists `worker.py` and the `search.run_hooks` hook.
+
+- Gate: `pytest -q -m "not slow" -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 3678 passed, 3 skipped (the existing
+  non-Octave skips), 365 s, exit 0 (the first run, before the A24 fix, had 3 failures on one xdist worker).
+### Blockers
+- None.
+### Next
+- Item 03: `gui/canvas.py` `GraphCanvas(FigureCanvasQTAgg)` fed by `MainWindow.run_started` → the worker's
+  `frame` signal (connect a `QObject` method, A23), coalescing with a timer (latest wins, never drop
+  `inferredgraph`), status line from `frame`'s `depth` and the title's score; stable positions (`draw_dot
+  pos=`). Stop already works through `MainWindow.stop_run`.

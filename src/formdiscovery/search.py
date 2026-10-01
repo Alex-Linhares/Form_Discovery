@@ -25,7 +25,19 @@ Display (item 32): where MATLAB draws a graph when a ``ps.show*`` flag is set
 ``show(event, adj, names, title)`` callback (:func:`show_graph`) with the names padded and
 the title formatted as MATLAB does; :class:`formdiscovery.viz.draw.ProgressFigures` draws
 them.
+
+Run hooks (loop0003 item 02, for the GUI): :func:`run_hooks` installs, for the calling
+thread only, a ``cancel()`` check and an ``on_depth(bestgraphlls, bestgraph)`` callback.
+``cancel`` is checked in every :func:`show_graph` call (whatever the ``ps.show*`` flags)
+and at the start of each ``structurefit`` depth; when it returns true
+:class:`RunCancelled` is raised. ``on_depth`` is called after each accepted depth, next
+to ``structurefit``'s ``callback``. :func:`current_depth` is the depth ``structurefit``
+is working on. Without :func:`run_hooks` (the default) nothing is checked or called, so
+results and draws are unchanged.
 """
+
+import threading
+from contextlib import contextmanager
 
 import numpy as np
 
@@ -62,10 +74,59 @@ def num2str(x):
     return f"{x:.{k}g}"
 
 
+class RunCancelled(Exception):
+    """Raised by the run hooks when ``cancel()`` returns true (:func:`run_hooks`). Not a
+    :class:`FormDiscoveryError`: nothing in the model catches it."""
+
+
+_HOOKS = threading.local()
+
+
+@contextmanager
+def run_hooks(cancel=None, on_depth=None):
+    """Install the run hooks (module docstring) for the calling thread while the block
+    runs; the previous hooks are restored on exit, so blocks nest."""
+    prev = (getattr(_HOOKS, "cancel", None), getattr(_HOOKS, "on_depth", None),
+            getattr(_HOOKS, "depth", 0))
+    _HOOKS.cancel, _HOOKS.on_depth, _HOOKS.depth = cancel, on_depth, 0
+    try:
+        yield
+    finally:
+        _HOOKS.cancel, _HOOKS.on_depth, _HOOKS.depth = prev
+
+
+def check_cancel():
+    """Raise :class:`RunCancelled` if this thread's ``cancel()`` hook returns true."""
+    cancel = getattr(_HOOKS, "cancel", None)
+    if cancel is not None and cancel():
+        raise RunCancelled("run cancelled")
+
+
+def current_depth():
+    """The ``structurefit`` depth this thread is working on (0 before the first one; the
+    last one after it returns). Kept only inside :func:`run_hooks`."""
+    return getattr(_HOOKS, "depth", 0)
+
+
+def _hook_depth(depth):
+    if getattr(_HOOKS, "cancel", None) is not None or \
+            getattr(_HOOKS, "on_depth", None) is not None:
+        _HOOKS.depth = int(depth)
+        check_cancel()
+
+
+def _hook_accepted(bestgraphlls, bestgraph):
+    on_depth = getattr(_HOOKS, "on_depth", None)
+    if on_depth is not None:
+        on_depth(np.asarray(bestgraphlls, dtype=float), list(bestgraph))
+
+
 def show_graph(show, flag, event, adj, names, fill, title):
     """Call ``show(event, adj, names, title)`` when ``show`` is given and the ``ps.show*``
     ``flag`` is set; ``names`` are padded with ``fill`` to the number of nodes, as the
-    MATLAB display blocks do before ``draw_dot``."""
+    MATLAB display blocks do before ``draw_dot``. First checks the ``cancel`` run hook
+    (:func:`run_hooks`), if any."""
+    check_cancel()
     if show is None or not flag:
         return
     adj = np.asarray(adj, dtype=float)
@@ -1206,6 +1267,8 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
     Deviations: ``save(savefile, ...)`` (l.196) becomes optional: with ``savefile`` the
     history is written to ``savefile`` (``.mat`` appended), and ``callback(bestgraphlls,
     bestgraph)`` is called after each accepted depth; with neither nothing is written.
+    The run hooks (:func:`run_hooks`, loop0003 item 02; off by default) check ``cancel``
+    at the start of each depth and call ``on_depth`` after each accepted one.
     The ``disp`` lines are dropped. The display blocks call ``show`` (see
     :func:`show_graph`): ``ps.showpreclean`` (l.85-95, figure 1) with the best split
     before cleaning and title ``'pre-clean: <type>  <score>'``, ``ps.showpostclean``
@@ -1234,6 +1297,7 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
     depth = 1
     # continue splitting cluster nodes while score improves
     while stopflag == 0:
+        _hook_depth(depth)  # run hooks (item 02): cancel check, current_depth
         lls, newgraph = {}, {}
         for key in _cluster_keys(graph):
             i, c, pind = key
@@ -1337,6 +1401,7 @@ def structurefit(data, ps, graph=None, savefile=None, callback=None, rng=None,
                 _save_history(savefile, bestgraphlls, bestgraph)
             if callback is not None:
                 callback(np.asarray(bestgraphlls, dtype=float), list(bestgraph))
+            _hook_accepted(bestgraphlls, bestgraph)
             show_graph(show, ps.showpostclean, "postclean", graph.adj, ps.runps.names, " ",
                        f"post-clean: {graph.type}  {sprintf_g(currprob)}")
 

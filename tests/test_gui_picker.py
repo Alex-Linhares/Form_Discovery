@@ -123,6 +123,8 @@ def test_run_emits_settings(win, qtbot):
     assert s["forms"] == ["chain", "ring", "tree"]
     assert (s["seed"], s["speed"]) == (7, 5)
     assert s["info"].kind == "feat"
+    win.stop_run()  # Run also started chain in a worker (item 02)
+    assert win.wait_run(60000) and not win.running()
 
 
 def test_speed_codes(win):
@@ -210,8 +212,9 @@ def test_app_main_runs_event_loop(qapp, qtbot):
         seen["stems"] = [w.info.stem for w in wins if w.info is not None]
         for w in wins:
             w.close()
-        qapp.quit()
+        qapp.exit(0)  # not quit(): ANOMALIES.md A24
 
     QTimer.singleShot(0, grab_and_quit)
     assert gui_app.main([str(DATA_DIR / "demo_tree_feat.mat")]) == 0
     assert "demo_tree_feat" in seen["stems"]
+    qtbot.wait(1)  # and any posted event is consumed inside a loop (A24)

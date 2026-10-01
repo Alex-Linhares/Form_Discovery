@@ -12,7 +12,7 @@ Work on the first `[ ]` item only.
       Add `pytest-qt` to env/pyproject. Tests (offscreen): open each shipped demo file via
       the model (no dialog), info panel text, form selection. Screenshot
       `examples/gui/01_picker.png`.
-- [ ] 02. **Worker thread and cancel hook.** `gui/worker.py`: `RunWorker(QObject)` on a
+- [x] 02. **Worker thread and cancel hook.** `gui/worker.py`: `RunWorker(QObject)` on a
       `QThread` running `runmodel` for one (form, file) with `ps` from `ProgressFigures.enable`
       (`preclean`, `postclean`, `inferredgraph`, optional `bestsplit`); signals
       `frame(event, adj, names, title, depth)`, `depth_done(lls)`, `finished(result)`,

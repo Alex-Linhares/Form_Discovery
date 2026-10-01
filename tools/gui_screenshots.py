@@ -3,7 +3,8 @@
     QT_QPA_PLATFORM=offscreen python tools/gui_screenshots.py [--outdir examples/gui]
 
 ``01_picker.png``: the window with ``demo_chain_feat`` loaded and the default forms
-(chain, ring, tree) selected.
+(chain, ring, tree) selected. ``02_run.png``: the same window after Run has fitted chain
+in a worker thread (status line with the final score, frame count and time).
 """
 
 import argparse
@@ -26,12 +27,23 @@ def main(argv=None):
     from formdiscovery.gui.main_window import MainWindow
     from formdiscovery.io import DATA_DIR
 
-    app = QApplication.instance() or QApplication(sys.argv[:1])  # noqa: F841
+    app = QApplication.instance() or QApplication(sys.argv[:1])
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)
     win = MainWindow(path=DATA_DIR / "demo_chain_feat.mat")
     win.show()
     print(screenshot(win, out / "01_picker.png"))
+    win.close()
+
+    win = MainWindow(path=DATA_DIR / "demo_chain_feat.mat")
+    win.set_forms(["chain"])
+    win.show()
+    win.start_run(win.run_settings())
+    win.wait_run(120000)
+    app.processEvents()  # deliver the worker's queued signals
+    if win.last_result is None:
+        raise RuntimeError("the chain run did not finish: " + str(win.last_error))
+    print(screenshot(win, out / "02_run.png"))
     win.close()
     return 0
 
