@@ -12,11 +12,11 @@ Randomness enters through ``randperm`` at ``choose_seedpairs.m:24``,
 ``as_provider(rng).randperm(n)`` exactly as often, and in the same order, as the MATLAB
 code (``rng.py``, item 22).
 
-Pinned by ``tests/octave/fx_search.m`` → ``tests/fixtures/search.mat``
-(``tests/test_search.py``) and ``tests/octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
-(``tests/test_swap.py``) and ``tests/octave/fx_spr.m`` → ``tests/fixtures/spr.mat``
-(``tests/test_spr.py``) and ``tests/octave/fx_gibbs.m`` → ``tests/fixtures/gibbs.mat``
-(``tests/test_gibbs.py``) and ``tests/octave/fx_structurefit.m`` →
+Pinned by ``legacy/tests_octave/fx_search.m`` → ``tests/fixtures/search.mat``
+(``tests/test_search.py``) and ``legacy/tests_octave/fx_swap.m`` → ``tests/fixtures/swap.mat``
+(``tests/test_swap.py``) and ``legacy/tests_octave/fx_spr.m`` → ``tests/fixtures/spr.mat``
+(``tests/test_spr.py``) and ``legacy/tests_octave/fx_gibbs.m`` → ``tests/fixtures/gibbs.mat``
+(``tests/test_gibbs.py``) and ``legacy/tests_octave/fx_structurefit.m`` →
 ``tests/fixtures/structurefit.mat`` (``tests/test_structurefit.py``), which replay
 Octave's recorded draws.
 

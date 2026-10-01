@@ -1,8 +1,8 @@
-"""Octave compatibility patches (items 03 and 03b, see ``matlab/PATCHES.md``).
+"""Octave compatibility patches (items 03 and 03b, see ``legacy/matlab/PATCHES.md``).
 
 Static checks run everywhere (no Octave needed): the removed or undefined calls are
 gone from live code, every patched file is documented, and CRLF files kept CRLF.
-Live checks (``octave`` marker) run the smoke script ``tests/octave/smoke_patches.m``
+Live checks (``octave`` marker) run the smoke script ``legacy/tests_octave/smoke_patches.m``
 and regenerate the ``dot_to_graph`` fixture, comparing exactly.
 """
 
@@ -12,9 +12,9 @@ import numpy as np
 import pytest
 from scipy.io import loadmat
 
-from tests.conftest import FIXTURES_DIR, MATLAB_DIR, REPO_ROOT
+from tests.conftest import FIXTURES_DIR, LEGACY_DIR, MATLAB_DIR
 
-PATCHES_MD = REPO_ROOT / "matlab" / "PATCHES.md"
+PATCHES_MD = LEGACY_DIR / "matlab" / "PATCHES.md"
 
 # Patched file -> number of "PATCH(octave)" markers expected in it.
 PATCHED = {

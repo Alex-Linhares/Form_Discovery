@@ -1,8 +1,8 @@
 """Parity of ``graph_like`` (dispatcher, ``graph_like.m``) and ``graph_like_conn`` in fast
 mode (``ps.fast = 1``, ``graph_like_conn.m:6-32``; item 18, L3-b1) with Octave.
 
-The fixture ``tests/fixtures/graphlike.mat`` comes from ``tests/octave/fx_graphlike.m``
-(regenerate with ``python tools/gen_fixtures.py graphlike``):
+The fixture ``tests/fixtures/graphlike.mat`` comes from ``legacy/tests_octave/fx_graphlike.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py graphlike``):
 
 - ``ds``: the three demo feature sets after runmodel's preprocessing;
 - ``gh``: every ``bestgraph`` of the 19 feature baseline growth histories, scored in the

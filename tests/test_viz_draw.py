@@ -4,14 +4,14 @@ matplotlib (``viz/graph_draw.py``) and ``formdiscovery draw``.
 
 Fixtures:
 
-- ``tests/octave/fx_viz_draw.m`` → ``tests/fixtures/viz_draw.mat``: the real
+- ``legacy/tests_octave/fx_viz_draw.m`` → ``tests/fixtures/viz_draw.mat``: the real
   ``draw_dot`` on 83 graphs (the 74 of ``viz_dot.mat`` labelled as runmodel labels them,
   plus crafted cases) and 5 direct ``graph_draw`` calls, through a temporary copy of
   ``graph_draw.m`` with three recorded edits (it cannot run in Octave as released,
   ANOMALIES.md). Recorded: the DOT texts, draw_dot's outputs, what graph_draw gets
   (positions, labels, font size, ``nodemult``), its colours and half-widths ``wd`` and
   every arrow's end points.
-- ``tests/octave/fx_viz_progress.m`` → ``tests/fixtures/viz_progress.mat``: two whole
+- ``legacy/tests_octave/fx_viz_progress.m`` → ``tests/fixtures/viz_progress.mat``: two whole
   ``runmodel`` runs with every ``ps.show*`` flag set and ``figure``/``clf``/``title``/
   ``drawnow``/``draw_dot`` shadowed by recorders, with the draws logged for replay.
 
@@ -80,7 +80,7 @@ def _segs(adj, x, y, wd):
 
 def _fd_neato():
     """``neato`` of the fd env: next to Octave (the base interpreter's Graphviz has no
-    neato plugin, matlab/PATCHES.md)."""
+    neato plugin, legacy/matlab/PATCHES.md)."""
     from pathlib import Path
     exe = find_octave()
     if exe:

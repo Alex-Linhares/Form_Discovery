@@ -3,16 +3,16 @@
 permutations.
 
 The fixture ``tests/fixtures/structurefit.mat`` comes from
-``tests/octave/fx_structurefit.m`` (regenerate with ``python tools/gen_fixtures.py
+``legacy/tests_octave/fx_structurefit.m`` (regenerate with ``python legacy/tools/gen_fixtures.py
 structurefit``). It re-runs 6 runs with ``structurefit`` replaced by a spy
-(``tests/octave/sf_spy.m``), and adds 4 crafted calls (``cr``) on cylinders with vacant
+(``legacy/tests_octave/sf_spy.m``), and adds 4 crafted calls (``cr``) on cylinders with vacant
 neighbours, since the real runs never try a vacant-neighbour move. Every call is kept, with its input graph (``gempty`` for
 MATLAB's ``[]``), the ``ps`` fields that vary, the ``randperm`` draws made inside the call,
 the outputs (``out_ll``, ``out_graph``, the growth history ``out_lls``/``out_bestgraph``)
 and two lists, both in call order:
 
-- ``gl``: the slow ``graph_like`` calls (``tests/octave/glc_spy.m``, item 26);
-- ``cns``: the ``choose_node_split`` calls (``tests/octave/cns_spy.m``).
+- ``gl``: the slow ``graph_like`` calls (``legacy/tests_octave/glc_spy.m``, item 26);
+- ``cns``: the ``choose_node_split`` calls (``legacy/tests_octave/cns_spy.m``).
 
 Slow scores go through ``fminunc`` (PLAN §4.1), and ``structurefit`` makes them at both
 speeds, so the exact test injects Octave's slow results (``test_gibbs.Oracle``, which checks

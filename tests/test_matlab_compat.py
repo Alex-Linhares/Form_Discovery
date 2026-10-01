@@ -1,7 +1,7 @@
 """Parity of ``formdiscovery.matlab_compat`` with Octave's built-ins.
 
-The fixture ``tests/fixtures/matlab_compat.mat`` comes from ``tests/octave/fx_matlab_compat.m``
-(regenerate with ``python tools/gen_fixtures.py matlab_compat``). Octave indices are
+The fixture ``tests/fixtures/matlab_compat.mat`` comes from ``legacy/tests_octave/fx_matlab_compat.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py matlab_compat``). Octave indices are
 1-based; the helpers return 0-based ones, so they are compared after ``to0``. The live test
 reruns the script and checks the committed fixture is current.
 """

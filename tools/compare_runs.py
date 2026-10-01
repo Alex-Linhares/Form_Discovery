@@ -4,7 +4,7 @@
 ``--score-true-graphs``: for each demo data set, build the true graph stored in its
 ``.mat`` file, score it with ``graph_like`` in fast mode (``ps.fast = 1``: the stored
 weights) and slow mode (``ps.fast = 0``: optimiser + Laplace) in Python, and compare with
-Octave's scores in ``tests/fixtures/truegraphs.mat`` (``tests/octave/fx_truegraphs.m``).
+Octave's scores in ``tests/fixtures/truegraphs.mat`` (``legacy/tests_octave/fx_truegraphs.m``).
 The graphs are built the way ``fx_truegraphs.m`` builds them (:func:`true_feat_graph`,
 :func:`true_rel_graph`). Prints a Markdown table and exits 1 if any check fails.
 
@@ -227,7 +227,7 @@ def format_table(rows):
 
 def live_fixture(outdir):
     """Run ``fx_truegraphs.m`` in Octave into ``outdir``; return the loaded records."""
-    from tools.gen_fixtures import _configure_octave_env, find_octave, fixture_scripts, run_one
+    from legacy.tools.gen_fixtures import _configure_octave_env, find_octave, fixture_scripts, run_one
     exe = find_octave()
     if exe is None:
         raise RuntimeError("Octave not found (set OCTAVE_EXECUTABLE or create the 'fd' env)")

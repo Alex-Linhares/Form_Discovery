@@ -15,7 +15,7 @@ Both functions replicate the original byte for byte, quirks included:
   ``pos`` (KI-7), by substring label matching (KI-8), and ``x`` is divided by its range
   plus one (KI-34).
 
-Pinned by ``tests/octave/fx_viz_dot.m`` → ``tests/fixtures/viz_dot.mat``
+Pinned by ``legacy/tests_octave/fx_viz_dot.m`` → ``tests/fixtures/viz_dot.mat``
 (``tests/test_viz_dot.py``).
 """
 

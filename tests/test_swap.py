@@ -2,9 +2,9 @@
 ``sourceobjs``, ``sourcecls`` and ``cltypes`` (item 24, L4-b1) with Octave, with replayed
 permutations.
 
-The fixture ``tests/fixtures/swap.mat`` comes from ``tests/octave/fx_swap.m``
-(regenerate with ``python tools/gen_fixtures.py swap``). It re-runs 11 baseline runs with
-``swapobjclust`` replaced by a spy (``tests/octave/swap_spy.m``):
+The fixture ``tests/fixtures/swap.mat`` comes from ``legacy/tests_octave/fx_swap.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py swap``). It re-runs 11 baseline runs with
+``swapobjclust`` replaced by a spy (``legacy/tests_octave/swap_spy.m``):
 
 - ``sw``: kept calls. ``bl`` records are real calls from ``gibbs_clean``; ``pt`` records
   run the same mode on a perturbed graph so that changes are accepted. Each record holds

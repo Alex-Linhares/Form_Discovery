@@ -130,7 +130,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   seed gives `NumpyPermutations`; `IdentityPermutations` and `ReplayPermutations` serve
   tests. Draw exactly as often, and in the same order, as the MATLAB code, including
   `randperm(0)`. Replay counts the draws, and `assert_exhausted()` checks them.
-- The Octave side is `matlab/octave_shims/randperm.m`. It takes these settings:
+- The Octave side is `legacy/matlab/octave_shims/randperm.m`. It takes these settings:
   - `FD_RANDPERM` unset: the built-in;
   - `FD_RANDPERM=identity`: `1:n`;
   - `FD_RANDPERM=<file>`: replay the file;
@@ -256,7 +256,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   (pygraphviz) belongs to the backends of items 32-33.
 - Layouts are compared on the same neato text, so parses are exact (`assert_array_equal`).
   `fx_viz_dot.m` runs the unmodified `draw_dot` with a `graph_draw` shim
-  (`tests/octave/drawdot_shim/`, added to the path only by that fixture) that records the
+  (`legacy/tests_octave/drawdot_shim/`, added to the path only by that fixture) that records the
   temporary `_GtDout.dot`/`_LAYout.dot` texts. neato comes from the Octave prefix's `bin/`
   (the fd env), put first on `PATH`.
 - Item 32: `viz/draw.py` `draw_dot(adj, labels=None, backend='pygraphviz', *, pos,
@@ -275,7 +275,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
     extents, so parity tests pass Octave's `wd`. KI-37 (two arrows per undirected edge) is
     the default, `undirected='lines'` the alternative.
   - `graph_draw.m` cannot run in Octave (KI-36): `fx_viz_draw.m` runs an edited temporary
-    copy and records its geometry; `tests/octave/graphdraw_shim/` holds the arrow recorder.
+    copy and records its geometry; `legacy/tests_octave/graphdraw_shim/` holds the arrow recorder.
 - Progress figures: the model code calls an optional `show(event, adj, names, title)`
   (`search.show_graph`) where MATLAB draws, gated by the `ps.show*` flags, with MATLAB's
   padding (`''`, or `' '` for pre/post-clean) and titles (`sprintf_g`, `num2str`). Events
@@ -283,7 +283,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   `inferredgraph` 3. `runmodel`, `brlencases`, `structurefit`, `choose_node_split`,
   `best_split` and `masterrun` take `show=`. `viz.draw.ProgressFigures` is the drawing
   callback. `fx_viz_progress.m` records Octave's `figure`/`clf`/`title`/`drawnow`/
-  `draw_dot` calls with the shims in `tests/octave/progress_shim/`.
+  `draw_dot` calls with the shims in `legacy/tests_octave/progress_shim/`.
 - Image regression: `tests/viz_images.py` renders fixture graphs at Octave's positions
   (DejaVu Sans, 560 x 420 px); baselines in `tests/baseline_images/` (the port's own
   renders, `python tools/gen_viz_baselines.py`). The text-free variant is compared at
@@ -353,12 +353,12 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   Octave's speed, but they are not the default because they change scores within the
   optimiser tolerance.
 - Benchmark: `python tools/bench_perf.py [--sections gl,sf] [--live] [--profile]`
-  against `tests/fixtures/perf.mat` (`tests/octave/fx_perf.m`).
+  against `tests/fixtures/perf.mat` (`legacy/tests_octave/fx_perf.m`).
 
 ## Tests and tolerances (PLAN §2)
 - Integers and structure (adjacency, `z`, maps, indices): exact, after `to0`.
 - Deterministic floats: `assert_allclose(rtol=1e-10, atol=1e-12)`.
 - Anything downstream of `fminunc`: compared by optimality within a documented tolerance.
-- Every fixture comes from a `tests/octave/fx_<name>.m` function `fx_<name>(outfile)` that
+- Every fixture comes from a `legacy/tests_octave/fx_<name>.m` function `fx_<name>(outfile)` that
   writes `tests/fixtures/<name>.mat` with `save -v7`. Regenerate with
-  `python tools/gen_fixtures.py [name]`. Load with `io.load_fixture(name)`.
+  `python legacy/tools/gen_fixtures.py [name]`. Load with `io.load_fixture(name)`.

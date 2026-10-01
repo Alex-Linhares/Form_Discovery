@@ -3,7 +3,7 @@
 ## Ralph Loop 0004 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 1/6 SOLVED
+- **Current**: 2/6 SOLVED
 
 ---
 
@@ -41,3 +41,57 @@
 - Item 02: `git mv matlab legacy/matlab` etc.; re-point the symlink to `../../../data`
   (and update `test_io.py`'s symlink check, which expects `matlab/formdiscovery1.0/data` →
   `../../data` and is skipped only if that directory is absent).
+
+## Iteration 2 — 2026-10-01 17:25
+### Completed
+- Item 02 (Phase 2, moves). `git mv matlab legacy/matlab`, `git mv tests/octave
+  legacy/tests_octave`, and `gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`,
+  `compare_live.py`, `mat_compare.py` to `legacy/tools/` (history kept, all `R`). Symlink
+  re-pointed: `legacy/matlab/formdiscovery1.0/data -> ../../../data` (mode 120000, staged).
+  `bench_perf.py` stays in `tools/`: only `--live` needs Octave (it imports
+  `legacy.tools.gen_fixtures.run_one` lazily); `compare_runs.py` likewise
+  (`live_fixture`).
+- `tests/conftest.py`: one `LEGACY_DIR = REPO_ROOT / "legacy"`; `MATLAB_DIR`, `SHIM_DIR`,
+  `OCTAVE_TESTS_DIR` derive from it. Tests use `LEGACY_DIR / "matlab"` (test_baseline,
+  test_baseline_rel, test_gen_baselines, test_patches, test_gate_env) and
+  `OCTAVE_TESTS_DIR / "drawdot_shim"` (test_viz_interactive); `test_io.py` checks the new
+  symlink. Tools and tests import `legacy.tools.<name>` (namespace package, no
+  `__init__.py`); moved tools use `REPO_ROOT = parents[2]`; `gen_baselines` and
+  `compare_live` add `LEGACY_DIR / 'matlab'` to the Octave path.
+- `.m` scripts: `fullfile(root, 'legacy', 'matlab', ...)` (root = `here/../..` is still the
+  repo root); `fx_util.m`, `fx_matlab_compat.m`, `fx_dot_to_graph.m` and `run_baseline.m`
+  (output dir `here/../../tests/fixtures/baseline`) fixed. No `formdiscovery1.0/*.m` edited;
+  `dot_to_graph.m`'s comment `see matlab/PATCHES.md` is left (noted in PATCHES.md).
+- Paths rewritten repo-wide by one script (`tests/octave` -> `legacy/tests_octave`,
+  `matlab/` -> `legacy/matlab/`, `tools/<moved>` -> `legacy/tools/<moved>`, module
+  imports): README (Layout gains `legacy/tests_octave/` and `legacy/tools/` rows; `tools/`
+  row now lists the Python-side tools), CLAUDE.md (new "Legacy:" paragraph, symlink
+  target), CONVENTIONS.md, PATCHES.md, ANOMALIES.md, KNOWN_ISSUES.md headers, module
+  docstrings, the demo notebook and its generator (same text, so they stay in sync).
+- A31 (ANOMALIES): built paths the rewrite missed (`REPO_ROOT / 'matlab'` in two
+  f-strings, `fullfile(root, 'matlab', ...)` in the `.m` scripts); found by the live check.
+- A32 (ANOMALIES): the committed baselines' `pss{}.dlocs{}` are absolute checkout paths
+  (`.../matlab/formdiscovery1.0/data/<name>`); a fresh run now writes `.../legacy/...`,
+  so `test_parallel_feat_equals_serial_baseline` failed on 180 strings (numbers equal).
+  `gen_baselines.compare_baselines` compares strings after `source_relative` (prefix before
+  `formdiscovery1.0/data/` dropped; `mat_compare.compare_dirs` got `normalize`). New test
+  `test_gen_baselines.py::test_compare_baselines_masks_data_dir_prefix`. No fixture edited.
+- Live verification: `legacy/tools/gen_fixtures.py -j 8 --outdir build/... --compare
+  tests/fixtures dot_to_graph util matlab_compat rng params l0b viz_dot masterrun`: 8
+  identical, 0 differ. `legacy/tools/gen_baselines.py --kind feat --struct 2 --data 1`:
+  growth history identical, modellike −8247.20481344. `--help`/`--list` of every moved
+  tool and `tools/bench_perf.py` run.
+- Strict gate (`RALPH_REQUIRE_OCTAVE=1`, `-n 16`): 3743 passed, 3 skipped, 373.7 s
+  (= 3742 before + the new test). Slow suite (`-m slow -n 16`, strict): 78 passed,
+  1 skipped, 1 failed: `test_perf.py::test_fast_mode_within_octave_budget` (wall-clock
+  budget, 0.63 ms vs 1.5 × 0.41 ms under 16-worker load, the load sensitivity loop0002
+  recorded); it passes alone. No file under `tests/fixtures/` modified.
+- Grep for `tests/octave`, unprefixed `matlab/`, `tools/<moved>` and `tools.<moved>`
+  outside RalphLoops history, PLAN*.md and loop0004 TASK/iterations: only the
+  `dot_to_graph.m` comment and PATCHES.md's sentence about it.
+### Blockers
+- None.
+### Next
+- Item 03: move the Octave-only tests to `legacy/tests/` and make their collection
+  conditional on `legacy/` existing. Note: `test_gen_baselines.py` now also has an
+  Octave-free test (`test_compare_baselines_masks_data_dir_prefix`) that moves with it.

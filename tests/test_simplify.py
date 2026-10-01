@@ -1,8 +1,8 @@
 """Parity of ``graph.simplify_graph`` (+ ``redundantinds``) and ``graph.subtreeattach``
 (item 13, L2-a3) with Octave.
 
-The fixture ``tests/fixtures/simplify.mat`` comes from ``tests/octave/fx_simplify.m``
-(regenerate with ``python tools/gen_fixtures.py simplify``). It has three parts:
+The fixture ``tests/fixtures/simplify.mat`` comes from ``legacy/tests_octave/fx_simplify.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py simplify``). It has three parts:
 
 - ``gh``: every ``bestgraph`` of the baseline growth histories simplified with
   ``cleanstrong`` 0 and 1.

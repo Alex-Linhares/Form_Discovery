@@ -1,7 +1,7 @@
-"""``tools/gen_baselines.py`` (loop0002 item 04): parallel Octave baselines.
+"""``legacy/tools/gen_baselines.py`` (loop0002 item 04): parallel Octave baselines.
 
 The parallel path (one ``octave-cli`` per (structure, dataset) pair, then
-``matlab/baseline_merge.m`` and a copy of the ``results/`` trees) must give exactly what
+``legacy/matlab/baseline_merge.m`` and a copy of the ``results/`` trees) must give exactly what
 the serial ``run_baseline(kind)`` writes, i.e. the committed ``tests/fixtures/baseline``.
 """
 import re
@@ -10,14 +10,14 @@ import numpy as np
 import pytest
 import scipy.io
 
-from tests.conftest import FIXTURES_DIR, REPO_ROOT
-from tools import gen_baselines as gb
-from tools.mat_compare import compare_mat
+from tests.conftest import FIXTURES_DIR, LEGACY_DIR
+from legacy.tools import gen_baselines as gb
+from legacy.tools.mat_compare import compare_mat
 
 
 def _run_baseline_grid(kind):
     """Default (structs, datas) of ``kind`` as written in run_baseline.m."""
-    src = (REPO_ROOT / "matlab" / "run_baseline.m").read_text()
+    src = (LEGACY_DIR / "matlab" / "run_baseline.m").read_text()
     block = re.search(rf"case '{kind}'(.*?)(?:case|otherwise)", src, re.S).group(1)
 
     def ev(var):
@@ -88,6 +88,25 @@ def test_compare_baselines_sees_file_sets(tmp_path):
         f"only in {tmp_path / 'a'}: extra.txt"]
 
 
+def test_compare_baselines_masks_data_dir_prefix(tmp_path):
+    """``pss{}.dlocs{}`` are absolute paths (``setps.m``); the committed baselines name
+    ``<checkout>/matlab/formdiscovery1.0/data/``, a fresh run ``legacy/matlab/...``
+    (loop0004 item 02, A32). Only the part from ``formdiscovery1.0/data/`` on counts."""
+    def write(d, prefix, name="demo_chain_feat"):
+        d.mkdir()
+        dl = np.empty((1, 1), dtype=object)
+        dl[0, 0] = f"{prefix}/formdiscovery1.0/data/{name}"
+        scipy.io.savemat(d / "resultsdemo.mat", {"dlocs": dl})
+    write(tmp_path / "a", "/old/checkout/matlab")
+    write(tmp_path / "b", "/new/place/legacy/matlab")
+    assert gb.compare_baselines(tmp_path / "a", tmp_path / "b") == []
+    write(tmp_path / "c", "/new/place/legacy/matlab", "demo_ring_feat")
+    diffs = gb.compare_baselines(tmp_path / "a", tmp_path / "c")
+    assert len(diffs) == 1 and diffs[0].startswith("resultsdemo.mat: dlocs{[0, 0]}: ")
+    assert gb.source_relative("/x/y/formdiscovery1.0/data/a") == "formdiscovery1.0/data/a"
+    assert gb.source_relative("/x/y/other") == "/x/y/other"
+
+
 @pytest.mark.octave
 def test_parallel_feat_equals_serial_baseline(tmp_path):
     """All 9 feature pairs in parallel, merged: same file set and content (all ll values,
@@ -114,7 +133,7 @@ def test_parallel_rel_equals_serial_baseline(tmp_path):
 def test_merge_skips_crashed_pair(octave, tmp_path):
     """A pair whose run crashed (timings.mat only, as run_baseline writes it) adds its
     timings entry and leaves its modellike/structure entries unset."""
-    octave.addpath(str(REPO_ROOT / "matlab"))
+    octave.addpath(str(LEGACY_DIR / "matlab"))
     good, bad = tmp_path / "good", tmp_path / "bad"
     octave.eval(f"run_baseline('feat', 2, 1, '{good}');", nout=0)
     bad.mkdir()

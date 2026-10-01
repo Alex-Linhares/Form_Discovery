@@ -1,8 +1,8 @@
 """Permutation replay (item 22, PLAN.md §4.2): ``formdiscovery.rng`` and the Octave
-``randperm`` shim ``matlab/octave_shims/randperm.m``.
+``randperm`` shim ``legacy/matlab/octave_shims/randperm.m``.
 
-The fixture ``tests/fixtures/rng.mat`` comes from ``tests/octave/fx_rng.m`` (regenerate
-with ``python tools/gen_fixtures.py rng``). It records the shim's four behaviours:
+The fixture ``tests/fixtures/rng.mat`` comes from ``legacy/tests_octave/fx_rng.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py rng``). It records the shim's four behaviours:
 
 - ``bi``: pass-through. Seeded, it equals the built-in.
 - ``id``: identity.

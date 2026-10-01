@@ -2,7 +2,7 @@
 """Performance budget (item 35, PLAN.md §7.4): Octave vs Python time per ``graph_like``
 call and per ``structurefit`` depth.
 
-The Octave side is ``tests/fixtures/perf.mat`` (``tests/octave/fx_perf.m``; its docstring
+The Octave side is ``tests/fixtures/perf.mat`` (``legacy/tests_octave/fx_perf.m``; its docstring
 lists the benchmark graphs and runs). This tool times the same computations in Python,
 checks that they return Octave's values, and prints Markdown tables:
 
@@ -335,7 +335,7 @@ def profile_dataprob(fx, reps=200):
 
 def _live_fixture(sections):
     from tests.conftest import OCTAVE_TESTS_DIR, _configure_octave_env, find_octave
-    from tools.gen_fixtures import run_one
+    from legacy.tools.gen_fixtures import run_one
     exe = find_octave()
     if exe is None:
         raise SystemExit("--live needs Octave")

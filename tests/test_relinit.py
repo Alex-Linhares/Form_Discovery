@@ -2,8 +2,8 @@
 ``graph.makelcfreq``, ``graph.filloutrelgraph`` and ``graph.reordermissing`` (item 14, L2-b1)
 with Octave.
 
-The fixture ``tests/fixtures/relinit.mat`` comes from ``tests/octave/fx_relinit.m``
-(regenerate with ``python tools/gen_fixtures.py relinit``):
+The fixture ``tests/fixtures/relinit.mat`` comes from ``legacy/tests_octave/fx_relinit.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py relinit``):
 
 - ``ri``: ``relgraphinit`` for the 24 ``ps.structures`` names and the 4 domtree names on the
   7 relational data sets and on seeded random relations, with ``z = 1:n``, one cluster and

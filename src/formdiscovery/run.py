@@ -1,8 +1,8 @@
 """L5 drivers: ``runmodel`` (+ ``brlencases``) (item 28) and ``masterrun`` (item 29,
 PLAN.md §5 L5, the ``formdiscovery run`` CLI in :mod:`formdiscovery.cli`).
 
-Pinned by ``tests/octave/fx_runmodel.m`` → ``tests/fixtures/runmodel.mat``
-(``tests/test_runmodel.py``) and ``tests/octave/fx_masterrun.m`` →
+Pinned by ``legacy/tests_octave/fx_runmodel.m`` → ``tests/fixtures/runmodel.mat``
+(``tests/test_runmodel.py``) and ``legacy/tests_octave/fx_masterrun.m`` →
 ``tests/fixtures/masterrun.mat`` (``tests/test_masterrun.py``).
 
 Deviation (planned, CONVENTIONS.md): ``runmodel.m`` makes the directory

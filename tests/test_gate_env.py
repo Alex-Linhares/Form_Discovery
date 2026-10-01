@@ -22,7 +22,7 @@ import pytest
 
 import tests.conftest as conftest
 from formdiscovery.threads import PIN_ENV, pinned_env
-from tests.conftest import MATLAB_DIR, REPO_ROOT, find_octave
+from tests.conftest import LEGACY_DIR, MATLAB_DIR, REPO_ROOT, find_octave
 
 
 @pytest.mark.octave
@@ -53,9 +53,9 @@ def test_octave_session_pinned(octave):
 
 @pytest.mark.octave
 def test_octave_cli_pinned():
-    """``tools/gen_paperlevel.py``, ``tools/gen_fixtures.py`` and ``tools/bench_perf.py
-    --live`` start ``octave-cli`` with ``pinned_env()`` (``fixture_env``), which wins over
-    the caller's own thread settings."""
+    """``legacy/tools/gen_paperlevel.py``, ``legacy/tools/gen_fixtures.py`` and
+    ``tools/bench_perf.py --live`` start ``octave-cli`` with ``pinned_env()``
+    (``fixture_env``), which wins over the caller's own thread settings."""
     exe = find_octave()
     env = pinned_env(dict(os.environ, OMP_NUM_THREADS="8", OPENBLAS_NUM_THREADS="8"))
     res = subprocess.run([exe, "--no-gui", "--quiet", "--no-window-system", "--eval",
@@ -63,8 +63,8 @@ def test_octave_cli_pinned():
                          env=env, capture_output=True, text=True, timeout=120)
     assert res.returncode == 0, res.stderr
     assert res.stdout.split() == ["1", "1"]
-    assert "env=pinned_env()" in (REPO_ROOT / "tools" / "gen_paperlevel.py").read_text()
-    assert "env=fixture_env(name)" in (REPO_ROOT / "tools" / "gen_fixtures.py").read_text()
+    assert "env=pinned_env()" in (LEGACY_DIR / "tools" / "gen_paperlevel.py").read_text()
+    assert "env=fixture_env(name)" in (LEGACY_DIR / "tools" / "gen_fixtures.py").read_text()
     # bench_perf.py --live regenerates perf.mat through gen_fixtures.run_one (pinned)
     bench = (REPO_ROOT / "tools" / "bench_perf.py").read_text()
     assert "run_one(exe, \"perf\"" in bench and "perf" not in conftest.BLAS_DEFAULT_FIXTURES

@@ -2,8 +2,8 @@
 L3-a1; the missing-data chunk path is item 17, ``test_dpmiss.py``) with Octave, and the
 analytic gradient against finite differences (``checkgrad``).
 
-The fixture ``tests/fixtures/dataprob.mat`` comes from ``tests/octave/fx_dataprob.m``
-(regenerate with ``python tools/gen_fixtures.py dataprob``):
+The fixture ``tests/fixtures/dataprob.mat`` comes from ``legacy/tests_octave/fx_dataprob.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py dataprob``):
 
 - ``gr``: 29 graphs over 10 objects with random weights (one-cluster graphs, seeded
   ``split_node`` sequences for chain, ring, tree, hierarchy, partition, connected, grid

@@ -1,6 +1,6 @@
 # Known issues in formdiscovery1.0 and how the Python port handles them
 
-This file lists bugs and quirks in the original MATLAB code (`matlab/formdiscovery1.0/`)
+This file lists bugs and quirks in the original MATLAB code (`legacy/matlab/formdiscovery1.0/`)
 and records one decision for each:
 
 - **replicate**: the Python port behaves like the MATLAB code on every path the code can reach.
@@ -15,7 +15,7 @@ that ports the function must add them under that name. Right now,
 every entry below is present.
 
 Octave-vs-MATLAB compatibility edits to the sources are documented separately in
-`matlab/PATCHES.md`. KI-9 and KI-10 are listed here as well because the port also has to
+`legacy/matlab/PATCHES.md`. KI-9 and KI-10 are listed here as well because the port also has to
 deal with them.
 
 ## Bugs listed in PLAN.md §3.5
@@ -142,7 +142,7 @@ deal with them.
   `undirhierarchy × demo_hierarchy_rel_bin` relational run (item 05).
 - **Decision:** fixed in the Octave copy with `PATCH(octave)` #16 (`ds = ds(:)';` after the
   `union`, item 03b). In MATLAB the result was already a row, so the patch changes nothing
-  there. The other 36 set-operation call sites were audited (`matlab/PATCHES.md`, "Set-operation
+  there. The other 36 set-operation call sites were audited (`legacy/matlab/PATCHES.md`, "Set-operation
   orientation audit"): none receives a 0×0 operand whose result shape is later relied on.
   Python returns 1-D arrays, so the port does not have the problem.
 - **Pin:** `tests/test_patches.py::test_find_descendants_returns_rows` (live Octave) and
@@ -540,7 +540,7 @@ deal with them.
 - **Reachable:** only with a `ps.show*` flag set (display only; all baselines run with
   them off).
 - **Decision:** not ported: the drawing is `viz.graph_draw` (matplotlib). The source is
-  not patched. `tests/octave/fx_viz_draw.m` runs a temporary copy with three recorded
+  not patched. `legacy/tests_octave/fx_viz_draw.m` runs a temporary copy with three recorded
   edits (`'VerticalAlignment'`, the two `my_arrow` calls replaced by a recorder, and a
   recorder of `wd`/`color` before `if nargout > 2`), so the node geometry and arrow end
   points are still compared with the original code.

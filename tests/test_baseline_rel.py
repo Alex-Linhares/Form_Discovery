@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 import scipy.io
 
-from tests.conftest import FIXTURES_DIR, REPO_ROOT
+from tests.conftest import FIXTURES_DIR, LEGACY_DIR
 
 BASE = FIXTURES_DIR / "baseline" / "rel"
 DATA = {4: "demo_ring_rel_bin", 5: "demo_hierarchy_rel_bin", 6: "demo_order_rel_freq"}
@@ -174,7 +174,7 @@ def test_growth_histories():
 
 @pytest.mark.octave
 def test_live_rel_run_reproduces(octave, tmp_path):
-    octave.addpath(str(REPO_ROOT / "matlab"))
+    octave.addpath(str(LEGACY_DIR / "matlab"))
     octave.eval(f"run_baseline('rel', 18, 4, '{tmp_path}');", nout=0)
     t = scipy.io.loadmat(tmp_path / "timings.mat", squeeze_me=True)["timings"]
     assert float(t["ll"]) == pytest.approx(

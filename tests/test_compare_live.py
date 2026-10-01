@@ -1,4 +1,4 @@
-"""``tools/compare_live.py`` (loop0002 item 06): Octave and Python side by side.
+"""``legacy/tools/compare_live.py`` (loop0002 item 06): Octave and Python side by side.
 
 Each triple runs ``run_baseline`` in its own ``octave-cli`` (draws logged by the
 ``randperm`` shim) and then Python's ``runmodel`` replaying those draws, without oracles.
@@ -11,8 +11,8 @@ import pytest
 from tests.conftest import find_octave
 from tests.test_baseline import EXPECTED_LL as FEAT_LL
 from tests.test_baseline_rel import EXPECTED_LL as REL_LL
-from tools import compare_live as cl
-from tools import gen_baselines as gb
+from legacy.tools import compare_live as cl
+from legacy.tools import gen_baselines as gb
 
 # cheap relational runs (about 1 s each in Octave); seed 2 has no committed baseline
 QUICK = ["dirring:demo_ring_rel_bin", "partition:4", "undirchain:demo_order_rel_freq",

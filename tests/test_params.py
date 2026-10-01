@@ -1,7 +1,7 @@
 """Parity of ``formdiscovery.params`` (item 09, L1 params) with Octave.
 
-The fixture ``tests/fixtures/params.mat`` comes from ``tests/octave/fx_params.m``
-(regenerate with ``python tools/gen_fixtures.py params``). It holds ``setps``/``defaultps``,
+The fixture ``tests/fixtures/params.mat`` comes from ``legacy/tests_octave/fx_params.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py params``). It holds ``setps``/``defaultps``,
 ``setrunps`` on every data set, ``structcounts`` for n in {1, 2, 3, 8, 12, 14, 28, 33, 35, 40},
 ``gridpriors`` with another theta, ``graph_prior`` for every structure name and cluster
 count (n = 12), and ``graph_prior`` on the 63 final baseline graphs. The live tests rerun the

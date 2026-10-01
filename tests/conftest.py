@@ -1,7 +1,7 @@
 """Shared pytest fixtures.
 
 The ``octave`` session fixture starts one oct2py session with the original MATLAB
-sources (``matlab/formdiscovery1.0``) on the Octave path. Tests marked
+sources (``legacy/matlab/formdiscovery1.0``) on the Octave path. Tests marked
 ``@pytest.mark.octave`` are skipped when oct2py or an Octave executable is not
 available (e.g. when running under the base interpreter instead of the ``fd`` env).
 
@@ -41,7 +41,7 @@ test and then takes tests one at a time. The order within a worker does not matt
 test is independent). Without xdist the order is pytest's.
 
 The ``replay`` fixture (item 22, PLAN §4.2) puts the ``randperm`` shim
-(``matlab/octave_shims``) in front of the session's path and returns a
+(``legacy/matlab/octave_shims``) in front of the session's path and returns a
 :class:`ReplayControl`. Its methods set the Octave and Python sides up to draw the same
 permutations.
 """
@@ -56,10 +56,12 @@ import pytest
 from formdiscovery.threads import pin_blas_env, pin_process_blas, pinned_env, unpinned_env
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MATLAB_DIR = REPO_ROOT / "matlab" / "formdiscovery1.0"
+# Everything Octave-specific lives under legacy/ (loop0004, PLAN_LEGACY.md phase 2).
+LEGACY_DIR = REPO_ROOT / "legacy"
+MATLAB_DIR = LEGACY_DIR / "matlab" / "formdiscovery1.0"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
-OCTAVE_TESTS_DIR = REPO_ROOT / "tests" / "octave"
-SHIM_DIR = REPO_ROOT / "matlab" / "octave_shims"
+OCTAVE_TESTS_DIR = LEGACY_DIR / "tests_octave"
+SHIM_DIR = LEGACY_DIR / "matlab" / "octave_shims"
 
 # Fixtures whose committed values depend on Octave's BLAS thread count (ANOMALIES A19):
 # they were generated with OpenBLAS's default (one thread per core, 32 here) and a

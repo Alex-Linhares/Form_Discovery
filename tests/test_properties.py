@@ -3,7 +3,7 @@
 These check invariants of the port that the original code also has; they need no Octave
 fixture. Graphs come from :func:`random_graph`: ``makeemptygraph`` followed by random
 ``split_node`` calls (random component, production, node and partition, as
-``tests/octave/fx_split.m`` draws them), random component weights and, optionally, random
+``legacy/tests_octave/fx_split.m`` draws them), random component weights and, optionally, random
 object moves that leave some cluster nodes empty or with one object, so that
 ``simplify_graph`` has work to do. Hypothesis draws the structure, the size and a seed for
 the numpy generator that builds the graph.

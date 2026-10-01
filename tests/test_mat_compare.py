@@ -1,9 +1,9 @@
-"""tools/mat_compare.py (loop0002 item 02): content comparison of .mat output directories."""
+"""legacy/tools/mat_compare.py (loop0002 item 02): content comparison of .mat output directories."""
 
 import numpy as np
 import scipy.io
 
-from tools.mat_compare import compare_dirs, main
+from legacy.tools.mat_compare import compare_dirs, main
 
 
 def _write(d, name, **vars):

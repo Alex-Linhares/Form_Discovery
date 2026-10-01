@@ -1,9 +1,9 @@
 """Priors on edge weights (PLAN.md §5, item 07) and the weight-vector <-> graph maps
 ``mat2vec``, ``combineWs`` and ``extract_weights`` (item 15, L2-b2).
 
-``weightprior`` is pinned against Octave by ``tests/octave/fx_util.m`` →
+``weightprior`` is pinned against Octave by ``legacy/tests_octave/fx_util.m`` →
 ``tests/fixtures/util.mat`` (``tests/test_util.py``); the weight maps by
-``tests/octave/fx_weights.m`` → ``tests/fixtures/weights.mat`` (``tests/test_weights.py``).
+``legacy/tests_octave/fx_weights.m`` → ``tests/fixtures/weights.mat`` (``tests/test_weights.py``).
 
 All three walk MATLAB matrices in **column-major** order (``A(find(M))``, ``A(M)``); here
 every such read or write goes through ``ravel(order="F")``. Weight and gradient vectors

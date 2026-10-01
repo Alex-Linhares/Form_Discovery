@@ -1,8 +1,8 @@
 """M3 checkpoint (item 21): the true graph of every demo data set, scored in Octave and
 Python in fast and slow mode (``tools/compare_runs.py --score-true-graphs``).
 
-The fixture ``tests/fixtures/truegraphs.mat`` comes from ``tests/octave/fx_truegraphs.m``
-(regenerate with ``python tools/gen_fixtures.py truegraphs``):
+The fixture ``tests/fixtures/truegraphs.mat`` comes from ``legacy/tests_octave/fx_truegraphs.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py truegraphs``):
 
 - ``fe``: the three feature demos' true graphs (built from the file's ``adj``/``W``/
   ``sigma`` with ``makeemptygraph`` + ``combinegraphs``) in tying modes none, exttie and

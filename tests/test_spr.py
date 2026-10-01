@@ -2,9 +2,9 @@
 (with ``getocc``, ``get_occnodescomp``, ``zassign``) with Octave (item 25, L4-b2), with
 replayed permutations.
 
-The fixture ``tests/fixtures/spr.mat`` comes from ``tests/octave/fx_spr.m`` (regenerate
-with ``python tools/gen_fixtures.py spr``). It re-runs 11 runs with ``spr`` and
-``collapsedims`` replaced by a spy (``tests/octave/l4b2_spy.m``):
+The fixture ``tests/fixtures/spr.mat`` comes from ``legacy/tests_octave/fx_spr.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py spr``). It re-runs 11 runs with ``spr`` and
+``collapsedims`` replaced by a spy (``legacy/tests_octave/l4b2_spy.m``):
 
 - ``calls``: ``bl`` records are real calls from ``gibbs_clean``; ``pt`` records run the
   same call on a perturbed graph (random object moves and, for ``spr``, a random regraft)

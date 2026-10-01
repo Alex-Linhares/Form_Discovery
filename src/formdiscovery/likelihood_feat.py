@@ -1,15 +1,15 @@
 """Feature-data likelihoods (PLAN.md §5).
 
-Item 08 (L0-b) adds ``hessiangrad``, pinned by ``tests/octave/fx_l0b.m`` →
+Item 08 (L0-b) adds ``hessiangrad``, pinned by ``legacy/tests_octave/fx_l0b.m`` →
 ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``). Item 16 (L3-a1) adds
 ``inv_covariance``, ``gplike`` and ``dataprobwsig`` without the missing-data chunk path,
-pinned by ``tests/octave/fx_dataprob.m`` → ``tests/fixtures/dataprob.mat``
+pinned by ``legacy/tests_octave/fx_dataprob.m`` → ``tests/fixtures/dataprob.mat``
 (``tests/test_dataprob.py``). Item 17 (L3-a2) adds the missing-data chunk path
-(``dataprobwsig.m:24-60``), pinned by ``tests/octave/fx_dpmiss.m`` →
+(``dataprobwsig.m:24-60``), pinned by ``legacy/tests_octave/fx_dpmiss.m`` →
 ``tests/fixtures/dpmiss.mat`` (``tests/test_dpmiss.py``). Item 18 (L3-b1) adds ``graph_like_conn`` in fast mode,
-pinned by ``tests/octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
+pinned by ``legacy/tests_octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
 (``tests/test_graphlike.py``). Item 19 (L3-b2) adds its slow mode (optimizer + Laplace
-approximation), pinned by ``tests/octave/fx_glslow.m`` → ``tests/fixtures/glslow.mat``
+approximation), pinned by ``legacy/tests_octave/fx_glslow.m`` → ``tests/fixtures/glslow.mat``
 (``tests/test_glslow.py``).
 
 Matrix products keep MATLAB's left-to-right order, so rounding is close to Octave's.

@@ -1,7 +1,7 @@
 """Parity of ``formdiscovery.preprocess`` (item 10, L1 preprocess) with Octave.
 
-The fixture ``tests/fixtures/preprocess.mat`` comes from ``tests/octave/fx_preprocess.m``
-(regenerate with ``python tools/gen_fixtures.py preprocess``). It holds ``scaledata`` on every
+The fixture ``tests/fixtures/preprocess.mat`` comes from ``legacy/tests_octave/fx_preprocess.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py preprocess``). It holds ``scaledata`` on every
 data set (defaults; ``makesimlike`` and ``none`` on feature sets; ``simtransform='center'`` on
 similarity sets; colors with ``featforce``), with ``judges`` covering the missing-data chunk
 path, plus constructed inputs for the ``makesimlike`` no-root branch and chunk ties. The live

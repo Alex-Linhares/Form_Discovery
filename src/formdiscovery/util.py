@@ -2,9 +2,9 @@
 
 Faithful ports of the small helper files of formdiscovery1.0 (several from Tom Minka's
 lightspeed toolbox and Kevin Murphy's BNT). Indices are 0-based (``CONVENTIONS.md``);
-vectors are 1-D arrays. Pinned against Octave by ``tests/octave/fx_util.m`` →
+vectors are 1-D arrays. Pinned against Octave by ``legacy/tests_octave/fx_util.m`` →
 ``tests/fixtures/util.mat`` (``tests/test_util.py``); ``stirling2`` and ``dijkstra`` (item 08)
-by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``). ``weightprior`` lives in
+by ``legacy/tests_octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``). ``weightprior`` lives in
 :mod:`formdiscovery.weights`.
 """
 

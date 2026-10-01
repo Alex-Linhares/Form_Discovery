@@ -4,9 +4,9 @@ Kemp & Tenenbaum (2008), Fig. 2/3: on the synthetic data sets the true form scor
 among partition, chain, ring, tree and grid; on ``animals`` the tree wins and on
 ``colors`` the ring wins (among the 8 feature forms).
 
-The fixture ``tests/fixtures/paperlevel.mat`` comes from ``tests/octave/fx_paperlevel.m``
-(regenerate with ``python tools/gen_paperlevel.py``, parallel Octave processes, about
-8 min on 32 cores; ``python tools/gen_fixtures.py paperlevel`` splits it the same way). It
+The fixture ``tests/fixtures/paperlevel.mat`` comes from ``legacy/tests_octave/fx_paperlevel.m``
+(regenerate with ``python legacy/tools/gen_paperlevel.py``, parallel Octave processes, about
+8 min on 32 cores; ``python legacy/tools/gen_fixtures.py paperlevel`` splits it the same way). It
 holds one original ``runmodel`` run per (form, data set) pair, with ``rand('state', 1)``:
 
 - synthetic sets (masterrun.m's option a, 5 x 5) at ``ps.speed = 5``. The default speed

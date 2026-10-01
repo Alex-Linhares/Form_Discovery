@@ -1,6 +1,6 @@
 """The ``graph_like`` dispatcher (``graph_like.m``, item 18, L3-b1; PLAN.md §5).
 
-Pinned by ``tests/octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
+Pinned by ``legacy/tests_octave/fx_graphlike.m`` → ``tests/fixtures/graphlike.mat``
 (``tests/test_graphlike.py``).
 """
 

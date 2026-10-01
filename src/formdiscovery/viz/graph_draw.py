@@ -17,7 +17,7 @@ draws, on axes limited to the unit square:
 
 The geometry is split into pure functions (:func:`node_colors`, :func:`node_halfwidths`,
 :func:`edge_segments`) that are pinned against the original running in Octave
-(``tests/octave/fx_viz_draw.m``); the text extents come from the renderer (Octave's fltk
+(``legacy/tests_octave/fx_viz_draw.m``); the text extents come from the renderer (Octave's fltk
 and matplotlib's Agg fonts differ), so the parity tests feed Octave's half-widths ``wd``
 back in. :func:`graph_draw` does the drawing.
 """

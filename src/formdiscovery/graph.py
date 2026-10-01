@@ -1,17 +1,17 @@
 """Graph structure (PLAN.md §5; L0-b item 08, L2-a1 item 11, L2-a2 item 12, L2-a3 item 13).
 
 ``expand_graph``, ``get_edgemap`` and ``find_descendants`` work on plain adjacency
-matrices (pinned by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat``,
+matrices (pinned by ``legacy/tests_octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat``,
 ``tests/test_l0b.py``). The ``Graph``/``Component`` dataclasses mirror the MATLAB ``graph``
 struct, and ``combinegraphs``/``makeemptygraph`` build graphs (pinned by
-``tests/octave/fx_graph.m`` → ``tests/fixtures/graph.mat``, ``tests/test_graph.py``).
+``legacy/tests_octave/fx_graph.m`` → ``tests/fixtures/graph.mat``, ``tests/test_graph.py``).
 ``add_element``, ``empty_graph`` and ``split_node`` grow graphs (pinned by
-``tests/octave/fx_split.m`` → ``tests/fixtures/split.mat``, ``tests/test_split.py``).
+``legacy/tests_octave/fx_split.m`` → ``tests/fixtures/split.mat``, ``tests/test_split.py``).
 ``simplify_graph`` and ``subtreeattach`` clean and regraft them (item 13, pinned by
-``tests/octave/fx_simplify.m`` → ``tests/fixtures/simplify.mat``,
+``legacy/tests_octave/fx_simplify.m`` → ``tests/fixtures/simplify.mat``,
 ``tests/test_simplify.py``).
 ``filloutrelgraph``, ``makelcfreq``, ``relgraphinit`` and ``reordermissing`` handle
-relational graphs and missing-data chunks (item 14, pinned by ``tests/octave/fx_relinit.m``
+relational graphs and missing-data chunks (item 14, pinned by ``legacy/tests_octave/fx_relinit.m``
 → ``tests/fixtures/relinit.mat``, ``tests/test_relinit.py``).
 Indices are 0-based (``CONVENTIONS.md``); edge maps keep MATLAB's edge numbers.
 """

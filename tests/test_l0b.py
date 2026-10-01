@@ -3,8 +3,8 @@
 ``graph.find_descendants``, ``graph.expand_graph``, and ``likelihood_rel.makehyps``,
 ``bbloglike``, ``bblikesumhyps``, ``dirmultloglike``.
 
-The fixture ``tests/fixtures/l0b.mat`` comes from ``tests/octave/fx_l0b.m`` (regenerate with
-``python tools/gen_fixtures.py l0b``). It covers the adjacency matrices of the six demo data
+The fixture ``tests/fixtures/l0b.mat`` comes from ``legacy/tests_octave/fx_l0b.m`` (regenerate with
+``python legacy/tools/gen_fixtures.py l0b``). It covers the adjacency matrices of the six demo data
 sets and of every final graph in the Octave baselines (``tests/fixtures/baseline``). The
 live tests rerun the script (the committed fixture must be current) and compare on fresh
 random inputs.
@@ -44,7 +44,7 @@ ADJNAMES = names("adjnames")
 
 
 def hessfun(X, A, b, shape):
-    """Python twin of ``tests/octave/l0b_hessfun.m``."""
+    """Python twin of ``legacy/tests_octave/l0b_hessfun.m``."""
     X = np.asarray(X, dtype=float).ravel()
     Y = 0.5 * X @ A @ X + b @ X + np.sum(np.sin(X)) + 0.25 * np.sum(X ** 4)
     g = A @ X + b + np.cos(X) + X ** 3

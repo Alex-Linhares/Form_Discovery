@@ -5,7 +5,7 @@
 
 Fixtures:
 
-- ``tests/fixtures/viz_draw.mat`` (``tests/octave/fx_viz_draw.m``, regenerated in this
+- ``tests/fixtures/viz_draw.mat`` (``legacy/tests_octave/fx_viz_draw.m``, regenerated in this
   iteration): the real ``draw_dot`` on 83 graphs, with the positions ``X``/``Y`` it gives
   ``graph_draw``, the labels, font size, node colours and every arrow in drawing order.
   Both backends are fed Octave's positions and must draw Octave's nodes (position,
@@ -34,6 +34,7 @@ from formdiscovery.viz import pygraphviz_backend as pgb
 from formdiscovery.viz.draw import (BACKENDS, INTERACTIVE, ProgressFigures, draw_dot,
                                     draw_graph, draw_results, order_positions)
 from formdiscovery.viz.graph_draw import edge_segments
+from tests.conftest import OCTAVE_TESTS_DIR
 
 go = pytest.importorskip("plotly.graph_objects")
 pytest.importorskip("pyvis.network")
@@ -512,7 +513,7 @@ def test_live_masterrun_demo_positions(octave, tmp_path):
     (``tests/fixtures/masterrun.mat``); with pygraphviz, both interactive backends place
     every node where draw_dot does."""
     octave.eval("warning('off', 'all');", nout=0)
-    octave.addpath(str(REPO / "tests" / "octave" / "drawdot_shim"))
+    octave.addpath(str(OCTAVE_TESTS_DIR / "drawdot_shim"))
     octave.eval("setenv('PATH', [fullfile(OCTAVE_HOME(), 'bin') pathsep getenv('PATH')]);",
                 nout=0)
     old = octave.pwd()
@@ -545,4 +546,4 @@ def test_live_masterrun_demo_positions(octave, tmp_path):
         assert compared == (9 if pgb.have_pygraphviz() else 0)
     finally:
         octave.cd(old)
-        octave.rmpath(str(REPO / "tests" / "octave" / "drawdot_shim"))
+        octave.rmpath(str(OCTAVE_TESTS_DIR / "drawdot_shim"))

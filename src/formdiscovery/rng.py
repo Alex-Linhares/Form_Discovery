@@ -7,7 +7,7 @@ search code takes a :class:`PermutationProvider` and calls ``provider.randperm(n
 where the MATLAB code calls ``randperm(n)``. Permutations are 0-based
 (``CONVENTIONS.md``).
 
-For parity tests, ``matlab/octave_shims/randperm.m`` shadows Octave's ``randperm``:
+For parity tests, ``legacy/matlab/octave_shims/randperm.m`` shadows Octave's ``randperm``:
 
 - It replays a queue file (``FD_RANDPERM=<file>``), and :class:`ReplayPermutations`
   replays the same queue in Python.

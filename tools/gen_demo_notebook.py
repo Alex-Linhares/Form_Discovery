@@ -79,7 +79,7 @@ res = masterrun(ps, log=print)"""),
 ## 2. Compare with the original code
 
 `tests/fixtures/masterrun.mat` holds the `modellike` array of `masterrun.m` run in
-Octave 10.3 (`tests/octave/fx_masterrun.m`). The scores are log posteriors
+Octave 10.3 (`legacy/tests_octave/fx_masterrun.m`). The scores are log posteriors
 (log P(structure, data)); the highest score in each column is the form the model
 discovers."""),
     ("code", """\

@@ -1,8 +1,8 @@
 """Parity of the ``dataprobwsig`` missing-data chunk path (``dataprobwsig.m:24-60``, item 17,
 L3-a2) with Octave on the ``judges`` data (13 objects, 38 chunks).
 
-The fixture ``tests/fixtures/dpmiss.mat`` comes from ``tests/octave/fx_dpmiss.m``
-(regenerate with ``python tools/gen_fixtures.py dpmiss``):
+The fixture ``tests/fixtures/dpmiss.mat`` comes from ``legacy/tests_octave/fx_dpmiss.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py dpmiss``):
 
 - ``data``: judges after ``scaledata`` (``Inf`` = missing);
 - ``gr``: 25 graphs over the 13 objects with random weights (one cluster, seeded

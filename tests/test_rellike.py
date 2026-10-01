@@ -2,8 +2,8 @@
 (``likelihood_rel.py``; item 20, L3-c) with Octave, and of ``graph_like``'s ``'rel'``
 dispatch.
 
-The fixture ``tests/fixtures/rellike.mat`` comes from ``tests/octave/fx_rellike.m``
-(regenerate with ``python tools/gen_fixtures.py rellike``):
+The fixture ``tests/fixtures/rellike.mat`` comes from ``legacy/tests_octave/fx_rellike.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py rellike``):
 
 - ``ri``: ``relgraphinit`` graphs for the 24 ``ps.structures`` names and the 4 domtree
   names on the 7 relational data sets (4 relbin, 3 relfreq), with ``z = 1:n``, one cluster,

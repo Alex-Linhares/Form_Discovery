@@ -4,7 +4,7 @@
 
 Fixtures:
 
-- ``tests/octave/fx_viz_networkx.m`` → ``tests/fixtures/viz_networkx.mat``: the 63 final
+- ``legacy/tests_octave/fx_viz_networkx.m`` → ``tests/fixtures/viz_networkx.mat``: the 63 final
   baseline graphs with Octave's ``find(graph.adj)`` edge list, ``W``, ``1./W``, the
   undirected pairs of ``adjsym``/``Wsym``, the degrees and ``inv_covariance``'s Laplacian.
 - ``tests/fixtures/viz_draw.mat`` (item 32): the real ``draw_dot`` on 83 graphs, with

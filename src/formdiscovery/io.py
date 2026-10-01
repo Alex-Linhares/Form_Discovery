@@ -63,7 +63,7 @@ def load_dataset(name, with_names=False, data_dir=None):
 
 
 def load_fixture(name, fixtures_dir=None, simplify=True):
-    """Variables of ``tests/fixtures/<name>.mat`` (written by ``tools/gen_fixtures.py``).
+    """Variables of ``tests/fixtures/<name>.mat`` (written by ``legacy/tools/gen_fixtures.py``).
 
     With ``simplify=True`` (default) structs become dicts, cells become lists and
     singleton dimensions are squeezed (``loadmat(simplify_cells=True)``); use

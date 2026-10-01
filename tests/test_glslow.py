@@ -1,8 +1,8 @@
 """``graph_like_conn`` in slow mode (``graph_like_conn.m:35-110``: optimizer + Laplace
 approximation; item 19, L3-b2) against Octave.
 
-The fixture ``tests/fixtures/glslow.mat`` comes from ``tests/octave/fx_glslow.m``
-(regenerate with ``python tools/gen_fixtures.py glslow``). Octave runs an instrumented copy
+The fixture ``tests/fixtures/glslow.mat`` comes from ``legacy/tests_octave/fx_glslow.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py glslow``). Octave runs an instrumented copy
 of ``graph_like_conn.m`` that records ``Xinit``, the ``fminunc`` optimum ``X``/``fX``, the
 gradient ``g`` at ``X``, the full finite-difference ``H``, ``includeind``, ``ll``, ``logI0``
 (l.89) and ``logI``:
@@ -15,7 +15,7 @@ gradient ``g`` at ``X``, the full finite-difference ``H``, ``includeind``, ``ll`
   tree x demo_tree_feat (every 4th of 128);
 - ``lp``: the Laplace code alone (l.76-93, extracted from the source) at non-optimal
   points (``Xinit`` and a perturbation of it), where the ``~isreal`` fallback runs;
-- ``qd``: the same code with a quadratic objective (``tests/octave/glc_quad.m``) at points
+- ``qd``: the same code with a quadratic objective (``legacy/tests_octave/glc_quad.m``) at points
   with entries above ``upper_bound - 5`` (``includeind`` truncation, 'sigma blows up', the
   empty-``includeind`` error) and with indefinite Hessians.
 
@@ -202,7 +202,7 @@ def test_laplace_nonoptimal_points():
 
 
 def _quad(x, A, b, ps, nargout=1):
-    """tests/octave/glc_quad.m: f = x'Ax/2 - b'x."""
+    """legacy/tests_octave/glc_quad.m: f = x'Ax/2 - b'x."""
     f = x @ A @ x / 2 - b @ x
     return f if nargout == 1 else (f, A @ x - b)
 

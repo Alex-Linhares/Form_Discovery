@@ -1,8 +1,8 @@
 """Parity of ``run.runmodel`` (with ``brlencases``; item 28, L5-a) with Octave, with
 replayed permutations.
 
-The fixture ``tests/fixtures/runmodel.mat`` comes from ``tests/octave/fx_runmodel.m``
-(regenerate with ``python tools/gen_fixtures.py runmodel``). It holds 21 whole
+The fixture ``tests/fixtures/runmodel.mat`` comes from ``legacy/tests_octave/fx_runmodel.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py runmodel``). It holds 21 whole
 ``runmodel`` runs:
 
 - the 9 feature baseline runs (chain, ring, tree x the three feature demos, speed 54,

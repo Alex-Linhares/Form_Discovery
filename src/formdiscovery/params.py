@@ -12,7 +12,7 @@ result should use :meth:`Params.copy` in the same places MATLAB would copy.
 
 Indices: ``setrunps`` takes a 0-based data set index ``dind``; ``ps.logps[i][n - 1]`` is
 MATLAB's ``ps.logps{i+1}(n)``; ``ps.T[n - 1, k - 1]`` is MATLAB's ``ps.T(n, k)``.
-Pinned against Octave by ``tests/octave/fx_params.m`` → ``tests/fixtures/params.mat``
+Pinned against Octave by ``legacy/tests_octave/fx_params.m`` → ``tests/fixtures/params.mat``
 (``tests/test_params.py``).
 """
 

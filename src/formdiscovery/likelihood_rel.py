@@ -2,9 +2,9 @@
 
 Item 08 (L0-b) adds the beta-binomial and Dirichlet-multinomial building blocks
 ``makehyps``, ``bbloglike``, ``bblikesumhyps`` and ``dirmultloglike``, pinned against
-Octave by ``tests/octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``).
+Octave by ``legacy/tests_octave/fx_l0b.m`` → ``tests/fixtures/l0b.mat`` (``tests/test_l0b.py``).
 Item 20 (L3-c) adds ``countmatrix``, ``rellikebin``, ``rellikefreqs`` and
-``graph_like_rel``, pinned by ``tests/octave/fx_rellike.m`` → ``tests/fixtures/rellike.mat``
+``graph_like_rel``, pinned by ``legacy/tests_octave/fx_rellike.m`` → ``tests/fixtures/rellike.mat``
 (``tests/test_rellike.py``).
 """
 

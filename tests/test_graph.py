@@ -1,7 +1,7 @@
 """Parity of ``formdiscovery.graph`` (item 11, L2-a1) with Octave.
 
-The fixture ``tests/fixtures/graph.mat`` comes from ``tests/octave/fx_graph.m`` (regenerate
-with ``python tools/gen_fixtures.py graph``). It holds ``makeemptygraph`` for the 24
+The fixture ``tests/fixtures/graph.mat`` comes from ``legacy/tests_octave/fx_graph.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py graph``). It holds ``makeemptygraph`` for the 24
 ``ps.structures`` names (grid and cylinder included) plus the four extra domtree names, with
 1 and 5 objects; ``combinegraphs`` with ``zonly`` 0/1 on every graph of the baseline growth
 histories; grid/cylinder products built from baseline chain/ring components (``zonly`` and

@@ -1,9 +1,9 @@
 """Parity of ``search.addnearmiss``, ``choose_seedpairs``, ``best_split`` and
 ``choose_node_split`` (item 23, L4-a) with Octave, with replayed permutations.
 
-The fixture ``tests/fixtures/search.mat`` comes from ``tests/octave/fx_search.m``
-(regenerate with ``python tools/gen_fixtures.py search``). Every ``randperm`` draw Octave
-makes inside a call is logged by the shim (``matlab/octave_shims/randperm.m``) and
+The fixture ``tests/fixtures/search.mat`` comes from ``legacy/tests_octave/fx_search.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py search``). Every ``randperm`` draw Octave
+makes inside a call is logged by the shim (``legacy/matlab/octave_shims/randperm.m``) and
 replayed here with :class:`formdiscovery.rng.ReplayPermutations`, which must then be
 used up exactly. The parts are:
 

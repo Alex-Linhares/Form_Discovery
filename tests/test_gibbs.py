@@ -1,10 +1,10 @@
 """Parity of ``search.gibbs_clean`` (with ``nearmissopts``; item 26, L4-c1) with Octave,
 with replayed permutations.
 
-The fixture ``tests/fixtures/gibbs.mat`` comes from ``tests/octave/fx_gibbs.m``
-(regenerate with ``python tools/gen_fixtures.py gibbs``). It re-runs 7 runs (speed 54:
-speed 5, then speed 4) with ``gibbs_clean`` replaced by a spy (``tests/octave/gibbs_spy.m``)
-and ``graph_like`` by a wrapper (``tests/octave/glc_spy.m``) that records the slow
+The fixture ``tests/fixtures/gibbs.mat`` comes from ``legacy/tests_octave/fx_gibbs.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py gibbs``). It re-runs 7 runs (speed 54:
+speed 5, then speed 4) with ``gibbs_clean`` replaced by a spy (``legacy/tests_octave/gibbs_spy.m``)
+and ``graph_like`` by a wrapper (``legacy/tests_octave/glc_spy.m``) that records the slow
 (``ps.fast == 0``) calls made inside ``gibbs_clean``:
 
 - ``bl`` records are real calls from ``structurefit``; ``pt`` records run the same call
@@ -36,7 +36,7 @@ from formdiscovery.rng import ReplayError, ReplayPermutations, parse_queue
 from formdiscovery.search import gibbs_clean, graphsig, nearmissopts
 from tests.conftest import BLAS_DEFAULT_FIXTURES, OCTAVE_TESTS_DIR, find_octave
 from tests.helpers import graph_diff
-from tools import gen_fixtures
+from legacy.tools import gen_fixtures
 from tests.test_baseline import EXPECTED_LL as FEAT_LL
 from tests.test_baseline_rel import EXPECTED_LL as REL_LL
 from tests.test_glslow import LOGI_RTOL
@@ -438,7 +438,7 @@ def test_default_rng_runs(speed):
 
 @pytest.mark.octave
 def test_live_fixture_regenerates(octave, tmp_path):
-    """Regenerated the way ``tools/gen_fixtures.py`` does it: in its own ``octave-cli``
+    """Regenerated the way ``legacy/tools/gen_fixtures.py`` does it: in its own ``octave-cli``
     with OpenBLAS's default thread count, as the committed fixture was made. The
     ``grid x synthgrid`` run does not reproduce under the session's one-thread pin
     (ANOMALIES A19; ``BLAS_DEFAULT_FIXTURES``)."""

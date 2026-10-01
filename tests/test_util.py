@@ -1,7 +1,7 @@
 """Parity of ``formdiscovery.util`` / ``formdiscovery.weights`` (item 07, L0-a) with Octave.
 
-The fixture ``tests/fixtures/util.mat`` comes from ``tests/octave/fx_util.m`` (regenerate
-with ``python tools/gen_fixtures.py util``). Indices are compared after ``to0``. The live
+The fixture ``tests/fixtures/util.mat`` comes from ``legacy/tests_octave/fx_util.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py util``). Indices are compared after ``to0``. The live
 tests rerun the script (the committed fixture must be current) and compare the Python port
 with Octave on fresh random inputs.
 """

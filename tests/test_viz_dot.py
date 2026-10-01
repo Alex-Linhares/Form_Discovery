@@ -1,7 +1,7 @@
 """Item 31 (PLAN §6 phase A): ``viz/dot.py`` against Octave's ``graph_to_dot.m`` and
 ``dot_to_graph.m``.
 
-Fixture ``tests/octave/fx_viz_dot.m`` → ``tests/fixtures/viz_dot.mat``:
+Fixture ``legacy/tests_octave/fx_viz_dot.m`` → ``tests/fixtures/viz_dot.mat``:
 
 - ``bl_*``: the unmodified ``draw_dot(graph.adj, names)`` on every final baseline graph
   (9 feature + 54 relational runs), with the ``graph_draw`` shim recording the

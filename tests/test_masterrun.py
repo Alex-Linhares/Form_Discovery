@@ -1,8 +1,8 @@
 """End-to-end parity of ``run.masterrun`` and the ``formdiscovery run`` CLI (item 29, L5-b;
 PLAN.md §7.1) with Octave.
 
-The fixture ``tests/fixtures/masterrun.mat`` comes from ``tests/octave/fx_masterrun.m``
-(regenerate with ``python tools/gen_fixtures.py masterrun``): the unmodified
+The fixture ``tests/fixtures/masterrun.mat`` comes from ``legacy/tests_octave/fx_masterrun.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py masterrun``): the unmodified
 ``masterrun.m`` script, run headless in a temporary directory (chain, ring, tree x the
 three feature demos, ``rand('state', 1)`` before each run). It keeps every ``randperm``
 draw of the whole script (``logtext``), every slow ``graph_like`` call (``gl``), every

@@ -1,4 +1,4 @@
-"""tools/gen_fixtures.py --jobs N (loop0002 item 03): parallel fixture generation.
+"""legacy/tools/gen_fixtures.py --jobs N (loop0002 item 03): parallel fixture generation.
 
 The scheduler is checked with a stand-in for ``octave-cli`` (dependencies, longest task
 first, failures, the job limit). The live test regenerates a set of quick fixtures with
@@ -16,7 +16,7 @@ import pytest
 import scipy.io
 
 from tests.conftest import FIXTURES_DIR
-from tools import gen_fixtures as gf
+from legacy.tools import gen_fixtures as gf
 
 QUICK = ["graph", "matlab_compat", "params", "preprocess", "rng", "truegraphs", "util"]
 

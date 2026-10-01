@@ -3,7 +3,7 @@
 Each helper mirrors one MATLAB built-in as the formdiscovery1.0 sources use it (see
 ``CONVENTIONS.md`` and PLAN.md §2, §4.3). Inputs and outputs use 0-based indices; the
 values themselves are never shifted. Every helper is pinned against Octave by
-``tests/octave/fx_matlab_compat.m`` → ``tests/fixtures/matlab_compat.mat``
+``legacy/tests_octave/fx_matlab_compat.m`` → ``tests/fixtures/matlab_compat.mat``
 (``tests/test_matlab_compat.py``). Where Octave and MATLAB disagree, the helper follows
 MATLAB and the difference is recorded in ``KNOWN_ISSUES.md`` (KI-13, KI-14).
 """

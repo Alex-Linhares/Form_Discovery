@@ -1,4 +1,4 @@
-"""Octave feature-data baseline (item 04): fixtures written by matlab/run_baseline.m.
+"""Octave feature-data baseline (item 04): fixtures written by legacy/matlab/run_baseline.m.
 
 masterrun.m's default grid: chain, ring, tree x demo_chain_feat, demo_ring_feat,
 demo_tree_feat. The tree runs need Octave patch 16 (``find_descendants.m``, item 03b,
@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import scipy.io
 
-from tests.conftest import FIXTURES_DIR, REPO_ROOT
+from tests.conftest import FIXTURES_DIR, LEGACY_DIR
 
 BASE = FIXTURES_DIR / "baseline" / "feat"
 DATA = ["demo_chain_feat", "demo_ring_feat", "demo_tree_feat"]
@@ -103,7 +103,7 @@ def test_growth_histories(results):
 
 @pytest.mark.octave
 def test_live_chain_run_reproduces(octave, tmp_path):
-    octave.addpath(str(REPO_ROOT / "matlab"))
+    octave.addpath(str(LEGACY_DIR / "matlab"))
     octave.eval(f"run_baseline('feat', 2, 1, '{tmp_path}');", nout=0)
     t = scipy.io.loadmat(tmp_path / "timings.mat", squeeze_me=True)["timings"]
     assert float(t["ll"]) == pytest.approx(EXPECTED_LL[("chain", "demo_chain_feat")], rel=1e-10)

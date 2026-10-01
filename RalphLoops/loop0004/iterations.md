@@ -11,7 +11,7 @@ Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
       fixture scripts keep working unchanged; verify with a live `run_baseline('feat', 2, 1)`
       and one fixture regeneration compared to the committed file. Note the symlink in
       `matlab/PATCHES.md`. Strict gate green.
-- [ ] 02. **`legacy/` (Phase 2, moves).** `git mv matlab legacy/matlab`,
+- [x] 02. **`legacy/` (Phase 2, moves).** `git mv matlab legacy/matlab`,
       `tests/octave legacy/tests_octave`, and the Octave tools (`gen_fixtures.py`,
       `gen_baselines.py`, `gen_paperlevel.py`, `compare_live.py`, `mat_compare.py`,
       `bench_perf.py` if it needs Octave) to `legacy/tools/`. Re-point the symlink

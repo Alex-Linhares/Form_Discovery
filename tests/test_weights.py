@@ -1,8 +1,8 @@
 """Parity of ``weights.mat2vec``, ``weights.combineWs`` and ``weights.extract_weights``
 (item 15, L2-b2) with Octave.
 
-The fixture ``tests/fixtures/weights.mat`` comes from ``tests/octave/fx_weights.m``
-(regenerate with ``python tools/gen_fixtures.py weights``):
+The fixture ``tests/fixtures/weights.mat`` comes from ``legacy/tests_octave/fx_weights.m``
+(regenerate with ``python legacy/tools/gen_fixtures.py weights``):
 
 - ``gr``: 55 graphs over 10 objects (one-cluster graphs, seeded ``split_node`` sequences
   for chain, ring, tree, hierarchy, partition, connected, grid and cylinder, and graphs

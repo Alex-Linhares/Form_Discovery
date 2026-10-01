@@ -187,7 +187,7 @@ results are unchanged). Screenshots, with a description of each: [`examples/gui/
 
 ## How it was verified
 
-- Every MATLAB function has an Octave fixture script in `tests/octave/` that runs the original
+- Every MATLAB function has an Octave fixture script in `legacy/tests_octave/` that runs the original
   code on real inputs and saves inputs and outputs to `tests/fixtures/*.mat`. The pytest
   suite compares the Python translation against those fixtures, so the tests run without
   Octave. Tests marked `octave` additionally drive Octave live through oct2py. They are
@@ -197,27 +197,27 @@ results are unchanged). Screenshots, with a description of each: [`examples/gui/
 - Structural outputs are compared exactly; deterministic floats at `rtol=1e-10`;
   optimiser-dependent values by optimality (objective and gradient norm no worse than
   Octave's) plus a documented tolerance.
-- Randomness enters only through `randperm`. An Octave shim (`matlab/octave_shims/`) records
+- Randomness enters only through `randperm`. An Octave shim (`legacy/matlab/octave_shims/`) records
   or replays permutations, and `formdiscovery.rng` provides matching Python providers, so the
   search heuristics are compared with identical random choices.
-- The Octave baseline runs (`matlab/run_baseline.m`) for the feature and relational demo grids
+- The Octave baseline runs (`legacy/matlab/run_baseline.m`) for the feature and relational demo grids
   are committed under `tests/fixtures/baseline/`.
 - Every process runs one BLAS/OpenMP thread (`OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`,
   `MKL_NUM_THREADS` = 1, `formdiscovery.threads.PIN_ENV`). The test session, the Oct2Py
   Octave and every `octave-cli` the tools start are pinned; speed comes from running
   processes side by side. Pinned and unpinned runs give identical `.mat` contents
-  (`tools/mat_compare.py DIR_A DIR_B` compares two output directories), except for
+  (`legacy/tools/mat_compare.py DIR_A DIR_B` compares two output directories), except for
   `gibbs.mat`. Its `grid x synthgrid` run depends on the BLAS thread count, so it is
   regenerated unpinned (ANOMALIES A19, `BLAS_DEFAULT_FIXTURES` in `tests/conftest.py`).
-- Fixtures regenerate in parallel: `tools/gen_fixtures.py --jobs N` (default cores/2) runs
+- Fixtures regenerate in parallel: `legacy/tools/gen_fixtures.py --jobs N` (default cores/2) runs
   one `octave-cli` per fixture script (paperlevel split into its 45 runs), so a script that
   reads another fixture waits for it. It keeps a log per task and prints a timing table. All 31 fixtures take
   7 min 56 s with `--jobs 16` against 68 min 49 s with `--jobs 1`. The two runs and the
   committed fixtures have the same content (`--compare DIR`: loaded arrays to all digits,
   timing fields skipped, temp-directory names masked).
-- The baselines regenerate in parallel too: `tools/gen_baselines.py --kind feat|rel --jobs N`
+- The baselines regenerate in parallel too: `legacy/tools/gen_baselines.py --kind feat|rel --jobs N`
   runs one `octave-cli` per (structure, dataset) pair, each into its own directory. A merge
-  (`matlab/baseline_merge.m`, plus a copy of the `results/` trees) then writes what the
+  (`legacy/matlab/baseline_merge.m`, plus a copy of the `results/` trees) then writes what the
   serial `run_baseline` writes. The merged output has the same file set and content as the
   committed `tests/fixtures/baseline/{feat,rel}` (`--compare DIR`; only `timings.seconds`
   is skipped). With `--jobs 16` feat takes 5.8 s and rel 14.6 s, against 33–46 s and
@@ -229,7 +229,7 @@ results are unchanged). Screenshots, with a description of each: [`examples/gui/
   (`--maxschedchunk 1`). The gate then takes about 6 min (the longest test, gibbs
   `test_live_fresh_seeds`, alone takes about 6 min) against about 40 min serial. Three
   runs at `-n 16` and one at `-n 8` gave the same pass set.
-- `tools/compare_live.py --pairs S:D[:SEED] ... --jobs N` runs Octave and Python side by
+- `legacy/tools/compare_live.py --pairs S:D[:SEED] ... --jobs N` runs Octave and Python side by
   side. For each (structure, dataset, seed) a worker runs `run_baseline` in its own
   `octave-cli` with the `randperm` shim logging every draw. It then runs Python's
   `runmodel` on the same pair, replaying those draws without oracles: Python uses its own
@@ -261,11 +261,11 @@ skipped; it now runs them all and fails if one is skipped.
 python -m pytest -q -m "not slow"     # fixture-only run under another Python (~1 min)
 python -m pytest -q -m octave         # live Octave parity (needs the fd env)
 ~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
-python tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
-python tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
-python tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel
-python tools/mat_compare.py A B       # compare two directories of .mat outputs by content
-python tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline pairs (~30 s)
+python legacy/tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
+python legacy/tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
+python legacy/tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel
+python legacy/tools/mat_compare.py A B       # compare two directories of .mat outputs by content
+python legacy/tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline pairs (~30 s)
 ```
 
 ## Layout
@@ -277,12 +277,14 @@ python tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline p
 | `examples/` | `formdiscovery_demo.ipynb`: the masterrun demo end to end, with figures |
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
 | `data/` | The 20 data sets of the original (`*.mat`, `README.txt`); `io.DATA_DIR`, overridden by `$FORMDISCOVERY_DATA` |
-| `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources (its `data` is a symlink to `../../data`), plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
-| `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `tools/gen_baselines.py`) |
+| `legacy/matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources (its `data` is a symlink to `../../../data`), plus 16 documented Octave-compatibility edits (`legacy/matlab/PATCHES.md`) |
+| `legacy/matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `legacy/tools/gen_baselines.py`) |
+| `legacy/tests_octave/` | The Octave fixture scripts (`fx_<name>.m`), spies and shims |
+| `legacy/tools/` | Octave-driven tools: fixture and baseline generation (`gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`), Octave vs Python side by side (`compare_live.py`), `.mat` content comparison (`mat_compare.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
-| `tests/` | Fixture scripts (`tests/octave/`), fixtures, pytest parity tests, Octave baselines |
-| `tools/` | Fixture generation, Octave/Python run comparison, benchmark (`bench_perf.py`) |
+| `tests/` | Fixtures (produced by `legacy/tests_octave/`), pytest parity tests, Octave baselines |
+| `tools/` | Python-side tools: true-graph score comparison (`compare_runs.py`), benchmark (`bench_perf.py`; `--live` needs `legacy/`), notebook, GUI screenshots and viz baselines |
 | `PLAN.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
 | `RalphLoops/` | The fresh-context iteration loop that carried out the plan |
 

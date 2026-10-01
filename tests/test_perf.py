@@ -1,8 +1,8 @@
 """Performance budget (item 35, PLAN.md §7.4): the Octave timing fixture, the Python
 benchmark's parity checks and the optimisations.
 
-The fixture ``tests/fixtures/perf.mat`` comes from ``tests/octave/fx_perf.m`` (regenerate
-with ``python tools/gen_fixtures.py perf``, about 1 min). It records Octave's time per
+The fixture ``tests/fixtures/perf.mat`` comes from ``legacy/tests_octave/fx_perf.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py perf``, about 1 min). It records Octave's time per
 call of ``graph_like`` (fast and slow mode) and ``dataprobwsig`` on 15 graphs (``gl``), and
 spied ``runmodel`` runs with identity permutations (``sf``: an event log per
 ``structurefit`` call and depth). ``tools/bench_perf.py`` times the same computations in

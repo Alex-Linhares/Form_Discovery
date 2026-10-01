@@ -1,8 +1,8 @@
 """Parity of ``graph.split_node``, ``graph.empty_graph`` and ``graph.add_element`` (item 12,
 L2-a2) with Octave.
 
-The fixture ``tests/fixtures/split.mat`` comes from ``tests/octave/fx_split.m`` (regenerate
-with ``python tools/gen_fixtures.py split``). It has two parts:
+The fixture ``tests/fixtures/split.mat`` comes from ``legacy/tests_octave/fx_split.m`` (regenerate
+with ``python legacy/tools/gen_fixtures.py split``). It has two parts:
 
 - ``sq_*``: seeded split sequences from ``makeemptygraph`` for the 26 single-component names
   and grid/cylinder (``prodtied`` 0/1). Every step uses random component weights, a random

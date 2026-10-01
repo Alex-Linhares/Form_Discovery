@@ -10,7 +10,7 @@ Read first, in this order:
   iteration that finds it, with a status of open / explained / handled.
 - `KNOWN_ISSUES.md`: line-by-line entries (KI-n) with a decision (replicate / fix / not
   ported) and the test that pins each one.
-- `matlab/PATCHES.md`: the only edits allowed to `matlab/formdiscovery1.0/`, each marked
+- `legacy/matlab/PATCHES.md`: the only edits allowed to `legacy/matlab/formdiscovery1.0/`, each marked
   `PATCH(octave)` in the source.
 - `src/formdiscovery/CONVENTIONS.md`: index, ordering and dtype rules for the port.
 
@@ -29,15 +29,20 @@ pygraphviz, pytest-xdist, PySide6 and pytest-qt. Regression gate: `~/anaconda3/e
 new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
 `RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module
 fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are regenerated only through Octave
-(`tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
+(`legacy/tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
 `--outdir` with `--compare tests/fixtures` rather than over the committed files). Baselines:
-`tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
+`legacy/tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
 (one Octave per pair, then a merge). Octave vs Python side by side:
-`tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).
+`legacy/tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).
+
+Legacy: everything Octave-specific (MATLAB sources, shims, `run_baseline.m`, fixture scripts,
+Octave tools) is under `legacy/` (`legacy/matlab/`, `legacy/tests_octave/`, `legacy/tools/`);
+`tests/conftest.py` has one `LEGACY_DIR` and derives `MATLAB_DIR`, `SHIM_DIR`, `OCTAVE_TESTS_DIR`
+from it; tests import the tools as `legacy.tools.<name>` (loop0004 item 02).
 
 Data: the 20 data sets live in `data/` (`io.DATA_DIR`, override `$FORMDISCOVERY_DATA`);
-`matlab/formdiscovery1.0/data` is a committed symlink to `../../data` so `setps.m` still works
-(`matlab/PATCHES.md`, "Data symlink").
+`legacy/matlab/formdiscovery1.0/data` is a committed symlink to `../../../data` so `setps.m` still works
+(`legacy/matlab/PATCHES.md`, "Data symlink").
 
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices
 converted only in `io.py`, quirks of the original replicated by default.
