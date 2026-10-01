@@ -18,7 +18,7 @@ Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.
 `PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`. `loop0001` did the port,
 `loop0002` the Octave-backed parallel harness (before/after timings in README "How it was verified"),
 `loop0003` the PySide6 GUI: package `src/formdiscovery/gui/` (`app.py` `main()`, `main_window.py`,
-`dataset.py`, `worker.py` = `RunWorker` on a `QThread`, `canvas.py` = `GraphCanvas` (live frames, coalesced, stable neato positions); `formdiscovery gui [FILE]`; the only model hook is
+`dataset.py`, `worker.py` = `RunWorker` on a `QThread`, `canvas.py` = `GraphCanvas` (live frames, coalesced, stable neato positions), `stats.py` = `StatsPanel` (score + prior/likelihood parts, clusters, per-depth chart, export .npz/.json and PNG/SVG); README "GUI" section; `formdiscovery gui [FILE]`; the only model hook is
 `search.run_hooks` (per-thread cancel / on_depth, off by default)), a thin shell over the port with offscreen pytest-qt tests
 (`tests/test_gui_*.py`, `QT_QPA_PLATFORM=offscreen` set in conftest) and screenshots in `examples/gui/`
 (`tools/gui_screenshots.py`).

@@ -8,6 +8,8 @@ in a worker thread (status line with the final score, frame count and time).
 ``03_live_mid.png``: the live canvas during a chain run with best splits drawn, at the
 first graph it draws (frames come faster than
 the canvas draws, so earlier ones are coalesced away); ``03_live_end.png``: the same run's inferred graph.
+``04_stats.png``: the statistics panel filled after a chain run (score and its parts,
+clusters, per-depth score chart).
 """
 
 import argparse
@@ -71,6 +73,20 @@ def main(argv=None):
         raise RuntimeError("the live run drew no frame before the end: " + str(win.last_error))
     print(mid[0])
     print(screenshot(win, out / "03_live_end.png"))
+    win.close()
+
+    win = MainWindow(path=DATA_DIR / "demo_chain_feat.mat")
+    win.set_forms(["chain"])
+    win.show()
+    win.start_run(win.run_settings())
+    while win.running():
+        app.processEvents(QEventLoop.AllEvents, 20)
+        if win.thread is not None and win.thread.isFinished():
+            win.wait_run(1000)
+    app.processEvents()
+    if win.stats.stats is None:
+        raise RuntimeError("no statistics after the run: " + str(win.last_error))
+    print(screenshot(win, out / "04_stats.png"))
     win.close()
     return 0
 

@@ -142,6 +142,34 @@ arrows (KI-37); use `undirected='lines'` for plain lines. draw_dot's neato flags
 malformed (KI-32/35); use `flags='intended'` for the documented ones. See
 `KNOWN_ISSUES.md`.
 
+### GUI
+
+A PySide6 desktop app (`pip install -e .[gui]`; in the fd env it is already installed):
+
+```bash
+formdiscovery gui                                                  # pick a file with "Open data file…"
+formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat # start with a data set loaded
+```
+
+Open any `.mat` data file (the shipped ones or your own: `data` as features, a similarity
+matrix or a relational struct, optional `names`). The left column describes the data set
+and has the forms (chain, ring, tree preselected), seed, speed, drawing backend and "Draw
+best splits". Run fits the first selected form in a worker thread, so the window stays
+responsive and Stop works at any time. The middle canvas redraws the graph each time the
+model transforms it (pre-clean / post-clean per depth, best splits if chosen, then the
+inferred graph), with node positions kept between frames. When the run ends, the
+Statistics column shows the final score and its parts (log prior from `graph_prior`, log
+likelihood from `graph_like`), the clusters and their members, the score per depth
+(`bestglls`) as a chart, wall time and frame count. "Export results…" writes the `.npz` +
+`.json` pair that `formdiscovery run` writes (read back with `load_results`), and "Save
+figure…" saves the graph as PNG or SVG.
+
+![The window after a chain run on demo_chain_feat](examples/gui/04_stats.png)
+
+The GUI is a thin shell over the port (`src/formdiscovery/gui/`); its only hook into the
+model is `search.run_hooks` (per-thread cancel and per-depth callbacks, off by default, so
+results are unchanged). Screenshots: `QT_QPA_PLATFORM=offscreen python tools/gui_screenshots.py`.
+
 ## How it was verified
 
 - Every MATLAB function has an Octave fixture script in `tests/octave/` that runs the original

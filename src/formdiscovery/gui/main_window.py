@@ -20,6 +20,12 @@ Item 03: the right half is a :class:`formdiscovery.gui.canvas.GraphCanvas` fed b
 worker's ``frame`` signal (coalesced, stable positions); the settings add the drawing
 backend (pygraphviz/networkx) and "Draw best splits" (the worker's ``bestsplit`` frames).
 A stopped or failed run says so in the canvas status line.
+
+Item 04: a "Statistics" column (:class:`formdiscovery.gui.stats.StatsPanel`) draws the
+per-depth scores live from the worker's ``depth_done`` and, on ``finished``, shows the
+final ll and its prior/likelihood parts, the clusters and their members, the score
+history chart, wall time and frames, with "Export results…" (``.npz`` + ``.json``, as
+``formdiscovery run`` writes) and "Save figure…" (the graph canvas, PNG/SVG).
 """
 
 from pathlib import Path
@@ -37,6 +43,7 @@ from ..params import STRUCTURES
 from ..run import MASTERRUN_STRUCT
 from .canvas import CANVAS_BACKENDS, GraphCanvas
 from .dataset import dataset_info
+from .stats import StatsPanel
 from .worker import RunWorker, start_worker
 
 __all__ = ["MainWindow", "SpeedSpinBox", "SPEEDS", "DEFAULT_FORMS", "DEFAULT_SEED",
@@ -133,6 +140,10 @@ class MainWindow(QMainWindow):
         self.backend_combo.currentTextChanged.connect(self.canvas.set_backend)
         graph_box = QGroupBox("Graph")
         QVBoxLayout(graph_box).addWidget(self.canvas)
+        self.stats = StatsPanel(figure_source=self.canvas)
+        self.stats.setMinimumWidth(340)
+        stats_box = QGroupBox("Statistics")
+        QVBoxLayout(stats_box).addWidget(self.stats)
 
         self.run_button = QPushButton("Run")
         self.run_button.setEnabled(False)
@@ -153,6 +164,7 @@ class MainWindow(QMainWindow):
         middle = QHBoxLayout()
         middle.addLayout(left, 2)
         middle.addWidget(graph_box, 3)
+        middle.addWidget(stats_box, 2)
         root = QVBoxLayout()
         root.addLayout(top)
         root.addLayout(middle, 1)
@@ -160,7 +172,7 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setLayout(root)
         self.setCentralWidget(central)
-        self.resize(1100, 720)
+        self.resize(1440, 800)
 
         self.form_list.itemSelectionChanged.connect(self._update_run_enabled)
         self.run_requested.connect(self.start_run)
@@ -244,7 +256,10 @@ class MainWindow(QMainWindow):
         w = RunWorker(settings["path"], form, seed=settings["seed"],
                       speed=settings["speed"], bestsplit=settings.get("bestsplit", False))
         self.canvas.begin_run(f"Running {form}…")
+        self.stats.begin_run(f"Running {form} on {Path(settings['path']).stem}…")
         w.frame.connect(self.canvas.push_frame)
+        w.depth_done.connect(self.stats.push_depth)
+        w.finished.connect(self.stats.show_result)
         w.frame.connect(self._on_frame)
         w.finished.connect(self._on_finished)
         w.failed.connect(self._on_failed)

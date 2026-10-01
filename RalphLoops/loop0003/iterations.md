@@ -29,7 +29,7 @@ Work on the first `[ ]` item only.
       Tests: feed recorded frames from a worker run, assert the canvas redraws and the last
       title is the inferred graph's. Screenshot `examples/gui/03_live.png` mid-run and
       at the end.
-- [ ] 04. **Statistics on completion.** `gui/stats.py`: a panel that fills when
+- [x] 04. **Statistics on completion.** `gui/stats.py`: a panel that fills when
       `finished` arrives: final ll (and its prior / likelihood parts via `graph_prior` +
       `graph_like`), clusters and members (names grouped by `z`), per-depth score chart
       (`bestgraphlls`, matplotlib), wall time and frame count; buttons to export results

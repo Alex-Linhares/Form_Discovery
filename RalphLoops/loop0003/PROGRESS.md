@@ -3,7 +3,7 @@
 ## Ralph Loop 0003 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 3/6 SOLVED
+- **Current**: 4/6 SOLVED
 
 ---
 
@@ -155,3 +155,43 @@
 - Item 04: `gui/stats.py` statistics panel on `finished` (ll, prior/likelihood via `graph_prior` +
   `graph_like`, clusters and members, per-depth `bestgraphlls` chart, wall time, frames), export
   (`.npz`/`.json`, PNG/SVG of the canvas figure), README "GUI" section.
+
+## Iteration 4 — 2026-10-01 13:38
+### Completed
+- Item 04 (statistics on completion) solved.
+- `gui/stats.py`: `score_parts(path, form, graph, speed)` rebuilds runmodel's `ps` (`run_ps`, `setrunps`,
+  `scaledata`, `structcounts`) and returns `(graph_prior, graph_like)` of the final graph in slow mode
+  (`ps.fast = 0`, as runmodel.m:178-180); prior + likelihood == runmodel's ll exactly for chain, ring and tree
+  on demo_chain_feat (the fast score is ~20 nats higher, see A26). `history_stages(bestglls)` (the cell in run
+  order: speed 5 before 4, stages in order, empty ones kept), `clusters(graph, names)` (names grouped by `z`,
+  unassigned last), `run_stats(result)`, `stats_text(st)`; `export_results(result, path)` stores the run in a
+  `MasterResults` as masterrun does (repeat 1) and writes `.npz` + `.json` with `save_results` (same keys and
+  run record as `formdiscovery run`, loads back with `load_results`); `export_figure(fig, path)` (PNG/SVG).
+  `StatsPanel`: monospaced text, a matplotlib "Score per depth" chart (one line per stage, fixed categorical
+  order, final ll dashed), live stages from `depth_done` (`push_depth`), `show_result` on `finished`,
+  "Export results…" / "Save figure…" (the graph canvas's figure) with save dialogs, `exported` signal.
+- `worker.py`: the `finished` dict now also has `prior` and `likelihood` (computed in the worker thread,
+  NaN if that fails). `main_window.py`: a third "Statistics" column (window 1440×800); `start_run` clears the
+  panel and connects `depth_done` → `push_depth`, `finished` → `show_result`.
+- `tests/test_gui_stats.py` (17 tests, ~22 s alone, mostly the module fixtures: masterrun chain+tree and the
+  worker runs): parts add up and equal a fresh `score_parts`; `run_stats` vs `MasterResults` (ll, cluster
+  counts, members from `structure.z`/`names`, history == `llhistory`); the panel text (ll from
+  `modellike`, prior, likelihood, clusters, history, wall/frames); missing parts recomputed; clusters with
+  unassigned and padded names; history order; export results (3 suffixes) loads back equal to masterrun's
+  graph/names/llhistory and matches the CLI's file layout; a user file outside the data dir; figure PNG/SVG
+  (magic bytes, default suffix, bad suffix); panel fill/clear, live depths, dialogs (monkeypatched); the window
+  fills the panel after a run.
+- Screenshot: `examples/gui/04_stats.png` (chain × demo_chain_feat: ll -8247.1924 = prior -11.8589 +
+  likelihood -8235.3335, 4 clusters of 2, history chart, 11 frames). `tools/gui_screenshots.py` makes it;
+  01-03 regenerated with the new column.
+- README: new "GUI" section (launch, what each column shows, exports, screenshot). CLAUDE.md lists `stats.py`.
+- Anomaly A26 (explained): the per-depth chart's speed-5 history ends above the final ll (fast vs slow
+  score on one axis); the panel notes it. No KI entry (no new code line).
+- Gate: `pytest -q -m "not slow" -n 16` with `RALPH_REQUIRE_OCTAVE=1`: 3708 passed, 3 skipped (the existing
+  non-Octave skips), 367 s, exit 0. No model or viz code changed, so parity is untouched.
+### Blockers
+- None.
+### Next
+- Item 05: queue the selected forms (one or N workers), a results table ranked by ll with the winner
+  highlighted (could sit in the Statistics column; `run_stats` per form), click a row to show its graph and
+  stats, and a frame-history slider (capped).

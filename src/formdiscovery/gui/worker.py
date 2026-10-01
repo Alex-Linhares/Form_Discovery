@@ -18,7 +18,8 @@ by queued connections:
   accepted depth (each stage, e.g. speed 5 then 4 at speed 54, starts again at 1);
 - ``finished(result)``: a dict (``ll``, ``graph``, ``names``, ``bestglls``,
   ``bestgraph``, ``form``, ``sind``, ``dind``, ``path``, ``seed``, ``speed``, ``frames``,
-  ``wall``);
+  ``wall`` (the run's seconds), and, item 04, ``prior`` and ``likelihood``, the parts of
+  ``ll`` from :func:`formdiscovery.gui.stats.score_parts`, NaN if that fails);
 - ``failed(traceback)``: the formatted traceback of any other exception;
 - ``cancelled()``: :meth:`RunWorker.cancel` was called (from any thread); the ``cancel``
   hook raises :class:`formdiscovery.search.RunCancelled` at the next ``show_graph`` call or
@@ -120,12 +121,19 @@ class RunWorker(QObject):
         except Exception:  # noqa: BLE001 - reported to the GUI
             self.failed.emit(traceback.format_exc())
         else:
+            wall = time.perf_counter() - t0
+            from .stats import score_parts  # stats imports this module
+            try:
+                prior, like = score_parts(self.path, self.form, graph, self.speed,
+                                          self.data_dir)
+            except Exception:  # noqa: BLE001 - the run itself succeeded
+                prior = like = float("nan")
             self.finished.emit({
                 "ll": float(ll), "graph": graph, "names": list(names),
                 "bestglls": bestglls, "bestgraph": bestgraph, "form": self.form,
                 "sind": sind, "dind": dind, "path": self.path, "seed": self.seed,
-                "speed": int(ps.speed), "frames": self.frames,
-                "wall": time.perf_counter() - t0})
+                "speed": int(ps.speed), "frames": self.frames, "wall": wall,
+                "prior": prior, "likelihood": like})
         self.done.emit()
 
 
