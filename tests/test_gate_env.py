@@ -231,28 +231,14 @@ def test_xdist_shared(tmp_path, monkeypatch):
     assert all(o == value for o in outs)
 
 
-def test_legacy_tests_collected_only_when_present(tmp_path):
-    """``testpaths`` (loop0004 item 03): ``legacy/tests`` is collected when it exists and
-    silently dropped when it does not, with this pytest."""
+def test_legacy_removed_and_testpaths_plain():
+    """PLAN_LEGACY.md Phase 5: ``legacy/`` is gone from main (frozen at the tag
+    ``octave-oracle-final``) and pytest collects ``tests/`` only."""
     import tomllib
     ini = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())["tool"]["pytest"]
-    paths = ini["ini_options"]["testpaths"]
-    assert paths == ["tests", "legacy/tests"]
-    (tmp_path / "pytest.ini").write_text("[pytest]\ntestpaths = " + " ".join(paths) + "\n")
-    (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_a.py").write_text("def test_a():\n    pass\n")
-
-    def collected():
-        res = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
-                              "-p", "no:cacheprovider", "-o", "addopts="], cwd=tmp_path,
-                             capture_output=True, text=True, timeout=120)
-        assert res.returncode == 0, res.stdout + res.stderr
-        return sorted(ln for ln in res.stdout.splitlines() if "::" in ln)
-
-    assert collected() == ["tests/test_a.py::test_a"]
-    (tmp_path / "legacy" / "tests").mkdir(parents=True)
-    (tmp_path / "legacy" / "tests" / "test_b.py").write_text("def test_b():\n    pass\n")
-    assert collected() == ["legacy/tests/test_b.py::test_b", "tests/test_a.py::test_a"]
+    assert ini["ini_options"]["testpaths"] == ["tests"]
+    assert not LEGACY_DIR.exists()
+    assert "octave-oracle-final" in (REPO_ROOT / "Makefile").read_text()
 
 
 class _Marked:
@@ -305,7 +291,7 @@ def _loop_test_cmd(path, monkeypatch):
 
 def test_gate_commands(monkeypatch):
     """loop0004 item 05: future loops default to the fixture-only gate (``make test``);
-    loop0004 and ``make legacy-check`` keep the strict live gate."""
+    loop0004 kept the strict live gate; since the freeze ``make legacy-check`` points at the tag."""
     loops = REPO_ROOT / "RalphLoops"
     template = _loop_test_cmd(loops / "loop_template" / "loop.py", monkeypatch)
     assert template.endswith('-m pytest -q -m "not slow and not octave" -n 16')
@@ -314,4 +300,5 @@ def test_gate_commands(monkeypatch):
         assert strict.endswith('-m pytest -q -m "not slow" -n 16')
     makefile = (REPO_ROOT / "Makefile").read_text()
     assert '$(PY) -m pytest -q -m "not slow and not octave" -n $(JOBS)' in makefile
-    assert 'RALPH_REQUIRE_OCTAVE=1 $(PY) -m pytest -q -m "not slow" -n $(JOBS)' in makefile
+    # the strict live gate only exists at the tag now (PLAN_LEGACY.md Phase 5)
+    assert "octave-oracle-final" in makefile.split("legacy-check:")[1]
