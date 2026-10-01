@@ -4,7 +4,7 @@ Things found during the translation that a reader of the results should know abo
 where the code disagrees with the paper, where Octave disagrees with MATLAB, where the search
 gives a surprising answer, and bugs in the original that change behaviour. This is the
 curated, high-level list. `KNOWN_ISSUES.md` (KI-n) holds the line-by-line entries with the
-decision taken for each and the test that pins it; `legacy/matlab/PATCHES.md` holds the edits made
+decision taken for each and the test that pins it; `legacy/matlab/PATCHES.md` (at the git tag `octave-oracle-final`; `legacy/` was removed from `main`) holds the edits made
 to the Octave copy of the sources.
 
 Rule for the project: every new anomaly gets an entry here in the iteration that finds it,

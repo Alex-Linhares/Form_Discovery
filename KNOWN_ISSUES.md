@@ -1,6 +1,6 @@
 # Known issues in formdiscovery1.0 and how the Python port handles them
 
-This file lists bugs and quirks in the original MATLAB code (`legacy/matlab/formdiscovery1.0/`)
+This file lists bugs and quirks in the original MATLAB code (`legacy/matlab/formdiscovery1.0/`, now only at the git tag `octave-oracle-final`)
 and records one decision for each:
 
 - **replicate**: the Python port behaves like the MATLAB code on every path the code can reach.
@@ -11,7 +11,7 @@ The default is *replicate* (PLAN.md §3.5, TASK.md "Faithful first").
 Each entry gives the source location, what goes wrong, whether any run can reach it,
 the decision, and the test that pins it. Tests marked *(item NN)* do not exist yet; the item
 that ports the function must add them under that name. Right now,
-`legacy/tests/test_known_issues_sources.py` checks that every quirk is still at the cited line
+`legacy/tests/test_known_issues_sources.py` (at the tag) checked that every quirk was at the cited line
 and `tests/test_known_issues.py` that every entry below is present with a decision and a pin.
 
 Octave-vs-MATLAB compatibility edits to the sources are documented separately in

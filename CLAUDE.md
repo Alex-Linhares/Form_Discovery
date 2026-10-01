@@ -1,58 +1,41 @@
 # Project notes for Claude sessions
 
 This repo is a test-driven translation of Kemp & Tenenbaum's `formdiscovery1.0` (MATLAB) to
-Python, verified against the original code running in GNU Octave.
+Python, verified against the original code running in GNU Octave. The Octave oracle has
+been **frozen and removed**: it exists only at the git tag `octave-oracle-final`
+(`legacy/FREEZE.md` there records versions and the final identical regeneration).
 
 Read first, in this order:
 - `PLAN.md`: the plan (test architecture, dependency-ordered steps, hazards, milestones).
 - `ANOMALIES.md`: the curated log of anomalies found (paper vs code, Octave vs MATLAB,
-  surprising results, original bugs). **Every new anomaly must be added here** in the
-  iteration that finds it, with a status of open / explained / handled.
+  surprising results, original bugs). **Every new anomaly must be added here** with a
+  status of open / explained / handled.
 - `KNOWN_ISSUES.md`: line-by-line entries (KI-n) with a decision (replicate / fix / not
-  ported) and the test that pins each one.
-- `legacy/matlab/PATCHES.md`: the only edits allowed to `legacy/matlab/formdiscovery1.0/`, each marked
-  `PATCH(octave)` in the source.
+  ported) and the test that pins each one. Its `file:line` citations refer to the MATLAB
+  sources at the tag.
 - `src/formdiscovery/CONVENTIONS.md`: index, ordering and dtype rules for the port.
+- `PLAN_LEGACY.md` (done), `PLAN_ARC_AGI_JS.md` (plan only).
 
-Work is driven by Ralph loops in `RalphLoops/loopNNNN/` (`TASK.md`, `iterations.md`,
-`PROGRESS.md`, `loop.py`); see `RalphLoops/ralph_loop_guide.md`. `loop0001` did the port,
-`loop0002` the Octave-backed parallel harness (before/after timings in README "How it was verified"),
-`loop0003` the PySide6 GUI: package `src/formdiscovery/gui/` (`app.py` `main()`, `main_window.py`,
-`dataset.py`, `worker.py` = `RunWorker` on a `QThread`, `canvas.py` = `GraphCanvas` (live frames, coalesced, stable neato positions), `stats.py` = `StatsPanel` (score + prior/likelihood parts, clusters, per-depth chart, export .npz/.json and PNG/SVG), `runs.py` = `RunQueue` (selected forms, N threads at once; `FormRun` + capped `FrameHistory` per form), `results.py` = `ResultsTable` (ranked by ll, winner, click a row; the window's frame slider scrubs a form's history), `dialogs.py` (non-blocking `error_box`; `gui_settings` = QSettings, last directory; `$FORMDISCOVERY_GUI_SETTINGS`, pointed at `tmp_path` by conftest's autouse fixture in `test_gui_*`); File/Run menus with shortcuts; README "GUI" section; `examples/gui/README.md`; `formdiscovery gui [FILE] [--demo]`; the only model hook is
-`search.run_hooks` (per-thread cancel / on_depth, off by default)), a thin shell over the port with offscreen pytest-qt tests
-(`tests/test_gui_*.py`, `QT_QPA_PLATFORM=offscreen` set in conftest) and screenshots in `examples/gui/`
-(`tools/gui_screenshots.py`).
+Layout: `src/formdiscovery/` (the port, CLI, `gui/` PySide6 app, `viz/`), `data/` (the 20
+data sets, MATLAB v5 `.mat`), `tests/` (fixture-based parity tests; `tests/fixtures/` holds
+the Octave-produced reference answers, hashed in `tests/fixtures/SHA256SUMS`), `tools/`
+(Python-side tools), `examples/` (notebook, GUI screenshots), `RalphLoops/` (the iteration
+loops that built all of this; `ralph_loop_guide.md`, `loop_template/loop.py`).
 
-Environment: conda env `fd` has Python, numpy/scipy, pygraphviz, pytest-xdist, PySide6 and pytest-qt
-(`environment.yml`, Python-only) plus Octave 10.3 and oct2py (`conda env update -f legacy/environment-octave.yml`;
-loop0004 item 04; `legacy/README.md`). Default gate (`make test`, loop0004 item 05):
-`~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow and not octave" -n 16` (about 1 min, fixture-only, no
-Octave or `legacy/` needed; `tests/test_fixture_integrity.py` checks every fixture against `tests/fixtures/SHA256SUMS`).
-Strict live gate (`make legacy-check`; loop0001–0004 ran it): `RALPH_REQUIRE_OCTAVE=1 ~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16`
-(about 6.5 min, one Octave per xdist worker; about 40 min without `-n`; tests write only to `tmp_path`, and a
-new file under `tests/` fails the run; in the fd env, or with `RALPH_REQUIRE_OCTAVE=1`, a skipped `octave` test is a failure;
-`RALPH_REQUIRE_OCTAVE=0` allows skips). Live Octave parity only: `-m octave` in the fd env. Long runs: `-m slow -n 16` in the fd env (about 9 min; heavy module
-fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are regenerated only through Octave
-(`legacy/tools/gen_fixtures.py`, `--jobs N` Octave processes at once, default cores/2; regenerate into
-`--outdir` with `--compare tests/fixtures` rather than over the committed files). Policy: a change that alters a
-fixture value needs the oracle rerun first (`make legacy-check` while `legacy/` exists; after the freeze, from the
-`octave-oracle-final` tag), then the fixture and its line in `tests/fixtures/SHA256SUMS` are updated in the same commit. Baselines:
-`legacy/tools/gen_baselines.py --kind feat|rel --jobs N --outdir D --compare tests/fixtures/baseline/<kind>`
-(one Octave per pair, then a merge). Octave vs Python side by side:
-`legacy/tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).
+Environment: conda env `fd` from `environment.yml` (Python-only: numpy/scipy, networkx,
+matplotlib, pygraphviz, PySide6, pytest-xdist, pytest-qt). No Octave is needed.
 
-Legacy: everything Octave-specific (MATLAB sources, shims, `run_baseline.m`, fixture scripts,
-Octave tools) is under `legacy/` (`legacy/matlab/`, `legacy/tests_octave/`, `legacy/tools/`);
-`tests/conftest.py` has one `LEGACY_DIR` and derives `MATLAB_DIR`, `SHIM_DIR`, `OCTAVE_TESTS_DIR`
-from it; tests import the tools as `legacy.tools.<name>` (loop0004 item 02). Tests that need the
-`.m` files or the Octave tools live in `legacy/tests/` (`testpaths = ["tests", "legacy/tests"]`,
-dropped by pytest when absent; `legacy/tests/conftest.py` re-exports `octave`, `replay` and the
-strict-mode hook); without `legacy/`, `octave` tests skip (fail in strict mode) and
-`-m "not slow and not octave"` runs with no Octave (loop0004 item 03).
+Gate: `make test` = `pytest -q -m "not slow and not octave" -n 16` (~1 min; the `octave`
+marker still exists and those tests skip). `make slow` for the long runs. `make
+fixture-sums` verifies every fixture hash; `tests/test_fixture_integrity.py` does the same
+inside the gate.
 
-Data: the 20 data sets live in `data/` (`io.DATA_DIR`, override `$FORMDISCOVERY_DATA`);
-`legacy/matlab/formdiscovery1.0/data` is a committed symlink to `../../../data` so `setps.m` still works
-(`legacy/matlab/PATCHES.md`, "Data symlink").
+**Fixture policy:** the committed fixtures are the oracle. A change that alters any fixture
+value must first be checked against the original code: check out `octave-oracle-final`,
+build its environment (`environment.yml` + `legacy/environment-octave.yml`), run
+`make legacy-check` and `legacy/tools/gen_fixtures.py --compare`, and only then update the
+fixture and `SHA256SUMS` on `main`, recording why in `ANOMALIES.md`.
 
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices
-converted only in `io.py`, quirks of the original replicated by default.
+converted only in `io.py`, quirks of the original replicated by default. Thread pinning:
+drivers limit BLAS to one thread (`threads.py`, ANOMALIES A16/A19).

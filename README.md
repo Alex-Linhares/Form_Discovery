@@ -190,6 +190,11 @@ results are unchanged). Screenshots, with a description of each: [`examples/gui/
 
 ## How it was verified
 
+> The Octave oracle has been frozen and removed from `main`. Everything below that
+> mentions `legacy/` (the MATLAB sources, the fixture scripts, the Octave tools) now lives
+> only at the git tag `octave-oracle-final`; `legacy/FREEZE.md` there records the
+> environment and the final verification. The committed fixtures remain the reference.
+
 - Every MATLAB function has an Octave fixture script in `legacy/tests_octave/` that runs the original
   code on real inputs and saves inputs and outputs to `tests/fixtures/*.mat`. The pytest
   suite compares the Python translation against those fixtures, so the tests run without
@@ -262,43 +267,29 @@ Before this work the gate ran under a Python without oct2py, so the live Octave 
 skipped; it now runs them all and fails if one is skipped.
 
 ```bash
-python -m pytest -q -m "not slow and not octave" -n 16   # default gate (make test): fixture-only, no Octave or legacy/ (~1 min)
+make test                             # default gate: fixture-only, no Octave (~1 min, 16 workers)
+python -m pytest -q -m "not slow and not octave" -n 16   # the same without make
 make fixture-sums                     # tests/fixtures against tests/fixtures/SHA256SUMS (also checked by the gate)
-make legacy-check                     # strict live gate: Octave runs, a skipped octave test fails (~6.5 min)
-~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow" -n 16   # the same, without make (fd env is strict by default)
-~/anaconda3/envs/fd/bin/python -m pytest -q -m "not slow"   # the same gate serially (~40 min)
-python -m pytest -q -m octave         # live Octave parity (fd env + legacy/environment-octave.yml)
-~/anaconda3/envs/fd/bin/python -m pytest -q -m slow -n 16   # long runs (~9 min)
-python legacy/tools/gen_fixtures.py          # regenerate all fixtures through Octave (cores/2 at once)
-python legacy/tools/gen_fixtures.py --outdir D --compare tests/fixtures   # regenerate elsewhere, compare
-python legacy/tools/gen_baselines.py --kind rel --outdir D --compare tests/fixtures/baseline/rel
-python legacy/tools/mat_compare.py A B       # compare two directories of .mat outputs by content
-python legacy/tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline pairs (~30 s)
+make slow                             # long runs (Python only)
+git checkout octave-oracle-final      # the frozen oracle: `make legacy-check`, legacy/tools/gen_fixtures.py --compare, ...
 ```
 
-## Legacy: the Octave oracle
+## The Octave oracle (frozen at a tag)
 
-The original MATLAB code, run in GNU Octave, is the reference the port was checked against.
-Everything it needs is under `legacy/`: the sources with their Octave patches
-(`legacy/matlab/`), the fixture scripts (`legacy/tests_octave/`), the generation and
-comparison tools (`legacy/tools/`), the tests that need them (`legacy/tests/`) and the
-environment file (`legacy/environment-octave.yml`). The package, the data and the
-committed fixtures do not depend on it: without `legacy/`, or without Octave,
-`python -m pytest -q -m "not slow and not octave" -n 16` runs every fixture-based test, and
-pytest skips `legacy/tests/`. `tests/fixtures/SHA256SUMS` pins every committed fixture
-(`tests/test_fixture_integrity.py`), so a fixture edited without the oracle fails the default
-gate. A change that alters a fixture value needs the oracle rerun first (`make legacy-check`
-and `legacy/tools/gen_fixtures.py --compare`; after the planned freeze, from the
-`octave-oracle-final` tag), and updates the fixture and its hash line together.
+The original MATLAB code, run in GNU Octave 10.3.0, is the reference the port was checked
+against. On 2026-10-01 it was frozen: the strict live gate passed (3866 tests), all 31
+fixtures and both baseline grids regenerated identical to the committed files, and the
+tree was tagged `octave-oracle-final`. The next commit removed `legacy/` from `main`.
+To reconstruct it:
 
 ```bash
-conda env update -f legacy/environment-octave.yml   # add Octave 10.3 and oct2py to env fd
-~/anaconda3/envs/fd/bin/python -m pytest -q -m octave -n 16   # live Octave parity
+git checkout octave-oracle-final
+conda env create -f environment.yml && conda env update -f legacy/environment-octave.yml
+make legacy-check                     # strict live-Octave gate
 ```
 
-`legacy/README.md` lists what is there, how to run the live suite and how to regenerate the
-fixtures and baselines. The plan (`PLAN_LEGACY.md`) is to freeze `legacy/` at a tag and then
-remove it from `main`.
+Policy since the freeze: a change that alters any fixture value must first be checked
+against the oracle at the tag, and the reason recorded in `ANOMALIES.md` (see `CLAUDE.md`).
 
 ## Layout
 
@@ -309,20 +300,13 @@ remove it from `main`.
 | `examples/` | `formdiscovery_demo.ipynb`: the masterrun demo end to end, with figures |
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
 | `data/` | The 20 data sets of the original (`*.mat`, `README.txt`); `io.DATA_DIR`, overridden by `$FORMDISCOVERY_DATA` |
-| `legacy/matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources (its `data` is a symlink to `../../../data`), plus 16 documented Octave-compatibility edits (`legacy/matlab/PATCHES.md`) |
-| `legacy/matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `legacy/tools/gen_baselines.py`) |
-| `legacy/tests_octave/` | The Octave fixture scripts (`fx_<name>.m`), spies and shims |
-| `legacy/tests/` | pytest tests that need the MATLAB sources or the Octave tools (patches, toolchain, the `legacy/tools` scripts, KNOWN_ISSUES line pins); collected only when `legacy/` exists (`testpaths`, `legacy/tests/conftest.py`) |
-| `legacy/environment-octave.yml` | Adds Octave and oct2py (pinned) to the Python-only `environment.yml` env |
-| `legacy/README.md` | What is under `legacy/`, how to run the live suite and regenerate fixtures and baselines |
-| `legacy/tools/` | Octave-driven tools: fixture and baseline generation (`gen_fixtures.py`, `gen_baselines.py`, `gen_paperlevel.py`), Octave vs Python side by side (`compare_live.py`), `.mat` content comparison (`mat_compare.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
-| `tests/` | Fixtures (produced by `legacy/tests_octave/`, hashes in `tests/fixtures/SHA256SUMS`), pytest parity tests, Octave baselines |
-| `Makefile` | `make test` (default fixture-only gate), `make legacy-check` (strict live gate), `make slow`, `make fixture-sums` |
-| `environment.yml`, `pyproject.toml` | Python-only conda env `fd`; package metadata and extras (`test`, `gui`, `graphviz`, `interactive`, `notebook`; `octave` = oct2py, legacy only) |
-| `tools/` | Python-side tools: true-graph score comparison (`compare_runs.py`), benchmark (`bench_perf.py`; `--live` needs `legacy/`), notebook, GUI screenshots and viz baselines |
-| `PLAN.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
+| `tests/` | Fixture-based parity tests; `tests/fixtures/` holds the Octave-produced reference answers (hashes in `tests/fixtures/SHA256SUMS`) and the Octave baselines |
+| `Makefile` | `make test` (default fixture-only gate), `make slow`, `make fixture-sums`; `make legacy-check` points at the tag |
+| `environment.yml`, `pyproject.toml` | Python-only conda env `fd`; package metadata and extras (`test`, `gui`, `graphviz`, `interactive`, `notebook`) |
+| `tools/` | Python-side tools: true-graph score comparison (`compare_runs.py`), benchmark (`bench_perf.py`; `--live` needs the tag), notebook, GUI screenshots |
+| `PLAN.md`, `PLAN_LEGACY.md`, `PLAN_ARC_AGI_JS.md` | The translation plan: test architecture, dependency-ordered steps, hazards, milestones |
 | `RalphLoops/` | The fresh-context iteration loops that carried out the plan (`loop_template/loop.py` for new loops, fixture-only gate) |
 
 ## Conventions
