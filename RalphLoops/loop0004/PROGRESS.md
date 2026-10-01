@@ -3,7 +3,7 @@
 ## Ralph Loop 0004 Status
 - **Started**: 2026-10-01
 - **Target**: 6 items (see iterations.md)
-- **Current**: 5/6 SOLVED
+- **Current**: 6/6 SOLVED
 
 ---
 
@@ -217,3 +217,41 @@
 - Item 06: wrap-up (grep audit, strict + fixture-only gates in fd env and base interpreter
   and without `legacy/`, slow suite, `legacy/README.md` final, PLAN_LEGACY.md M1–M3 with
   numbers: M3 = 52 s fixture-only, `make legacy-check` green 3866 passed).
+
+## Iteration 6 — 2026-10-01 18:59
+### Completed
+- Item 06 (wrap-up). Grep audit (outside RalphLoops history, PLAN*.md, KNOWN_ISSUES.md):
+  `tests/octave`, unprefixed `matlab/`, the old data path, `tools/<moved tool>` /
+  `tools.<moved tool>`, and the moved test files without `legacy/` turned up no stale
+  references. The only hits are historical by design: the ANOMALIES A31/A33 text, the
+  PATCHES.md diff headers and its note on the `dot_to_graph.m` comment (not editable),
+  the A32 docstrings in `gen_baselines`, and `legacy/README.md` paths, which are relative
+  to `legacy/`.
+- Gates (fd env unless noted, logs in `build/loop0004_it6/`):
+  - strict live gate (`RALPH_REQUIRE_OCTAVE=1 -m "not slow" -n 16`): 3866 passed,
+    3 skipped, 379 s;
+  - fixture-only `make test`: 3792 passed, 3 skipped, 50 s;
+  - fixture-only under the base interpreter (`~/anaconda3/bin/python`, no oct2py;
+    pytest-xdist from a throwaway `--system-site-packages` venv): 3521 passed,
+    189 skipped, 40 s;
+  - copy of the tree with `legacy/` deleted: fd env 3696 passed, 4 skipped, 50 s; base
+    interpreter 3426 passed, 189 skipped, 45 s; `-m octave` errors under
+    `RALPH_REQUIRE_OCTAVE=1` and skips 65 under `=0`;
+  - slow suite (`-m slow -n 16`, strict): 79 passed, 1 skipped, 562 s. This time the
+    perf budget test passed too.
+- Counts in `legacy/README.md` checked by collection: 74 `octave` tests in the default gate,
+  3 under `slow`, 38 files. `legacy/README.md` is final: it now also records the
+  no-`legacy/` results.
+- `PLAN_LEGACY.md`: the status line says Phases 1–3 are done; the milestones table has a
+  Status column, with M1–M3 ticked and their numbers, and M4–M5 open.
+- Items 01–05 re-checked in the tree: the `data/` symlink (mode 120000, `../../../data`);
+  `io.DATA_DIR` with the env override; the `legacy/` layout; `environment.yml` (Octave
+  only in comments); `make fixture-sums` clean; `loop_template/loop.py`; the CLAUDE.md
+  policy line. No file under `tests/fixtures/` modified. No new anomaly.
+### Blockers
+- None.
+### Next
+- Loop complete. Phases 4–5 (freeze, tag `octave-oracle-final`, delete `legacy/`) are a
+  later loop.
+
+LOOP_COMPLETE

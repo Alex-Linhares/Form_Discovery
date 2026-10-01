@@ -43,7 +43,7 @@ Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
       fixture-only default (`loop0004/loop.py` itself stays strict). Add the post-freeze
       policy line to CLAUDE.md ("a change that alters a fixture value needs the oracle rerun
       from the tag first").
-- [ ] 06. **Wrap-up.** Grep audit for stale paths; run the strict gate, the fixture-only gate
+- [x] 06. **Wrap-up.** Grep audit for stale paths; run the strict gate, the fixture-only gate
       (fd env and base interpreter), and the `slow` suite; `legacy/README.md` final;
       PLAN_LEGACY.md M1–M3 ticked with the numbers; then verify every item above, update the
       status header and add the completion line.

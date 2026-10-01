@@ -1,6 +1,6 @@
 # Plan: move the MATLAB/Octave code to `legacy/`, then delete it
 
-Status: plan only. Date: 2026-10-01.
+Status: Phases 1–3 done (loop0004, 2026-10-01; M1–M3 below); Phases 4–5 pending. Date: 2026-10-01.
 
 ## Goal
 
@@ -89,13 +89,13 @@ tests green.
 
 ## Milestones
 
-| # | Done when |
-|---|---|
-| M1 | Data in `data/`; live gate green; MATLAB side runs through the symlink |
-| M2 | `legacy/` holds all Octave material; gate green with and without `RALPH_REQUIRE_OCTAVE` |
-| M3 | Default gate is fixture-only and under 2 minutes; fixture hashes verified; `make legacy-check` green |
-| M4 | `legacy/FREEZE.md`, tag and release tarball exist; final regeneration identical |
-| M5 | `legacy/` removed from `main`; docs and env updated; gate green |
+| # | Done when | Status |
+|---|---|---|
+| M1 | Data in `data/`; live gate green; MATLAB side runs through the symlink | [x] loop0004 item 01: live `run_baseline('feat', 2, 1)` and a fixture regeneration identical through `legacy/matlab/formdiscovery1.0/data -> ../../../data` |
+| M2 | `legacy/` holds all Octave material; gate green with and without `RALPH_REQUIRE_OCTAVE` | [x] items 02–04: strict gate 3866 passed, 3 skipped; without `legacy/`: `RALPH_REQUIRE_OCTAVE=0` skips the 65 remaining `octave` tests, `=1` fails them |
+| M3 | Default gate is fixture-only and under 2 minutes; fixture hashes verified; `make legacy-check` green | [x] items 05–06: `make test` 3792 passed, 3 skipped, 50 s (fd env); base interpreter (no oct2py) 3521 passed, 189 skipped, 40 s; without `legacy/` 3696 passed (fd) and 3426 passed (base); `tests/fixtures/SHA256SUMS` (115 files) checked by `tests/test_fixture_integrity.py`; `make legacy-check` 3866 passed, 3 skipped, 379 s; `-m slow -n 16` (strict) 79 passed, 1 skipped, 562 s |
+| M4 | `legacy/FREEZE.md`, tag and release tarball exist; final regeneration identical | [ ] |
+| M5 | `legacy/` removed from `main`; docs and env updated; gate green | [ ] |
 
 Phases 1–3 are one Ralph loop (about five items). Phases 4–5 are a second, short loop to be
 run when the decision to delete is final.

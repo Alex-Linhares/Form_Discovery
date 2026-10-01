@@ -51,6 +51,10 @@ fixture-only command; `make legacy-check` is the explicit job, run before any fi
 touched and for any change under `legacy/`.
 
 Without `legacy/` (or without Octave) the `octave` tests skip, or fail in strict mode.
+Checked at the end of loop0004 (item 06) in a copy of the tree with `legacy/` deleted: the
+default gate passes in the fd env (3696 passed) and under a base interpreter without
+oct2py (3426 passed); with `legacy/` present the counts are 3792 and 3521, the difference
+being the non-`octave` tests in `legacy/tests/`.
 
 ## Regenerating fixtures and baselines
 
