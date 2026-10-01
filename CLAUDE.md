@@ -35,5 +35,9 @@ fixtures shared across workers with `tests/helpers.xdist_shared`). Fixtures are 
 (one Octave per pair, then a merge). Octave vs Python side by side:
 `tools/compare_live.py [--pairs S:D[:SEED] ...] --jobs N` (default: the 63 baseline pairs).
 
+Data: the 20 data sets live in `data/` (`io.DATA_DIR`, override `$FORMDISCOVERY_DATA`);
+`matlab/formdiscovery1.0/data` is a committed symlink to `../../data` so `setps.m` still works
+(`matlab/PATCHES.md`, "Data symlink").
+
 Conventions: MATLAB names kept in snake_case, docstrings cite source lines, 0-based indices
 converted only in `io.py`, quirks of the original replicated by default.

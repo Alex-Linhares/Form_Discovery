@@ -40,7 +40,7 @@ dnames = {'demo_chain_feat', 'demo_ring_feat', 'demo_tree_feat', 'demo_ring_rel_
           'demo_order_rel_freq', 'demo_hierarchy_rel_bin'};
 adjs = {}; adjnames = {};
 for k = 1:numel(dnames)
-  d = load(fullfile(root, 'matlab', 'formdiscovery1.0', 'data', [dnames{k} '.mat']));
+  d = load(fullfile(root, 'data', [dnames{k} '.mat']));
   adjs{end + 1} = double(d.adj); adjnames{end + 1} = [dnames{k} '.adj'];
   if isfield(d, 'W')
     adjs{end + 1} = double(d.W); adjnames{end + 1} = [dnames{k} '.W'];

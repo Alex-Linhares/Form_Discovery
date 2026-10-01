@@ -119,6 +119,15 @@ tree / `undirhierarchy` entries in `tests/test_baseline.py` and `tests/test_base
 first on `PATH` (or activate the env) before running any display code. Display is off
 (`ps.show*=0`) in all baseline runs.
 
+## Data symlink (not a source patch)
+
+The data sets live in the repo's `data/` (loop0004 item 01), owned by the Python package
+(`io.DATA_DIR`). `setps.m` builds `ps.dlocs` from `[pwd '/data/']`, and `run_baseline.m`
+and the fixture scripts `cd` into `formdiscovery1.0/` before calling it, so
+`matlab/formdiscovery1.0/data` is a committed relative symlink to `../../data`. Octave
+follows it; no `.m` file was edited. A checkout without symlink support (`core.symlinks`
+false) gets a text file instead, and the MATLAB side then cannot find its data.
+
 ## Test shims (not a source patch)
 
 `matlab/octave_shims/` (item 22) holds `randperm.m` and `randperm_config.m`. They leave

@@ -6,7 +6,7 @@ Usage::
 
     formdiscovery run --structures chain,ring,tree --datasets 1,2,3 --seed 1 --out results/
     formdiscovery draw results/resultsdemo.npz --out fig.png
-    formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat
+    formdiscovery gui data/demo_chain_feat.mat
     python -m formdiscovery run ...
 
 ``--structures`` and ``--datasets`` take names or MATLAB's 1-based indices into

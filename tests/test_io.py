@@ -33,6 +33,30 @@ def test_every_dataset_is_covered():
     assert len(names) == 20
 
 
+def test_data_dir_is_repo_data_and_matlab_side_links_to_it():
+    """loop0004 item 01: the data sets live in ``data/`` at the repo root
+    (``$FORMDISCOVERY_DATA`` overrides); the MATLAB tree reaches them through the
+    relative symlink ``matlab/formdiscovery1.0/data -> ../../data`` (PATCHES.md)."""
+    import os
+    import subprocess
+    import sys
+
+    from formdiscovery.io import REPO_ROOT
+
+    if "FORMDISCOVERY_DATA" not in os.environ:
+        assert DATA_DIR == REPO_ROOT / "data"
+    link = REPO_ROOT / "matlab" / "formdiscovery1.0" / "data"
+    if link.parent.is_dir():
+        assert link.is_symlink() and os.readlink(link) == "../../data"
+        assert link.resolve() == (REPO_ROOT / "data").resolve()
+    code = "from formdiscovery.io import DATA_DIR; print(DATA_DIR)"
+    env = dict(os.environ, FORMDISCOVERY_DATA="/x/y",
+               PYTHONPATH=os.pathsep.join([str(REPO_ROOT / "src"), os.environ.get("PYTHONPATH", "")]))
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True,
+                         text=True, check=True).stdout.strip()
+    assert out == "/x/y"
+
+
 @pytest.mark.parametrize("name", sorted(FEATURE_SHAPES))
 def test_feature_and_similarity_sets(name):
     data = load_dataset(name)

@@ -111,6 +111,32 @@ def test_run_tasks_failure_skips_dependents(monkeypatch, tmp_path):
     assert "skipped" in text and "--jobs 8" in text
 
 
+def test_publish_across_file_systems(monkeypatch, tmp_path):
+    """``--outdir`` on another file system than the temporary directory (loop0004 item
+    01): the first ``os.replace`` fails with EXDEV, ``_publish`` copies then renames."""
+    import errno
+    import os
+
+    real = os.replace
+    calls = []
+
+    def replace(a, b):
+        calls.append((str(a), str(b)))
+        if len(calls) == 1:
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        return real(a, b)
+
+    monkeypatch.setattr(gf.os, "replace", replace)
+    src = tmp_path / "stage" / "x.mat"
+    src.parent.mkdir()
+    src.write_bytes(b"abc")
+    out = tmp_path / "out" / "x.mat"
+    gf._publish(src, out)
+    assert out.read_bytes() == b"abc" and not src.exists()
+    assert calls[1] == (f"{out}.part", str(out))
+    assert sorted(p.name for p in out.parent.iterdir()) == ["x.mat"]
+
+
 def test_compare_fixture_volatile(tmp_path):
     """Timing fields are skipped, temp directory names are masked, anything else counts."""
     def rec(t, msg, ll):

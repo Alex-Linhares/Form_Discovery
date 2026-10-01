@@ -3,7 +3,7 @@
 Legend: `[ ]` pending · `[x]` solved · `[~]` blocked (details in PROGRESS.md).
 Work on the first `[ ]` item only. Phase numbers refer to `/PLAN_LEGACY.md`.
 
-- [ ] 01. **Data out (Phase 1).** `git mv matlab/formdiscovery1.0/data data` (the 20 `.mat`
+- [x] 01. **Data out (Phase 1).** `git mv matlab/formdiscovery1.0/data data` (the 20 `.mat`
       files and `data/README.txt`); `io.DATA_DIR = REPO_ROOT/"data"` (env override kept);
       update `params` (`ps.dlocs`), the GUI default directory and `--demo`, every tool and
       test that spelled the old path. Add the relative symlink

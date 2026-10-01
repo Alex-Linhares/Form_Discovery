@@ -39,7 +39,7 @@ truesets = {'demo_chain_feat', 'demo_ring_feat', 'demo_tree_feat', 'demo_ring_re
             'synthchain', 'synthring', 'synthtree', 'synthgrid'};
 runs = {};
 for t = truesets
-  d = load(fullfile(root, 'matlab', 'formdiscovery1.0', 'data', [t{1} '.mat']), 'adj');
+  d = load(fullfile(root, 'data', [t{1} '.mat']), 'adj');
   runs{end + 1} = {['true ' t{1}], full(double(d.adj)), {}};
 end
 for kind = {'feat', 'rel'}

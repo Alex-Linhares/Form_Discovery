@@ -14,7 +14,7 @@ import numpy as np
 from scipy.io import loadmat
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = Path(os.environ.get("FORMDISCOVERY_DATA", REPO_ROOT / "matlab" / "formdiscovery1.0" / "data"))
+DATA_DIR = Path(os.environ.get("FORMDISCOVERY_DATA", REPO_ROOT / "data"))
 FIXTURES_DIR = Path(os.environ.get("FORMDISCOVERY_FIXTURES", REPO_ROOT / "tests" / "fixtures"))
 
 

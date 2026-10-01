@@ -22,7 +22,7 @@ that a line of Python can be matched to its `.m` source and compared with Octave
   so functions that change it return a changed copy (`Params.copy()`/`Params.replace()`,
   deep copies). `ps.logps` is a list of 10 1-D arrays, so `ps.logps{i}(n)` is
   `ps.logps[i-1][n-1]`. `setrunps` takes a 0-based `dind`. `setps` builds `dlocs` from
-  `io.DATA_DIR`, not from `pwd`.
+  `io.DATA_DIR` (the repo's `data/`), not from `pwd`.
 - The chunk fields of `ps.runps` (`featind`, `objind`, `chunksize`, `chunkSS`; item 10,
   `preprocess.makechunks`) are Python lists with one entry per chunk, in the lexicographic
   order of `unique(~isinf(data)', 'rows')`. `featind`/`objind` entries are 0-based int

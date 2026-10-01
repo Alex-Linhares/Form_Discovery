@@ -43,7 +43,7 @@ out.urows_A = R;
 [b, i, j] = unique(R, 'rows', 'first'); out.urows_b = b; out.urows_i_first = i; out.urows_j = j;
 [b, i, j] = unique(R, 'rows', 'last');  out.urows_i_last = i;
 % the real call site: scaledata.m:51 on judges (inf = missing)
-load(fullfile(here, '..', '..', 'matlab', 'formdiscovery1.0', 'data', 'judges.mat'));
+load(fullfile(here, '..', '..', 'data', 'judges.mat'));
 datamask = ~isinf(double(data));
 [b, i, j] = unique(datamask', 'rows');
 out.judges_b = double(b); out.judges_j = j;

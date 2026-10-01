@@ -10,7 +10,7 @@ function fx_masterrun(outfile)
 % Headless: a system.m shim answers masterrun's `which neato` probe (masterrun.m:15)
 % with "not found", so the ps.show* flags stay 0; every other command goes to the
 % built-in. setps builds ps.dlocs from pwd, so the temporary directory gets a `data`
-% symlink to matlab/formdiscovery1.0/data. save_default_options('-v7') makes
+% symlink to the repo's data/. save_default_options('-v7') makes
 % masterrun's own resultsdemo.mat readable by scipy.
 %
 % Saved: logtext, gl, cns; the variables of the resultsdemo.mat that masterrun wrote
@@ -30,7 +30,7 @@ more off;
 tmp = tempname(); mkdir(tmp);
 lg = fullfile(tmp, 'log.txt');
 work = fullfile(tmp, 'work'); mkdir(work);
-symlink(fullfile(mdir, 'data'), fullfile(work, 'data'));
+symlink(canonicalize_file_name(fullfile(root, 'data')), fullfile(work, 'data'));
 
 spydir = tempname(); mkdir(spydir);
 rename(mdir, spydir, 'graph_like', 'function [logI graph] = graph_like(', ...

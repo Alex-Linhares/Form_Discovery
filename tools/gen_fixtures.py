@@ -39,9 +39,11 @@ Octave is found as in ``tests/conftest.py`` (``$OCTAVE_EXECUTABLE``, the ``fd`` 
 """
 
 import argparse
+import errno
 import os
 import re
 import resource
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,8 +128,18 @@ def _run_octave(exe, name, call, logfile):
 
 
 def _publish(tmpfile, outfile):
+    """Move ``tmpfile`` to ``outfile`` atomically, also when ``outfile`` is on another
+    file system than the temporary directory (copy next to it first, then rename)."""
     Path(outfile).parent.mkdir(parents=True, exist_ok=True)
-    os.replace(tmpfile, outfile)
+    try:
+        os.replace(tmpfile, outfile)
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+        part = f"{outfile}.part"
+        shutil.copyfile(tmpfile, part)
+        os.replace(part, outfile)
+        os.unlink(tmpfile)
 
 
 def run_one(exe, name, script, outdir, logfile=None):

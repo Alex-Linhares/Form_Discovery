@@ -148,7 +148,7 @@ A PySide6 desktop app (`pip install -e .[gui]`; in the fd env it is already inst
 
 ```bash
 formdiscovery gui                                                  # pick a file with "Open data file…"
-formdiscovery gui matlab/formdiscovery1.0/data/demo_chain_feat.mat # start with a data set loaded
+formdiscovery gui data/demo_chain_feat.mat                         # start with a data set loaded
 formdiscovery gui --demo                                           # open demo_chain_feat and run chain
 ```
 
@@ -276,7 +276,8 @@ python tools/compare_live.py --jobs 16   # Octave vs Python on the 63 baseline p
 | `src/formdiscovery/viz/` | Display: `dot.py` (DOT text), `pygraphviz_backend.py` + `graph_draw.py` (draw_dot's layout and drawing), `draw.py` (the `draw_dot` facade, progress figures, results), `networkx_backend.py` (conversion, exports), `plotly_backend.py`, `pyvis_backend.py`, `interactive.py` |
 | `examples/` | `formdiscovery_demo.ipynb`: the masterrun demo end to end, with figures |
 | `src/formdiscovery/CONVENTIONS.md` | Index, ordering and dtype rules used throughout the port |
-| `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources and data, plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
+| `data/` | The 20 data sets of the original (`*.mat`, `README.txt`); `io.DATA_DIR`, overridden by `$FORMDISCOVERY_DATA` |
+| `matlab/formdiscovery1.0/` | Verbatim copy of the original MATLAB sources (its `data` is a symlink to `../../data`), plus 16 documented Octave-compatibility edits (`matlab/PATCHES.md`) |
 | `matlab/run_baseline.m` | Headless Octave reproduction of `masterrun` used to produce the baseline fixtures (`baseline_merge.m` merges per-pair runs for `tools/gen_baselines.py`) |
 | `ANOMALIES.md` | Curated log of anomalies found: paper vs code, Octave vs MATLAB, surprising results, original bugs, each with a status |
 | `KNOWN_ISSUES.md` | Bugs and quirks of the original and how the port treats each one (replicate, fix, or not ported) |
