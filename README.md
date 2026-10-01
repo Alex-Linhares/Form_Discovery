@@ -255,3 +255,5 @@ writes to an explicit output directory instead of changing the working directory
 Original MATLAB code: Charles Kemp (2008), with contributions from Kevin Murphy (BNT),
 Thomas Minka (lightspeed), Leon Peshkin (Graphviz interface), Carl Rasmussen, John Burkardt,
 and Michael Kay, as listed in the original `README.txt`.
+
+Translation by Alex Linhares using Claude Code. 
