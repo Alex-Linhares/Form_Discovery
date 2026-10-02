@@ -4,7 +4,7 @@ Status: plan only. Date: 2026-10-01.
 
 ## Goal
 
-A single, dependency-free TypeScript module, published to npm and usable from the browser or
+A single, dependency-free TypeScript module, **never published anywhere** (especially not npm) and usable from the browser or
 Node, that takes a small set of entities (ARC objects, cells, colours, or game states) and
 returns the structural form that best organises them, the graph of that form, and a score:
 
